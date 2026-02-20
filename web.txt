@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Student Academic Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-blue": "#1E3A8A",
+                        "accent-yellow": "#FACC15",
+                        "bg-light": "#F8FAFC",
+                        "card-border": "#E2E8F0",
+                        "status-green": "#16A34A",
+                        "status-yellow": "#D97706",
+                    },
+                    fontFamily: {
+                        "poppins": ["Poppins", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "8px": "8px"
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #F8FAFC;
+        }
+        .card {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .btn-primary {
+            background-color: #1E3A8A;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        .nav-tab-active {
+            color: #FFFFFF;
+            background-color: #1E3A8A;
+            border-bottom: 4px solid #FACC15;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800">
+<header class="bg-white border-b border-card-border sticky top-0 z-50">
+<div class="max-w-[1100px] mx-auto px-4 h-20 flex items-center justify-between">
+<h1 class="text-[28px] font-semibold text-primary-blue">Student Dashboard</h1>
+<div class="flex items-center gap-3 cursor-pointer group">
+<div class="text-right">
+<p class="text-sm font-semibold leading-none">Alex Thompson</p>
+<p class="text-xs text-slate-500 mt-1">Semester 5 • Computer Science</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border border-card-border">
+<span class="material-symbols-outlined text-primary-blue">account_circle</span>
+</div>
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary-blue transition-colors">expand_more</span>
+</div>
+</div>
+<div class="w-full h-[2px] bg-accent-yellow"></div>
+</header>
+<main class="max-w-[1100px] mx-auto px-4 py-8">
+<section class="card">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary-blue">filter_alt</span>
+<h2 class="text-lg font-semibold">Select Subject</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-slate-600">Course</label>
+<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue">
+<option>B.Tech Computer Science</option>
+<option>B.Sc Mathematics</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-slate-600">Semester</label>
+<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue">
+<option>Semester 5</option>
+<option>Semester 6</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-slate-600">Subject Code</label>
+<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue">
+<option>CS501 - Operating Systems</option>
+<option>CS502 - Database Management</option>
+<option>CS503 - Computer Networks</option>
+</select>
+</div>
+</div>
+</section>
+<section class="card">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+<div class="flex border border-card-border rounded-md overflow-hidden w-fit">
+<button class="px-6 py-2 text-sm font-semibold nav-tab-active">Official Notes</button>
+<button class="px-6 py-2 text-sm font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors">Unofficial Notes</button>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary-blue text-white rounded-md text-sm font-medium">
+<span class="material-symbols-outlined text-sm">upload</span>
+                    Upload Notes
+                </button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left text-sm">
+<thead class="bg-slate-50 border-y border-card-border">
+<tr>
+<th class="px-4 py-3 font-semibold text-slate-600">Title</th>
+<th class="px-4 py-3 font-semibold text-slate-600">Chapter</th>
+<th class="px-4 py-3 font-semibold text-slate-600">Faculty / Author</th>
+<th class="px-4 py-3 font-semibold text-slate-600">Date</th>
+<th class="px-4 py-3 font-semibold text-slate-600">Status</th>
+<th class="px-4 py-3 text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-card-border">
+<tr>
+<td class="px-4 py-4 font-medium">Memory Management Overview</td>
+<td class="px-4 py-4">Chapter 4</td>
+<td class="px-4 py-4 text-slate-500">Dr. Robert Wilson</td>
+<td class="px-4 py-4 text-slate-500">Oct 12, 2023</td>
+<td class="px-4 py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-status-green">Verified</span>
+</td>
+<td class="px-4 py-4 text-right">
+<button class="btn-primary text-xs">Download</button>
+</td>
+</tr>
+<tr>
+<td class="px-4 py-4 font-medium">Process Synchronization</td>
+<td class="px-4 py-4">Chapter 3</td>
+<td class="px-4 py-4 text-slate-500">Dr. Robert Wilson</td>
+<td class="px-4 py-4 text-slate-500">Oct 05, 2023</td>
+<td class="px-4 py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-status-yellow">Pending</span>
+</td>
+<td class="px-4 py-4 text-right">
+<button class="btn-primary text-xs">Download</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section class="card">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary-blue">menu_book</span>
+<h2 class="text-lg font-semibold">Recommended Textbooks</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="flex items-center justify-between p-4 border border-card-border rounded-lg bg-slate-50/50">
+<div>
+<h3 class="font-semibold text-slate-800">Operating System Concepts</h3>
+<p class="text-xs text-slate-500 mt-1">Silberschatz, Galvin, Gagne • 10th Edition</p>
+</div>
+<button class="material-symbols-outlined p-2 text-primary-blue hover:bg-blue-50 rounded-full transition-colors">download</button>
+</div>
+<div class="flex items-center justify-between p-4 border border-card-border rounded-lg bg-slate-50/50">
+<div>
+<h3 class="font-semibold text-slate-800">Modern Operating Systems</h3>
+<p class="text-xs text-slate-500 mt-1">Andrew S. Tanenbaum • 4th Edition</p>
+</div>
+<button class="material-symbols-outlined p-2 text-primary-blue hover:bg-blue-50 rounded-full transition-colors">download</button>
+</div>
+</div>
+</section>
+<section class="card">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary-blue">assignment</span>
+<h2 class="text-lg font-semibold">Recent Assignments</h2>
+</div>
+<div class="space-y-3">
+<div class="flex flex-col md:flex-row md:items-center justify-between p-4 border border-card-border rounded-lg bg-white">
+<div class="flex gap-4 items-start">
+<div class="bg-yellow-50 text-accent-yellow p-2 rounded-md">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div>
+<h3 class="font-semibold">Implement Multi-threaded Scheduler</h3>
+<p class="text-xs text-slate-500">Subject: CS501 • 15th Nov 2023</p>
+</div>
+</div>
+<div class="mt-4 md:mt-0 flex items-center gap-6">
+<div class="text-right">
+<p class="text-[10px] uppercase tracking-wider font-bold text-status-yellow">Due in 2 Days</p>
+<span class="inline-block px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">Not Submitted</span>
+</div>
+<button class="btn-primary text-xs">View Brief</button>
+</div>
+</div>
+<div class="flex flex-col md:flex-row md:items-center justify-between p-4 border border-card-border rounded-lg bg-white">
+<div class="flex gap-4 items-start">
+<div class="bg-blue-50 text-primary-blue p-2 rounded-md">
+<span class="material-symbols-outlined">check_circle</span>
+</div>
+<div>
+<h3 class="font-semibold">Memory Mapping Lab Report</h3>
+<p class="text-xs text-slate-500">Subject: CS501 • 01st Nov 2023</p>
+</div>
+</div>
+<div class="mt-4 md:mt-0 flex items-center gap-6">
+<div class="text-right">
+<p class="text-[10px] uppercase tracking-wider font-bold text-status-green">Completed</p>
+<span class="inline-block px-3 py-1 bg-green-100 text-status-green rounded-full text-xs font-semibold">Submitted</span>
+</div>
+<button class="px-4 py-2 border border-card-border text-slate-600 rounded-md text-xs font-medium hover:bg-slate-50">Review</button>
+</div>
+</div>
+<div class="flex flex-col md:flex-row md:items-center justify-between p-4 border border-card-border rounded-lg bg-white">
+<div class="flex gap-4 items-start">
+<div class="bg-green-50 text-status-green p-2 rounded-md">
+<span class="material-symbols-outlined">grade</span>
+</div>
+<div>
+<h3 class="font-semibold">CPU Scheduling Quiz</h3>
+<p class="text-xs text-slate-500">Subject: CS501 • 25th Oct 2023</p>
+</div>
+</div>
+<div class="mt-4 md:mt-0 flex items-center gap-6">
+<div class="text-right">
+<p class="text-sm font-bold text-primary-blue">Grade: A+</p>
+<span class="inline-block px-3 py-1 bg-blue-100 text-primary-blue rounded-full text-xs font-semibold">Graded</span>
+</div>
+<button class="px-4 py-2 border border-card-border text-slate-600 rounded-md text-xs font-medium hover:bg-slate-50">Details</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<footer class="max-w-[1100px] mx-auto px-4 pb-12">
+<div class="pt-8 border-t border-card-border flex flex-col md:flex-row justify-between items-center gap-4">
+<p class="text-xs text-slate-400">© 2024 University Academic Digital Repository</p>
+<div class="flex gap-6">
+<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">Help Center</a>
+<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">Privacy Policy</a>
+<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">Support</a>
+</div>
+</div>
+</footer>
+
+</body></html>
