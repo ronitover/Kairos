@@ -36,11 +36,6 @@ type RoutePath =
   | '/assignment_result'
   | '/unofficial_notes'
 
-const links = [
-  { label: 'Help Center', href: '#' },
-  { label: 'Support', href: '#' },
-]
-
 type UploadStatus = 'verified' | 'pending' | 'rejected'
 
 type UploadedNote = {
@@ -80,6 +75,8 @@ type DepartmentNotice = {
   content: string
   createdAt: string
   author: string
+  authorRole: 'admin' | 'faculty'
+  urgent: boolean
 }
 
 const defaultDepartmentNotices: DepartmentNotice[] = [
@@ -89,6 +86,8 @@ const defaultDepartmentNotices: DepartmentNotice[] = [
     content: 'Exam timetable for all 4th and 6th semester students is now available in the portal.',
     createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
     author: 'Admin Office',
+    authorRole: 'admin',
+    urgent: true,
   },
   {
     id: 'notice-2',
@@ -96,6 +95,8 @@ const defaultDepartmentNotices: DepartmentNotice[] = [
     content: 'Department library will remain open until 8:00 PM during project submission week.',
     createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
     author: 'Library Coordinator',
+    authorRole: 'admin',
+    urgent: false,
   },
 ]
 
@@ -489,13 +490,9 @@ function normalizePath(pathname: string): RoutePath {
 function HomeScreen({
   onStudentLogin,
   onFacultyLogin,
-  onAdminLogin,
-  notices,
 }: {
   onStudentLogin: () => void
   onFacultyLogin: () => void
-  onAdminLogin: () => void
-  notices: DepartmentNotice[]
 }) {
   return (
     <>
@@ -507,8 +504,8 @@ function HomeScreen({
             <span className="material-symbols-outlined icon-school">school</span>
           </div>
 
-          <h1 className="home-title">Department Academic Repository</h1>
-          <p className="subtitle">Digital Learning &amp; Resource Portal</p>
+          <h1 className="home-title">StudySync</h1>
+          <p className="subtitle">Because Knowledge should never <br/> be hard to find!</p>
 
           <div className="action-group">
             <button type="button" className="login-button" onClick={onStudentLogin}>
@@ -523,37 +520,8 @@ function HomeScreen({
           </div>
 
           <div className="utility-links">
-            <button type="button" className="admin-link admin-button" onClick={onAdminLogin}>
-              Admin Login
-            </button>
-
-            <nav className="help-nav" aria-label="Help and support links">
-              {links.map((link, index) => (
-                <div key={link.label} className="help-link-group">
-                  <a href={link.href}>{link.label}</a>
-                  {index < links.length - 1 ? <span aria-hidden="true">•</span> : null}
-                </div>
-              ))}
-            </nav>
           </div>
 
-          <section className="home-circulars" aria-label="Department Circulars">
-            <div className="home-circulars-head">
-              <h2>Department Circulars</h2>
-              <span>Latest updates</span>
-            </div>
-            <div className="home-circulars-list">
-              {notices.slice(0, 3).map((notice) => (
-                <article key={notice.id} className="home-circular-item">
-                  <div>
-                    <h3>{notice.title}</h3>
-                    {isNoticeNew(notice.createdAt) ? <span>New</span> : null}
-                  </div>
-                  <p>{notice.content}</p>
-                </article>
-              ))}
-            </div>
-          </section>
         </section>
       </main>
 
@@ -1415,27 +1383,31 @@ function AdminDashboardScreen({
 function AdminCircularsScreen({
   notices,
   onCreateNotice,
+  onDeleteNotice,
   onBackDashboard,
   onFacultyAccounts,
   onAssignSubjects,
 }: {
   notices: DepartmentNotice[]
-  onCreateNotice: (input: { title: string; content: string }) => void
+  onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => void
+  onDeleteNotice: (id: string) => void
   onBackDashboard: () => void
   onFacultyAccounts: () => void
   onAssignSubjects: () => void
 }) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [urgent, setUrgent] = useState(false)
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!title.trim() || !content.trim()) {
       return
     }
-    onCreateNotice({ title: title.trim(), content: content.trim() })
+    onCreateNotice({ title: title.trim(), content: content.trim(), urgent })
     setTitle('')
     setContent('')
+    setUrgent(false)
   }
 
   return (
@@ -1478,6 +1450,14 @@ function AdminCircularsScreen({
                   placeholder="Write details for students and faculty..."
                 />
               </div>
+              <label className="notice-urgent-toggle">
+                <input
+                  type="checkbox"
+                  checked={urgent}
+                  onChange={(event) => setUrgent(event.target.checked)}
+                />
+                <span>Mark as urgent (highlight for students)</span>
+              </label>
               <button type="submit">
                 <span className="material-symbols-outlined">campaign</span>
                 Publish Circular
@@ -1492,10 +1472,23 @@ function AdminCircularsScreen({
             </div>
             <div className="admin-circulars-list">
               {notices.map((notice) => (
-                <article key={notice.id} className="admin-circular-item">
+                <article key={notice.id} className={`admin-circular-item ${notice.urgent || isNoticeNew(notice.createdAt) ? 'highlight' : ''}`}>
                   <div>
-                    <h4>{notice.title}</h4>
-                    {isNoticeNew(notice.createdAt) ? <span>New</span> : null}
+                    <div>
+                      <h4>{notice.title}</h4>
+                      <div className="notice-badges">
+                        {notice.urgent ? <span className="notice-badge urgent">Urgent</span> : null}
+                        {isNoticeNew(notice.createdAt) ? <span className="notice-badge new">New</span> : null}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="notice-delete-btn"
+                      onClick={() => onDeleteNotice(notice.id)}
+                      aria-label={`Delete ${notice.title}`}
+                    >
+                      <span className="material-symbols-outlined">delete</span>
+                    </button>
                   </div>
                   <p>{notice.content}</p>
                   <small>
@@ -2261,6 +2254,9 @@ function FacultyDashboardScreen({
   onUploadTextbook,
   onCreateAssignment,
   onViewAssignment,
+  notices,
+  onCreateNotice,
+  onDeleteOwnNotice,
   currentPath,
   onNavigate,
   onLogout,
@@ -2269,15 +2265,25 @@ function FacultyDashboardScreen({
   onUploadTextbook: () => void
   onCreateAssignment: () => void
   onViewAssignment: () => void
+  notices: DepartmentNotice[]
+  onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => void
+  onDeleteOwnNotice: (id: string) => void
   currentPath: RoutePath
   onNavigate: (path: RoutePath) => void
   onLogout: () => void
 }) {
   const { user } = useAuth()
+  const displayName = user?.name || user?.fullName || 'Faculty User'
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [officialNoteFile, setOfficialNoteFile] = useState<File | null>(null)
   const [officialNoteUploadError, setOfficialNoteUploadError] = useState<string | null>(null)
+  const [notificationTitle, setNotificationTitle] = useState('')
+  const [notificationContent, setNotificationContent] = useState('')
+  const [isUrgentNotification, setIsUrgentNotification] = useState(false)
+  const [notificationError, setNotificationError] = useState<string | null>(null)
+  const [notificationSuccess, setNotificationSuccess] = useState<string | null>(null)
   const department = user?.department || 'Department'
+  const facultyNotices = notices.filter((notice) => notice.authorRole === 'faculty' && notice.author === displayName)
 
   const handleOfficialNoteFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -2302,6 +2308,23 @@ function FacultyDashboardScreen({
     setIsUploadModalOpen(false)
     setOfficialNoteFile(null)
     setOfficialNoteUploadError(null)
+  }
+
+  const handleSendNotification = (event: React.FormEvent) => {
+    event.preventDefault()
+    const title = notificationTitle.trim()
+    const content = notificationContent.trim()
+    if (!title || !content) {
+      setNotificationError('Please provide both a title and message.')
+      setNotificationSuccess(null)
+      return
+    }
+    onCreateNotice({ title, content, urgent: isUrgentNotification })
+    setNotificationTitle('')
+    setNotificationContent('')
+    setIsUrgentNotification(false)
+    setNotificationError(null)
+    setNotificationSuccess('Notification sent to students.')
   }
 
   return (
@@ -2523,6 +2546,87 @@ function FacultyDashboardScreen({
             </div>
           </section>
         </section>
+
+        <section className="dashboard-card faculty-notification-card">
+          <div className="faculty-section-head">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">campaign</span>
+              <h2>Department Notifications</h2>
+            </div>
+          </div>
+
+          <form className="faculty-notification-form" onSubmit={handleSendNotification}>
+            <div className="field-group">
+              <label htmlFor="faculty-notification-title">Title</label>
+              <input
+                id="faculty-notification-title"
+                type="text"
+                value={notificationTitle}
+                onChange={(event) => setNotificationTitle(event.target.value)}
+                placeholder="Exam update, class change, deadline reminder..."
+              />
+            </div>
+
+            <div className="field-group">
+              <label htmlFor="faculty-notification-content">Message</label>
+              <textarea
+                id="faculty-notification-content"
+                rows={4}
+                value={notificationContent}
+                onChange={(event) => setNotificationContent(event.target.value)}
+                placeholder="Write the department circular/notification for students..."
+              />
+            </div>
+            <label className="notice-urgent-toggle">
+              <input
+                type="checkbox"
+                checked={isUrgentNotification}
+                onChange={(event) => setIsUrgentNotification(event.target.checked)}
+              />
+              <span>Mark as urgent notice</span>
+            </label>
+
+            <div className="faculty-notification-actions">
+              <button type="submit" className="dashboard-btn-primary">
+                <span className="material-symbols-outlined">send</span>
+                Send Notification
+              </button>
+              <p>This appears in the non-clickable notification block on the student dashboard.</p>
+            </div>
+            {notificationError ? <p className="faculty-notification-error">{notificationError}</p> : null}
+            {notificationSuccess ? <p className="faculty-notification-success">{notificationSuccess}</p> : null}
+          </form>
+
+          <div className="faculty-notification-history">
+            <h3>Recent Sent</h3>
+            {facultyNotices.length === 0 ? (
+              <p className="faculty-notification-empty">No notifications sent yet.</p>
+            ) : null}
+            {facultyNotices.slice(0, 5).map((notice) => (
+              <article key={notice.id} className={`faculty-notification-item ${notice.urgent || isNoticeNew(notice.createdAt) ? 'highlight' : ''}`}>
+                <div>
+                  <div>
+                    <h4>{notice.title}</h4>
+                    <div className="notice-badges">
+                      {notice.urgent ? <span className="notice-badge urgent">Urgent</span> : null}
+                      {isNoticeNew(notice.createdAt) ? <span className="notice-badge new">New</span> : null}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="notice-delete-btn"
+                    onClick={() => onDeleteOwnNotice(notice.id)}
+                    aria-label={`Delete ${notice.title}`}
+                  >
+                    <span className="material-symbols-outlined">delete</span>
+                  </button>
+                </div>
+                <p>{notice.content}</p>
+                <small>{new Date(notice.createdAt).toLocaleString()}</small>
+              </article>
+            ))}
+          </div>
+        </section>
       </main>
 
       {isUploadModalOpen ? (
@@ -2650,6 +2754,7 @@ function StudentDashboardScreen({
   onUnofficialNotes,
   onSearchResources,
   onBrowseRepository,
+  notices,
   currentPath,
   onNavigate,
   onLogout,
@@ -2659,6 +2764,7 @@ function StudentDashboardScreen({
   onUnofficialNotes: () => void
   onSearchResources: () => void
   onBrowseRepository: () => void
+  notices: DepartmentNotice[]
   currentPath: RoutePath
   onNavigate: (path: RoutePath) => void
   onLogout: () => void
@@ -2687,6 +2793,32 @@ function StudentDashboardScreen({
       />
 
       <main className="dashboard-container dashboard-main">
+        <section className="dashboard-card">
+          <div className="dashboard-section-title">
+            <span className="material-symbols-outlined">notifications</span>
+            <h2>Department Circulars</h2>
+          </div>
+
+          <div className="student-notification-list" aria-live="polite">
+            {notices.slice(0, 4).map((notice) => (
+              <article key={notice.id} className={`student-notification-item ${notice.urgent || isNoticeNew(notice.createdAt) ? 'highlight' : ''}`}>
+                <div className="student-notification-head">
+                  <h3>{notice.title}</h3>
+                  <div className="notice-badges">
+                    {notice.urgent ? <span className="notice-badge urgent">Urgent</span> : null}
+                    {isNoticeNew(notice.createdAt) ? <span className="notice-badge new">New</span> : null}
+                  </div>
+                </div>
+                <p>{notice.content}</p>
+                <small>
+                  {new Date(notice.createdAt).toLocaleString()} • {notice.author}
+                </small>
+              </article>
+            ))}
+          </div>
+          <p className="student-notification-note">Informational only. Circulars are not clickable.</p>
+        </section>
+
         <section className="dashboard-card">
           <div className="dashboard-section-title">
             <span className="material-symbols-outlined">filter_alt</span>
@@ -2919,9 +3051,13 @@ function StudentDashboardScreen({
 }
 
 function FacultyVerificationScreen({
-  onBackToDashboard,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
-  onBackToDashboard?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [verifiedNotes, setVerifiedNotes] = useState<Set<string>>(new Set())
   const [rejectedNotes, setRejectedNotes] = useState<Set<string>>(new Set())
@@ -2971,52 +3107,24 @@ function FacultyVerificationScreen({
 
   return (
     <div className="faculty-page" aria-label="Student notes verification panel">
-      <header className="faculty-header">
-        <div className="faculty-container faculty-header-row">
-          <div className="faculty-brand">
-            <div className="faculty-brand-icon">
-              <span className="material-symbols-outlined">account_balance</span>
-            </div>
-            <div>
-              <h1 className="faculty-portal-title">University Portal</h1>
-              <p className="faculty-portal-subtitle">Faculty Administration</p>
-            </div>
-          </div>
-          <div className="dashboard-user">
-            <div className="dashboard-user-info">
-              <p>Dr. Sarah Jenkins</p>
-              <p>Senior Professor • CS Dept</p>
-            </div>
-            <div className="dashboard-avatar">
-              <span className="material-symbols-outlined">account_circle</span>
-            </div>
-          </div>
-        </div>
-      </header>
+      <CommonDashboardHeader
+        title="Faculty Verification"
+        subtitle="Verification Panel"
+        navItems={[
+          { label: 'Dashboard', path: '/faculty_dashboard' },
+          { label: 'Verification', path: '/faculty_verification' },
+          { label: 'Textbooks', path: '/faculty_textbook_upload' },
+          { label: 'Assignments', path: '/faculty_assignment_submissions' },
+        ]}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="faculty-container"
+      />
 
       <main className="faculty-container faculty-main">
         <div className="faculty-verify-page-title">
-          <div>
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#556B2F',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                marginBottom: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>arrow_back</span>
-              Back to Dashboard
-            </button>
-            <h2>Student Notes Verification</h2>
-          </div>
+          <h2>Student Notes Verification</h2>
           <div />
         </div>
 
@@ -3240,7 +3348,15 @@ function FacultyVerificationScreen({
   )
 }
 
-function FacultyTextbookUploadScreen() {
+function FacultyTextbookUploadScreen({
+  currentPath,
+  onNavigate,
+  onLogout,
+}: {
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
+}) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -3303,28 +3419,20 @@ function FacultyTextbookUploadScreen() {
     <div className="textbook-page" aria-label="Textbook management panel">
       {isModalOpen ? <div className="textbook-modal-overlay" /> : null}
 
-      <header className="faculty-header textbook-header">
-        <div className="faculty-container faculty-header-row">
-          <div className="faculty-brand">
-            <div className="faculty-brand-icon">
-              <span className="material-symbols-outlined">menu_book</span>
-            </div>
-            <div>
-              <h1 className="faculty-portal-title">University Portal</h1>
-              <p className="faculty-portal-subtitle">Faculty Administration</p>
-            </div>
-          </div>
-          <div className="dashboard-user">
-            <div className="dashboard-user-info">
-              <p>Dr. Sarah Jenkins</p>
-              <p>Senior Professor • CS Dept</p>
-            </div>
-            <div className="dashboard-avatar">
-              <span className="material-symbols-outlined">account_circle</span>
-            </div>
-          </div>
-        </div>
-      </header>
+      <CommonDashboardHeader
+        title="Faculty Textbooks"
+        subtitle="Textbook Management"
+        navItems={[
+          { label: 'Dashboard', path: '/faculty_dashboard' },
+          { label: 'Verification', path: '/faculty_verification' },
+          { label: 'Textbooks', path: '/faculty_textbook_upload' },
+          { label: 'Assignments', path: '/faculty_assignment_submissions' },
+        ]}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="faculty-container"
+      />
 
       <main className="faculty-container textbook-main">
         <div className="textbook-title-row">
@@ -3794,53 +3902,34 @@ function FacultyCreateAssignmentScreen({
 
 function FacultyAssignmentSubmissionsScreen({
   onGrade,
-  onBackToDashboard,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
   onGrade: () => void
-  onBackToDashboard?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   return (
     <div className="faculty-submissions-page" aria-label="Assignment submissions overview">
-      <header className="faculty-submissions-header">
-        <div className="faculty-submissions-container faculty-submissions-header-row">
-          <div className="faculty-submissions-brand">
-            <span className="material-symbols-outlined">school</span>
-            <h2>EduRepo</h2>
-          </div>
-          <nav className="faculty-submissions-nav">
-            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit' }}>
-              Dashboard
-            </button>
-            <a href="#" className="active">
-              Courses
-            </a>
-            <a href="#">Faculty Docs</a>
-            <a href="#">Reports</a>
-          </nav>
-          <div className="faculty-submissions-user">
-            <button type="button" className="faculty-submissions-notify">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
-            <div className="dashboard-avatar">
-              <span className="material-symbols-outlined">account_circle</span>
-            </div>
-          </div>
-        </div>
-      </header>
+      <CommonDashboardHeader
+        title="Assignment Submissions"
+        subtitle="Grading and Review"
+        navItems={[
+          { label: 'Dashboard', path: '/faculty_dashboard' },
+          { label: 'Verification', path: '/faculty_verification' },
+          { label: 'Textbooks', path: '/faculty_textbook_upload' },
+          { label: 'Assignments', path: '/faculty_assignment_submissions' },
+        ]}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="faculty-submissions-container"
+      />
 
       <main className="faculty-submissions-container faculty-submissions-main">
         <div className="faculty-submissions-top">
-          <nav className="faculty-submissions-breadcrumb">
-            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
-              Courses
-            </button>
-            <span className="material-symbols-outlined">chevron_right</span>
-            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
-              CS301: Computer Architecture
-            </button>
-            <span className="material-symbols-outlined">chevron_right</span>
-            <span>Submissions</span>
-          </nav>
           <div className="faculty-submissions-actions">
             <button type="button" className="faculty-submissions-outline-btn">
               <span className="material-symbols-outlined">download</span>
@@ -6070,7 +6159,14 @@ function App() {
     }
     try {
       const parsed = JSON.parse(raw) as DepartmentNotice[]
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultDepartmentNotices
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return defaultDepartmentNotices
+      }
+      return parsed.map((notice) => ({
+        ...notice,
+        urgent: Boolean((notice as Partial<DepartmentNotice>).urgent),
+        authorRole: (notice as Partial<DepartmentNotice>).authorRole === 'faculty' ? 'faculty' : 'admin',
+      }))
     } catch {
       return defaultDepartmentNotices
     }
@@ -6104,15 +6200,35 @@ function App() {
     setPath(nextPath)
   }
 
-  const createNotice = ({ title, content }: { title: string; content: string }) => {
+  const createNotice = ({ title, content, urgent = false }: { title: string; content: string; urgent?: boolean }) => {
     const newNotice: DepartmentNotice = {
       id: `notice-${Date.now()}`,
       title,
       content,
       createdAt: new Date().toISOString(),
       author: user?.name || user?.fullName || 'Admin User',
+      authorRole: user?.role === 'faculty' ? 'faculty' : 'admin',
+      urgent,
     }
     setNotices((current) => [newNotice, ...current])
+  }
+
+  const deleteNoticeAsAdmin = (id: string) => {
+    setNotices((current) => current.filter((notice) => notice.id !== id))
+  }
+
+  const deleteNoticeAsFaculty = (id: string) => {
+    const currentFacultyName = user?.name || user?.fullName || 'Faculty User'
+    setNotices((current) =>
+      current.filter(
+        (notice) =>
+          !(
+            notice.id === id &&
+            notice.authorRole === 'faculty' &&
+            notice.author === currentFacultyName
+          ),
+      ),
+    )
   }
 
   useEffect(() => {
@@ -6157,11 +6273,13 @@ function App() {
     path === '/student_login' ||
     path === '/student_register' ||
     path === '/faculty_login' ||
-    path === '/admin_login'
+    path === '/admin_login' ||
+    path === '/forgot_password' ||
+    path === '/reset_password'
 
   return (
     <div className={isAuthRoute ? 'app-shell auth-shell' : 'app-shell'}>
-      {isAuthRoute ? (
+      {isAuthRoute && path !== '/' ? (
         <div className="auth-top-brand">
           <BrandIdentity />
         </div>
@@ -6243,6 +6361,7 @@ function App() {
         <AdminCircularsScreen
           notices={notices}
           onCreateNotice={createNotice}
+          onDeleteNotice={deleteNoticeAsAdmin}
           onBackDashboard={() => navigate('/admin_dashboard')}
           onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
@@ -6293,6 +6412,9 @@ function App() {
           onUploadTextbook={() => navigate('/faculty_textbook_upload')}
           onCreateAssignment={() => navigate('/faculty_create_assignment')}
           onViewAssignment={() => navigate('/faculty_assignment_submissions')}
+          notices={notices}
+          onCreateNotice={createNotice}
+          onDeleteOwnNotice={deleteNoticeAsFaculty}
           currentPath={path}
           onNavigate={navigate}
           onLogout={async () => {
@@ -6303,10 +6425,26 @@ function App() {
       ) : null}
 
       {path === '/faculty_verification' ? (
-        <FacultyVerificationScreen onBackToDashboard={() => navigate('/faculty_dashboard')} />
+        <FacultyVerificationScreen
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
+        />
       ) : null}
 
-      {path === '/faculty_textbook_upload' ? <FacultyTextbookUploadScreen /> : null}
+      {path === '/faculty_textbook_upload' ? (
+        <FacultyTextbookUploadScreen
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
+        />
+      ) : null}
 
       {path === '/faculty_create_assignment' ? (
         <FacultyCreateAssignmentScreen onBackToDashboard={() => navigate('/faculty_dashboard')} />
@@ -6315,7 +6453,12 @@ function App() {
       {path === '/faculty_assignment_submissions' ? (
         <FacultyAssignmentSubmissionsScreen
           onGrade={() => navigate('/faculty_grade_submission')}
-          onBackToDashboard={() => navigate('/faculty_dashboard')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
         />
       ) : null}
 
@@ -6328,6 +6471,7 @@ function App() {
           onUnofficialNotes={() => navigate('/unofficial_notes')}
           onSearchResources={() => navigate('/search_results')}
           onBrowseRepository={() => navigate('/repository')}
+          notices={notices}
           currentPath={path}
           onNavigate={navigate}
           onLogout={async () => {
@@ -6355,8 +6499,6 @@ function App() {
         <HomeScreen
           onStudentLogin={() => navigate('/student_login')}
           onFacultyLogin={() => navigate('/faculty_login')}
-          onAdminLogin={() => navigate('/admin_login')}
-          notices={notices}
         />
       ) : null}
     </div>
