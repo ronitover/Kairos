@@ -90,6 +90,11 @@
   color: var(--color-primary);
 }
 
+.icon-faculty {
+  font-size: 2.25rem;
+  color: var(--color-primary);
+}
+
 .home-title {
   margin: 0 0 0.5rem;
   font-size: clamp(1.5rem, 1.2rem + 1vw, 1.75rem);
@@ -269,10 +274,19 @@
   margin: 0 auto 2rem;
 }
 
+.faculty-accent {
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
 .student-form {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.faculty-form {
+  gap: 1.5rem;
 }
 
 .field-group label {
@@ -381,6 +395,17 @@
 
 .student-secondary-btn:hover {
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.student-register-cta {
+  margin-top: 0.75rem;
+  text-align: center;
+}
+
+.student-register-cta p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #475569;
 }
 
 .forgot-wrap {
