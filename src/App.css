@@ -1810,6 +1810,90 @@
   cursor: not-allowed;
 }
 
+.studysync-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.studysync-header-row {
+  width: min(1200px, calc(100% - 2rem));
+  margin: 0 auto;
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.studysync-brand {
+  border: 0;
+  background: transparent;
+  color: #1e3a8a;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.studysync-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.studysync-nav button {
+  border: 1px solid #dbe2f1;
+  background: #fff;
+  color: #334155;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.studysync-nav button.active {
+  color: #1e3a8a;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.studysync-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.studysync-user span {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.studysync-user button {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.studysync-footer {
+  margin-top: 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  padding: 0.9rem 1rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.8rem;
+  background: #fff;
+}
+
 .result-header-content {
   min-height: 5rem;
   display: flex;
