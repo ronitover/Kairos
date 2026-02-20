@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+﻿import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import './App.css'
 import { useAuth } from './contexts/AuthContext'
 import { authService } from './services/auth'
@@ -489,33 +489,6 @@ function getRequiredRole(route: RoutePath): 'student' | 'faculty' | 'admin' | nu
   return null
 }
 
-const initialUploadedNotes: UploadedNote[] = [
-  {
-    id: 'upload-1',
-    title: 'OS - Deadlocks Short Notes',
-    uploadedOn: 'Uploaded on Oct 24, 2023',
-    fileInfo: 'PDF • 1.2 MB',
-    status: 'verified',
-    canDownload: true,
-  },
-  {
-    id: 'upload-2',
-    title: 'Virtual Memory Lab Manual',
-    uploadedOn: 'Uploaded on Oct 28, 2023',
-    fileInfo: 'DOCX • 850 KB',
-    status: 'pending',
-    canDownload: false,
-  },
-  {
-    id: 'upload-3',
-    title: 'Networking - OSI Model',
-    uploadedOn: 'Uploaded on Oct 15, 2023',
-    fileInfo: 'PDF • 3.4 MB',
-    status: 'rejected',
-    canDownload: false,
-  },
-]
-
 function formatFileSize(sizeInBytes: number): string {
   if (sizeInBytes < 1024 * 1024) {
     return `${(sizeInBytes / 1024).toFixed(1)} KB`
@@ -688,7 +661,7 @@ function HomeScreen({
       </main>
 
       <footer className="page-footer">
-        <p>© 2024 University Digital Repository. All rights reserved.</p>
+        <p>Â© 2024 University Digital Repository. All rights reserved.</p>
       </footer>
     </>
   )
@@ -774,7 +747,7 @@ function StudentLoginScreen({
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -817,7 +790,7 @@ function StudentLoginScreen({
       </main>
 
       <footer className="page-footer">
-        <p>© 2024 University Digital Repository</p>
+        <p>Â© 2024 University Digital Repository</p>
       </footer>
     </>
   )
@@ -1123,7 +1096,7 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
                   id="facultyPassword"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -1224,7 +1197,7 @@ function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
                   id="adminPassword"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -1325,7 +1298,7 @@ function AdminHeader({
 function AdminFooter() {
   return (
     <footer className="admin-footer admin-container">
-      <p>© 2024 University Digital Repository. Global Administrative Control.</p>
+      <p>Â© 2024 University Digital Repository. Global Administrative Control.</p>
       <nav aria-label="Admin footer links">
         <a href="#">System Status</a>
         <a href="#">Privacy Policy</a>
@@ -1537,7 +1510,7 @@ function AdminDashboardScreen({
 
       <CommonDashboardFooter
         containerClassName="admin-container"
-        caption="© 2024 University Digital Repository. Global Administrative Control."
+        caption="Â© 2024 University Digital Repository. Global Administrative Control."
       />
     </div>
   )
@@ -1655,7 +1628,7 @@ function AdminCircularsScreen({
                   </div>
                   <p>{notice.content}</p>
                   <small>
-                    {new Date(notice.createdAt).toLocaleString()} • {notice.author}
+                    {new Date(notice.createdAt).toLocaleString()} â€¢ {notice.author}
                   </small>
                 </article>
               ))}
@@ -2312,7 +2285,7 @@ function AdminAssignSubjectsScreen({
               </div>
               <div>
                 <h3>Dr. Robert Henderson</h3>
-                <p>Senior Professor • Computer Science</p>
+                <p>Senior Professor â€¢ Computer Science</p>
               </div>
             </div>
 
@@ -2657,7 +2630,7 @@ function FacultyDashboardScreen({
               <div className="faculty-item-row">
                 <div>
                   <h3>Operating System Concepts</h3>
-                  <p>Silberschatz • 10th Ed</p>
+                  <p>Silberschatz â€¢ 10th Ed</p>
                 </div>
                 <button type="button" className="faculty-icon-danger">
                   <span className="material-symbols-outlined">delete</span>
@@ -2666,7 +2639,7 @@ function FacultyDashboardScreen({
               <div className="faculty-item-row">
                 <div>
                   <h3>Modern Operating Systems</h3>
-                  <p>Andrew Tanenbaum • 4th Ed</p>
+                  <p>Andrew Tanenbaum â€¢ 4th Ed</p>
                 </div>
                 <button type="button" className="faculty-icon-danger">
                   <span className="material-symbols-outlined">delete</span>
@@ -2689,7 +2662,7 @@ function FacultyDashboardScreen({
               <div className="faculty-item-row faculty-assignment-row">
                 <div>
                   <h3>Multi-threaded Scheduler</h3>
-                  <p>42 Submissions • Due: 3 Days</p>
+                  <p>42 Submissions â€¢ Due: 3 Days</p>
                 </div>
                 <button type="button" className="faculty-view-btn" onClick={onViewAssignment}>
                   View
@@ -2699,7 +2672,7 @@ function FacultyDashboardScreen({
               <div className="faculty-item-row faculty-assignment-row">
                 <div>
                   <h3>Disk Management Quiz</h3>
-                  <p>128 Submissions • Closed</p>
+                  <p>128 Submissions â€¢ Closed</p>
                 </div>
                 <button type="button" className="faculty-view-btn" onClick={onViewAssignment}>
                   View
@@ -2905,7 +2878,7 @@ function FacultyDashboardScreen({
 
       <CommonDashboardFooter
         containerClassName="faculty-container"
-        caption="University Digital Repository • Faculty Portal"
+        caption="University Digital Repository â€¢ Faculty Portal"
       />
     </div>
   )
@@ -3021,19 +2994,11 @@ function StudentDashboardScreen({
     }
   }, [subjectOptions])
 
-  const handleDownloadNote = (title: string) => {
-    console.log('[Mock] Download note:', title)
-  }
-
-  const handleDownloadTextbook = (title: string) => {
-    console.log('[Mock] Download textbook:', title)
-  }
-
   return (
     <div className="dashboard-page" aria-label="Student dashboard">
       <CommonDashboardHeader
         title="Student Dashboard"
-        subtitle={`${semester} • ${programme}`}
+        subtitle={`${semester} â€¢ ${programme}`}
         navItems={STUDENT_NAV_ITEMS}
         currentPath={currentPath}
         onNavigate={onNavigate}
@@ -3065,7 +3030,7 @@ function StudentDashboardScreen({
                 </div>
                 <p>{notice.content}</p>
                 <small>
-                  {new Date(notice.createdAt).toLocaleString()} • {notice.author}
+                  {new Date(notice.createdAt).toLocaleString()} â€¢ {notice.author}
                 </small>
               </article>
             ))}
@@ -3205,7 +3170,7 @@ function StudentDashboardScreen({
               <article key={book.id} className="dashboard-item-row">
                 <div>
                   <h3>{book.title}</h3>
-                  <p>{book.author} • {book.edition}</p>
+                  <p>{book.author} â€¢ {book.edition}</p>
                 </div>
                 <a href={book.downloadUrl} target="_blank" rel="noreferrer" className="dashboard-icon-btn" aria-label={`Download ${book.title}`}>
                   <span className="material-symbols-outlined">download</span>
@@ -3242,7 +3207,7 @@ function StudentDashboardScreen({
                     </div>
                     <div className="dashboard-assignment-content">
                       <h3>{assignment.title}</h3>
-                      <p>Subject: {assignment.subjectCode} • {formatAssignmentDate(assignment.dueDate)}</p>
+                      <p>Subject: {assignment.subjectCode} â€¢ {formatAssignmentDate(assignment.dueDate)}</p>
                     </div>
                   </div>
                   <div className="dashboard-assignment-right">
@@ -3263,7 +3228,7 @@ function StudentDashboardScreen({
 
       <CommonDashboardFooter
         containerClassName="dashboard-container"
-        caption="© 2024 University Academic Digital Repository"
+        caption="Â© 2024 University Academic Digital Repository"
       />
       <PdfPreviewModal
         isOpen={isPreviewOpen}
@@ -3555,7 +3520,7 @@ function FacultyVerificationScreen({
 
       <footer className="dashboard-footer faculty-container">
         <div>
-          <p>University Digital Repository • Faculty Portal</p>
+          <p>University Digital Repository â€¢ Faculty Portal</p>
         </div>
         <nav aria-label="Footer links">
           <a href="#">Internal Guidelines</a>
@@ -3873,7 +3838,7 @@ function FacultyTextbookUploadScreen({
 
       <footer className="dashboard-footer faculty-container">
         <div>
-          <p>University Digital Repository • Faculty Portal</p>
+          <p>University Digital Repository â€¢ Faculty Portal</p>
         </div>
         <nav aria-label="Footer links">
           <a href="#">Internal Guidelines</a>
@@ -4191,7 +4156,7 @@ function FacultyCreateAssignmentScreen({
       </main>
 
       <footer className="create-assignment-footer">
-        <p>© 2024 University Digital Repository Platform. All faculty rights reserved.</p>
+        <p>Â© 2024 University Digital Repository Platform. All faculty rights reserved.</p>
       </footer>
     </div>
   )
@@ -4433,7 +4398,7 @@ function FacultyAssignmentSubmissionsScreen({
 
       <footer className="faculty-submissions-footer faculty-submissions-container">
         <div>
-          <p>© 2023 University Digital Repository</p>
+          <p>Â© 2023 University Digital Repository</p>
           <a href="#">Privacy Policy</a>
           <a href="#">Support</a>
         </div>
@@ -4504,7 +4469,7 @@ function FacultyGradeSubmissionScreen() {
                 </div>
                 <div>
                   <p>Submitted On</p>
-                  <strong>Oct 24, 2023 • 11:42 AM</strong>
+                  <strong>Oct 24, 2023 â€¢ 11:42 AM</strong>
                 </div>
                 <div>
                   <p>Attempt Number</p>
@@ -4524,7 +4489,7 @@ function FacultyGradeSubmissionScreen() {
                     <span className="material-symbols-outlined">description</span>
                     <div>
                       <p>Project_Phase1_Report.pdf</p>
-                      <p>2.4 MB • PDF Document</p>
+                      <p>2.4 MB â€¢ PDF Document</p>
                     </div>
                   </div>
                   <button type="button" className="faculty-grade-download-icon-btn" aria-label="Download PDF file">
@@ -4536,7 +4501,7 @@ function FacultyGradeSubmissionScreen() {
                     <span className="material-symbols-outlined">folder_zip</span>
                     <div>
                       <p>Algorithm_Source_Code.zip</p>
-                      <p>14.8 MB • Compressed Archive</p>
+                      <p>14.8 MB â€¢ Compressed Archive</p>
                     </div>
                   </div>
                   <button
@@ -4552,7 +4517,7 @@ function FacultyGradeSubmissionScreen() {
                     <span className="material-symbols-outlined">table</span>
                     <div>
                       <p>Data_Analysis_Results.xlsx</p>
-                      <p>842 KB • Excel Spreadsheet</p>
+                      <p>842 KB â€¢ Excel Spreadsheet</p>
                     </div>
                   </div>
                   <button
@@ -4621,17 +4586,11 @@ function FacultyGradeSubmissionScreen() {
       </main>
 
       <footer className="faculty-grade-footer">
-        <p>© 2023 Institutional Learning Management System. All rights reserved.</p>
+        <p>Â© 2023 Institutional Learning Management System. All rights reserved.</p>
       </footer>
     </div>
   )
 }
-
-const unofficialFindNotesData = [
-  { id: 'fn-1', title: 'CPU Scheduling Algorithms Summary', author: 'Rahul Sharma', usn: '1RV21CS084' },
-  { id: 'fn-2', title: 'File Systems - Complete Notes', author: 'Sneha Gupta', usn: '1RV21CS112' },
-  { id: 'fn-3', title: "Banker's Algorithm Flowchart", author: 'Mark Johnson', usn: '1RV21CS045' },
-]
 
 function UnofficialNotesScreen({
   currentPath,
@@ -4643,8 +4602,11 @@ function UnofficialNotesScreen({
   onLogout: () => void
 }) {
   const { user } = useAuth()
-  const [uploadedNotes, setUploadedNotes] = useState<UploadedNote[]>(initialUploadedNotes)
+  const [uploadedNotes, setUploadedNotes] = useState<UploadedNote[]>([])
+  const [discoverNotes, setDiscoverNotes] = useState<Array<{ id: string; title: string; author: string; usn: string; fileUrl: string }>>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [defaultUploadSubjectName, setDefaultUploadSubjectName] = useState('General')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const subtitle = user?.semester ? `Semester ${user.semester}` : ''
   const programme = user?.programme || ''
@@ -4654,46 +4616,90 @@ function UnofficialNotesScreen({
   const [findFileType, setFindFileType] = useState<'all' | 'pdf' | 'docx' | 'images' | 'handwritten'>('all')
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
 
+  const loadUnofficialData = async (search?: string, chapter?: string) => {
+    const data = await studentService.getUnofficialNotesData({
+      search,
+      chapter,
+    })
+
+    setDefaultUploadSubjectName(data.defaultSubjectName || 'General')
+    setUploadedNotes(
+      data.myUploads.map((note) => ({
+        id: note.id,
+        title: note.title,
+        uploadedOn: formatUploadDate(new Date(note.uploadedAt)),
+        fileInfo: `${note.fileName.split('.').pop()?.toUpperCase() || 'FILE'} • ${formatFileSize(note.fileSize)}`,
+        status: note.status,
+        canDownload: note.status === 'verified',
+        downloadUrl: note.fileUrl,
+        fileName: note.fileName,
+      })),
+    )
+    setDiscoverNotes(
+      data.discover.map((note) => ({
+        id: note.id,
+        title: note.title,
+        author: note.uploader.name,
+        usn: note.uploader.usn,
+        fileUrl: note.fileUrl,
+      })),
+    )
+  }
+
+  useEffect(() => {
+    loadUnofficialData().catch((error) => {
+      setUploadError(error instanceof Error ? error.message : 'Failed to load notes.')
+    })
+  }, [])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      loadUnofficialData(
+        findSearchQuery || undefined,
+        findUnit !== 'All Units' ? findUnit : undefined,
+      ).catch(() => {})
+    }, 250)
+
+    return () => clearTimeout(timeout)
+  }, [findSearchQuery, findUnit])
+
   const handleOpenUploadPicker = () => {
     fileInputRef.current?.click()
   }
 
-  const handleFilesSelected = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files || files.length === 0) {
       return
     }
 
-    const now = new Date()
-    const newNotes: UploadedNote[] = []
+    setIsUploading(true)
     let rejectedCount = 0
+    let uploadedCount = 0
 
-    Array.from(files).forEach((file) => {
+    for (const file of Array.from(files)) {
       try {
         enforceSupportedUploadFile(file, 25 * 1024 * 1024)
-        newNotes.push({
-          id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+        await studentService.uploadUnofficialNote({
+          file,
           title: file.name,
-          uploadedOn: formatUploadDate(now),
-          fileInfo: `${file.name.split('.').pop()?.toUpperCase() || 'FILE'} • ${formatFileSize(file.size)}`,
-          status: 'pending',
-          canDownload: true,
-          downloadUrl: URL.createObjectURL(file),
-          fileName: file.name,
+          subjectName: defaultUploadSubjectName,
         })
+        uploadedCount += 1
       } catch {
         rejectedCount += 1
       }
-    })
-
-    if (newNotes.length > 0) {
-      setUploadedNotes((current) => [...newNotes, ...current])
     }
+
+    await loadUnofficialData().catch(() => {})
     setUploadError(
       rejectedCount > 0
         ? `${rejectedCount} file(s) rejected. Use only ${SUPPORTED_UPLOAD_LABEL} under 25MB.`
-        : null,
+        : uploadedCount > 0
+          ? null
+          : 'No file was uploaded.',
     )
+    setIsUploading(false)
     event.target.value = ''
   }
 
@@ -4710,7 +4716,7 @@ function UnofficialNotesScreen({
     link.remove()
   }
 
-  const filteredFindNotes = unofficialFindNotesData.filter((item) => {
+  const filteredFindNotes = discoverNotes.filter((item) => {
     const q = findSearchQuery.trim().toLowerCase()
     const matchesQuery =
       !q ||
@@ -4720,8 +4726,11 @@ function UnofficialNotesScreen({
     return matchesQuery
   })
 
-  const handleDownloadFindNote = (title: string) => {
-    console.log('[Mock] Download find-note:', title)
+  const handleDownloadFindNote = (note: { fileUrl: string }) => {
+    if (!note.fileUrl || note.fileUrl === '#') {
+      return
+    }
+    window.open(note.fileUrl, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -4740,7 +4749,7 @@ function UnofficialNotesScreen({
         <div className="common-dashboard-controls dashboard-container" style={{ marginBottom: '1rem' }}>
           <button type="button" className="dashboard-upload-btn" onClick={handleOpenUploadPicker}>
             <span className="material-symbols-outlined">cloud_upload</span>
-            Upload Notes
+            {isUploading ? 'Uploading...' : 'Upload Notes'}
           </button>
           <input
             ref={fileInputRef}
@@ -4911,7 +4920,7 @@ function UnofficialNotesScreen({
                         type="button"
                         className="dashboard-icon-btn"
                         aria-label={`Download ${item.title}`}
-                        onClick={() => handleDownloadFindNote(item.title)}
+                        onClick={() => handleDownloadFindNote({ fileUrl: item.fileUrl })}
                       >
                         <span className="material-symbols-outlined">download</span>
                       </button>
@@ -5048,7 +5057,7 @@ function StudentRepositoryScreen({
     <div className="dashboard-page" aria-label="Repository">
       <CommonDashboardHeader
         title="Repository"
-        subtitle={subtitle ? `${subtitle} • ${programme}` : programme || 'Browse & search resources'}
+        subtitle={subtitle ? `${subtitle} â€¢ ${programme}` : programme || 'Browse & search resources'}
         navItems={STUDENT_NAV_ITEMS}
         currentPath={currentPath}
         onNavigate={onNavigate}
@@ -5140,13 +5149,13 @@ function StudentRepositoryScreen({
                 <div>
                   <h3>{resource.title}</h3>
                   <p>
-                    {resource.semester} • {resource.subjectCode} • {resource.unit}
+                    {resource.semester} â€¢ {resource.subjectCode} â€¢ {resource.unit}
                   </p>
                 </div>
                 <div className="search-result-meta">
                   <span>Uploaded by: {resource.professor}</span>
-                  <span>Type: {resource.format} • {resource.size}</span>
-                  <span>Status: <strong>Approved</strong> • {resource.uploadedAt}</span>
+                  <span>Type: {resource.format} â€¢ {resource.size}</span>
+                  <span>Status: <strong>Approved</strong> â€¢ {resource.uploadedAt}</span>
                 </div>
                 <div className="search-result-actions">
                   <button
@@ -5171,7 +5180,7 @@ function StudentRepositoryScreen({
           )}
         </section>
       </main>
-      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
+      <CommonDashboardFooter containerClassName="dashboard-container" caption="Â© StudySync â€¢ Departmental Digital Resource & Knowledge Hub" />
       <PdfPreviewModal
         isOpen={isPreviewOpen}
         title={previewTitle}
@@ -5249,7 +5258,7 @@ function AssignmentReviewScreen({
     <div className="assignment-page dashboard-page" aria-label="Assignment submission details">
       <CommonDashboardHeader
         title="Submit Assignment"
-        subtitle={subtitle ? `${subtitle} • ${programme}` : programme || 'Student'}
+        subtitle={subtitle ? `${subtitle} â€¢ ${programme}` : programme || 'Student'}
         navItems={STUDENT_NAV_ITEMS}
         currentPath={currentPath}
         onNavigate={onNavigate}
@@ -5410,7 +5419,7 @@ function AssignmentReviewScreen({
         </div>
       </main>
 
-      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
+      <CommonDashboardFooter containerClassName="dashboard-container" caption="Â© StudySync â€¢ Departmental Digital Resource & Knowledge Hub" />
     </div>
   )
 }
@@ -5433,7 +5442,7 @@ function AssignmentResultScreen({
     <div className="assignment-page dashboard-page" aria-label="Submission and grade status">
       <CommonDashboardHeader
         title="Assignment Result"
-        subtitle={subtitle ? `${subtitle} • ${programme}` : programme || 'Student'}
+        subtitle={subtitle ? `${subtitle} â€¢ ${programme}` : programme || 'Student'}
         navItems={STUDENT_NAV_ITEMS}
         currentPath={currentPath}
         onNavigate={onNavigate}
@@ -5465,7 +5474,7 @@ function AssignmentResultScreen({
               </div>
               <div>
                 <p>Submission Date</p>
-                <h4>Nov 01, 2023 • 11:45 PM</h4>
+                <h4>Nov 01, 2023 â€¢ 11:45 PM</h4>
               </div>
             </div>
 
@@ -5481,7 +5490,7 @@ function AssignmentResultScreen({
               </p>
               <div className="result-author">
                 <span className="material-symbols-outlined">person</span>
-                <span>Dr. Robert Wilson • Faculty of OS</span>
+                <span>Dr. Robert Wilson â€¢ Faculty of OS</span>
               </div>
             </div>
           </div>
@@ -5515,7 +5524,7 @@ function AssignmentResultScreen({
                     </div>
                   </td>
                   <td className="muted">2.4 MB</td>
-                  <td className="muted">Nov 01, 2023 • 11:42 PM</td>
+                  <td className="muted">Nov 01, 2023 â€¢ 11:42 PM</td>
                   <td className="align-right">
                     <button type="button" className="result-view-btn">
                       <span className="material-symbols-outlined">visibility</span>
@@ -5534,7 +5543,7 @@ function AssignmentResultScreen({
                     </div>
                   </td>
                   <td className="muted">15.8 MB</td>
-                  <td className="muted">Nov 01, 2023 • 11:45 PM</td>
+                  <td className="muted">Nov 01, 2023 â€¢ 11:45 PM</td>
                   <td className="align-right">
                     <button type="button" className="result-view-btn">
                       <span className="material-symbols-outlined">visibility</span>
@@ -5556,7 +5565,7 @@ function AssignmentResultScreen({
         </section>
       </main>
 
-      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
+      <CommonDashboardFooter containerClassName="dashboard-container" caption="Â© StudySync â€¢ Departmental Digital Resource & Knowledge Hub" />
     </div>
   )
 }
@@ -5648,7 +5657,7 @@ function AdminEnrollStudentsScreen({
               </div>
               <div>
                 <h3>{subjects.find((s) => s.code === selectedSubject)?.name}</h3>
-                <p>{subjects.find((s) => s.code === selectedSubject)?.programme} • {subjects.find((s) => s.code === selectedSubject)?.semester}</p>
+                <p>{subjects.find((s) => s.code === selectedSubject)?.programme} â€¢ {subjects.find((s) => s.code === selectedSubject)?.semester}</p>
               </div>
             </div>
 
@@ -5940,7 +5949,7 @@ function AdminFacultyDetailsScreen({
               </div>
               <div>
                 <h3>Dr. David Anderson</h3>
-                <p>Senior Professor • Computer Science</p>
+                <p>Senior Professor â€¢ Computer Science</p>
               </div>
             </div>
 
@@ -6150,7 +6159,7 @@ function ForgotPasswordScreen({
       </main>
 
       <footer className="page-footer">
-        <p>© 2024 University Digital Repository</p>
+        <p>Â© 2024 University Digital Repository</p>
       </footer>
     </>
   )
@@ -6242,7 +6251,7 @@ function ResetPasswordScreen({
                 <input
                   id="newPassword"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -6265,7 +6274,7 @@ function ResetPasswordScreen({
                 <input
                   id="confirmNewPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -6301,7 +6310,7 @@ function ResetPasswordScreen({
       </main>
 
       <footer className="page-footer">
-        <p>© 2024 University Digital Repository</p>
+        <p>Â© 2024 University Digital Repository</p>
       </footer>
     </>
   )
@@ -6705,4 +6714,7 @@ function App() {
 }
 
 export default App
+
+
+
 

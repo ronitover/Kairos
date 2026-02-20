@@ -44,6 +44,31 @@ export interface StudentDashboard {
   }>
 }
 
+export interface UnofficialUploadItem {
+  id: string
+  title: string
+  chapter: string
+  uploadedAt: string
+  status: 'pending' | 'verified' | 'rejected'
+  fileName: string
+  fileSize: number
+  fileUrl: string
+}
+
+export interface DiscoverUnofficialItem {
+  id: string
+  title: string
+  chapter: string
+  uploadedAt: string
+  uploader: {
+    id: string
+    name: string
+    usn: string
+  }
+  fileName: string
+  fileUrl: string
+}
+
 class StudentService {
   async getDashboard(): Promise<StudentDashboard> {
     const meResponse = await apiClient.get<{
@@ -149,6 +174,96 @@ class StudentService {
     const response = await apiClient.uploadFile<{ note: { id: string; status: string } }>('/notes/unofficial', formData)
     if (response.error || !response.data) throw new Error(response.error?.message || 'Upload failed')
     return { id: response.data.note.id, status: response.data.note.status }
+  }
+
+  async getUnofficialNotesData(filters?: {
+    search?: string
+    chapter?: string
+  }): Promise<{
+    myUploads: UnofficialUploadItem[]
+    discover: DiscoverUnofficialItem[]
+    defaultSubjectName?: string
+  }> {
+    const meResponse = await apiClient.get<{
+      user: { id: string }
+      profile?: { programme?: string; semester?: number }
+    }>('/me')
+    if (meResponse.error || !meResponse.data) {
+      throw new Error(meResponse.error?.message || 'Failed to load profile')
+    }
+
+    const myUploadsResponse = await apiClient.get<{
+      notes: Array<{
+        id: string
+        title: string
+        chapter: string | null
+        uploaded_at: string
+        status: 'pending' | 'verified' | 'rejected'
+        note_files?: Array<{
+          file_name: string
+          file_size: number
+          file_url: string
+        }>
+      }>
+    }>('/notes', { type: 'unofficial' })
+    if (myUploadsResponse.error || !myUploadsResponse.data) {
+      throw new Error(myUploadsResponse.error?.message || 'Failed to load your uploads')
+    }
+
+    const discoverResponse = await apiClient.get<{
+      notes: Array<{
+        id: string
+        title: string
+        chapter: string | null
+        uploadedAt: string
+        uploader: { id: string; name: string; usn: string }
+        file?: {
+          file_name: string
+          file_url: string
+        } | null
+      }>
+    }>('/notes/unofficial/discover', {
+      search: filters?.search,
+      chapter: filters?.chapter,
+    })
+    if (discoverResponse.error || !discoverResponse.data) {
+      throw new Error(discoverResponse.error?.message || 'Failed to load discover notes')
+    }
+
+    const subjectsResponse = await apiClient.get<{
+      subjects: Array<{ id: string; name: string }>
+    }>('/subjects', {
+      programme: meResponse.data.profile?.programme || undefined,
+      semester: meResponse.data.profile?.semester || undefined,
+    })
+
+    const defaultSubjectName =
+      subjectsResponse.data?.subjects?.[0]?.name ||
+      meResponse.data.profile?.programme ||
+      'General'
+
+    return {
+      myUploads: myUploadsResponse.data.notes.map((note) => ({
+        id: note.id,
+        title: note.title,
+        chapter: note.chapter || '-',
+        uploadedAt: note.uploaded_at,
+        status: note.status,
+        fileName: note.note_files?.[0]?.file_name || note.title,
+        fileSize: Number(note.note_files?.[0]?.file_size || 0),
+        fileUrl: note.note_files?.[0]?.file_url || '#',
+      })),
+      discover: discoverResponse.data.notes.map((note) => ({
+        id: note.id,
+        title: note.title,
+        chapter: note.chapter || '-',
+        uploadedAt: note.uploadedAt,
+        uploader: note.uploader,
+        fileName: note.file?.file_name || note.title,
+        fileUrl: note.file?.file_url || '#',
+      })),
+      defaultSubjectName,
+    }
   }
 }
 

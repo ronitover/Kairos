@@ -912,6 +912,66 @@ app.get('/api/notes', requireAuth, async (req, res) => {
   return res.json({ notes: data ?? [] })
 })
 
+app.get('/api/notes/unofficial/discover', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const search = normalizeString(req.query?.search)?.toLowerCase() || ''
+  const chapter = normalizeString(req.query?.chapter)
+
+  let query = adminSupabase
+    .from('notes')
+    .select('id,title,chapter,uploaded_at,uploaded_by,status,note_files(id,file_name,file_url,file_size,file_type,uploaded_at)')
+    .eq('note_type', 'unofficial')
+    .eq('status', 'verified')
+    .order('uploaded_at', { ascending: false })
+
+  if (chapter && chapter !== 'All Units') {
+    query = query.eq('chapter', chapter)
+  }
+
+  const { data: notes, error } = await query
+  if (error) throw error
+
+  const uploaderIds = [...new Set((notes ?? []).map((note) => note.uploaded_by).filter(Boolean))]
+  let uploaderById = {}
+  if (uploaderIds.length > 0) {
+    const { data: students, error: studentsError } = await adminSupabase
+      .from('students')
+      .select('id,full_name,usn')
+      .in('id', uploaderIds)
+    if (studentsError) throw studentsError
+    uploaderById = Object.fromEntries((students ?? []).map((student) => [student.id, student]))
+  }
+
+  const mapped = (notes ?? [])
+    .map((note) => {
+      const uploader = uploaderById[note.uploaded_by] ?? null
+      return {
+        id: note.id,
+        title: note.title,
+        chapter: note.chapter,
+        uploadedAt: note.uploaded_at,
+        uploader: {
+          id: note.uploaded_by,
+          name: uploader?.full_name || 'Student',
+          usn: uploader?.usn || 'NA',
+        },
+        file: note.note_files?.[0] ?? null,
+        status: note.status,
+      }
+    })
+    .filter((note) => {
+      if (!search) return true
+      return (
+        note.title.toLowerCase().includes(search) ||
+        note.uploader.name.toLowerCase().includes(search) ||
+        note.uploader.usn.toLowerCase().includes(search)
+      )
+    })
+
+  return res.json({ notes: mapped })
+})
+
 app.patch('/api/notes/:noteId/verify', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
   if (!ensureDatabaseConfigured(res)) return
 
