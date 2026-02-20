@@ -7,6 +7,9 @@ type RoutePath =
   | '/student_register'
   | '/faculty_login'
   | '/student_dashboard'
+  | '/assignment_review'
+  | '/assignment_result'
+  | '/unofficial_notes'
 
 const links = [
   { label: 'Help Center', href: '#' },
@@ -28,6 +31,18 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/student_dashboard' || pathname === '/dashboard') {
     return '/student_dashboard'
+  }
+
+  if (pathname === '/assignment_review') {
+    return '/assignment_review'
+  }
+
+  if (pathname === '/assignment_result' || pathname === '/results') {
+    return '/assignment_result'
+  }
+
+  if (pathname === '/unofficial_notes') {
+    return '/unofficial_notes'
   }
 
   return '/'
@@ -322,7 +337,15 @@ function FacultyLoginScreen() {
   )
 }
 
-function StudentDashboardScreen() {
+function StudentDashboardScreen({
+  onViewBrief,
+  onViewResult,
+  onUnofficialNotes,
+}: {
+  onViewBrief: () => void
+  onViewResult: () => void
+  onUnofficialNotes: () => void
+}) {
   return (
     <div className="dashboard-page" aria-label="Student dashboard">
       <header className="dashboard-header">
@@ -351,19 +374,13 @@ function StudentDashboardScreen() {
 
           <div className="dashboard-filter-grid">
             <div className="field-group">
-              <label htmlFor="course">Course</label>
-              <select id="course" defaultValue="B.Tech Computer Science">
-                <option>B.Tech Computer Science</option>
-                <option>B.Sc Mathematics</option>
-              </select>
+              <label>Course</label>
+              <div className="dashboard-static-field">B.Tech Computer Science</div>
             </div>
 
             <div className="field-group">
-              <label htmlFor="sem">Semester</label>
-              <select id="sem" defaultValue="Semester 5">
-                <option>Semester 5</option>
-                <option>Semester 6</option>
-              </select>
+              <label>Semester</label>
+              <div className="dashboard-static-field">Semester 5</div>
             </div>
 
             <div className="field-group">
@@ -383,7 +400,7 @@ function StudentDashboardScreen() {
               <button type="button" className="dashboard-tab dashboard-tab-active">
                 Official Notes
               </button>
-              <button type="button" className="dashboard-tab">
+              <button type="button" className="dashboard-tab" onClick={onUnofficialNotes}>
                 Unofficial Notes
               </button>
             </div>
@@ -402,8 +419,7 @@ function StudentDashboardScreen() {
                   <th>Chapter</th>
                   <th>Faculty / Author</th>
                   <th>Date</th>
-                  <th>Status</th>
-                  <th className="align-right">Action</th>
+                  <th className="notes-action-col">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -412,13 +428,15 @@ function StudentDashboardScreen() {
                   <td>Chapter 4</td>
                   <td className="muted">Dr. Robert Wilson</td>
                   <td className="muted">Oct 12, 2023</td>
-                  <td>
-                    <span className="dashboard-status dashboard-status-verified">Verified</span>
-                  </td>
-                  <td className="align-right">
-                    <button type="button" className="dashboard-btn-primary dashboard-btn-small">
-                      Download
-                    </button>
+                  <td className="notes-action-col">
+                    <div className="dashboard-action-icons">
+                      <button type="button" className="dashboard-table-icon-btn" aria-label="View note">
+                        <span className="material-symbols-outlined">visibility</span>
+                      </button>
+                      <button type="button" className="dashboard-table-icon-btn" aria-label="Download note">
+                        <span className="material-symbols-outlined">download</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 <tr>
@@ -426,13 +444,15 @@ function StudentDashboardScreen() {
                   <td>Chapter 3</td>
                   <td className="muted">Dr. Robert Wilson</td>
                   <td className="muted">Oct 05, 2023</td>
-                  <td>
-                    <span className="dashboard-status dashboard-status-pending">Pending</span>
-                  </td>
-                  <td className="align-right">
-                    <button type="button" className="dashboard-btn-primary dashboard-btn-small">
-                      Download
-                    </button>
+                  <td className="notes-action-col">
+                    <div className="dashboard-action-icons">
+                      <button type="button" className="dashboard-table-icon-btn" aria-label="View note">
+                        <span className="material-symbols-outlined">visibility</span>
+                      </button>
+                      <button type="button" className="dashboard-table-icon-btn" aria-label="Download note">
+                        <span className="material-symbols-outlined">download</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -491,7 +511,7 @@ function StudentDashboardScreen() {
                   <p className="status-warning-text">Due in 2 Days</p>
                   <span className="pill">Not Submitted</span>
                 </div>
-                <button type="button" className="dashboard-btn-primary dashboard-btn-small">
+                <button type="button" className="dashboard-btn-primary dashboard-btn-small" onClick={onViewBrief}>
                   View Brief
                 </button>
               </div>
@@ -512,9 +532,6 @@ function StudentDashboardScreen() {
                   <p className="status-success-text">Completed</p>
                   <span className="pill success">Submitted</span>
                 </div>
-                <button type="button" className="dashboard-btn-secondary dashboard-btn-small">
-                  Review
-                </button>
               </div>
             </article>
 
@@ -533,11 +550,520 @@ function StudentDashboardScreen() {
                   <p className="grade-text">Grade: A+</p>
                   <span className="pill info">Graded</span>
                 </div>
-                <button type="button" className="dashboard-btn-secondary dashboard-btn-small">
+                <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onViewResult}>
                   Details
                 </button>
               </div>
             </article>
+          </div>
+        </section>
+      </main>
+
+      <footer className="dashboard-footer dashboard-container">
+        <div>
+          <p>© 2024 University Academic Digital Repository</p>
+        </div>
+        <nav aria-label="Footer links">
+          <a href="#">Help Center</a>
+          <a href="#">Privacy Policy</a>
+          <a href="#">Support</a>
+        </nav>
+      </footer>
+    </div>
+  )
+}
+
+function UnofficialNotesScreen() {
+  return (
+    <div className="unofficial-page" aria-label="Student unofficial notes portal">
+      <header className="unofficial-header">
+        <div className="dashboard-container unofficial-header-row">
+          <div>
+            <h1>Unofficial Notes</h1>
+            <div className="unofficial-header-accent" />
+          </div>
+          <div className="unofficial-header-right">
+            <button type="button" className="dashboard-upload-btn">
+              <span className="material-symbols-outlined">cloud_upload</span>
+              Upload Notes
+            </button>
+            <div className="dashboard-user">
+              <div className="dashboard-user-info">
+                <p>Alex Thompson</p>
+                <p>5th Sem • CS</p>
+              </div>
+              <div className="dashboard-avatar">
+                <span className="material-symbols-outlined">account_circle</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="dashboard-container unofficial-main">
+        <div className="unofficial-grid">
+          <aside className="unofficial-column">
+            <section className="dashboard-card">
+              <div className="unofficial-card-head">
+                <div className="dashboard-section-title">
+                  <span className="material-symbols-outlined">folder_shared</span>
+                  <h2>My Uploads</h2>
+                </div>
+                <span>3 Total</span>
+              </div>
+
+              <div className="unofficial-upload-list">
+                <article className="unofficial-upload-item">
+                  <div className="unofficial-upload-top">
+                    <div>
+                      <h3>OS - Deadlocks Short Notes</h3>
+                      <p>Uploaded on Oct 24, 2023</p>
+                    </div>
+                    <span className="unofficial-badge verified">Verified</span>
+                  </div>
+                  <div className="unofficial-upload-bottom">
+                    <span>PDF • 1.2 MB</span>
+                    <button type="button" className="dashboard-btn-primary dashboard-btn-small">
+                      <span className="material-symbols-outlined">download</span>
+                      Download
+                    </button>
+                  </div>
+                </article>
+
+                <article className="unofficial-upload-item">
+                  <div className="unofficial-upload-top">
+                    <div>
+                      <h3>Virtual Memory Lab Manual</h3>
+                      <p>Uploaded on Oct 28, 2023</p>
+                    </div>
+                    <span className="unofficial-badge pending">Pending</span>
+                  </div>
+                  <div className="unofficial-upload-bottom">
+                    <span>DOCX • 850 KB</span>
+                    <button type="button" className="dashboard-btn-primary dashboard-btn-small" disabled>
+                      <span className="material-symbols-outlined">download</span>
+                      Download
+                    </button>
+                  </div>
+                </article>
+
+                <article className="unofficial-upload-item">
+                  <div className="unofficial-upload-top">
+                    <div>
+                      <h3>Networking - OSI Model</h3>
+                      <p>Uploaded on Oct 15, 2023</p>
+                    </div>
+                    <span className="unofficial-badge rejected">Rejected</span>
+                  </div>
+                  <div className="unofficial-upload-bottom">
+                    <span>PDF • 3.4 MB</span>
+                    <button type="button" className="dashboard-btn-primary dashboard-btn-small" disabled>
+                      <span className="material-symbols-outlined">download</span>
+                      Download
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </aside>
+
+          <section className="unofficial-column unofficial-search-column">
+            <section className="dashboard-card">
+              <div className="dashboard-section-title">
+                <span className="material-symbols-outlined">search</span>
+                <h2>Find Notes</h2>
+              </div>
+
+              <div className="unofficial-searchbox">
+                <span className="material-symbols-outlined">search</span>
+                <input type="text" placeholder="Search by topic, unit, or author name..." />
+              </div>
+
+              <div className="unofficial-filters">
+                <button type="button" className="unofficial-filter-head">
+                  <span>
+                    <span className="material-symbols-outlined">tune</span>
+                    Advanced Filters
+                  </span>
+                  <span className="material-symbols-outlined">expand_more</span>
+                </button>
+                <div className="unofficial-filter-body">
+                  <div className="unofficial-filter-grid">
+                    <div className="field-group">
+                      <label>Unit / Chapter</label>
+                      <select defaultValue="All Units">
+                        <option>All Units</option>
+                        <option>Unit 1: Introduction</option>
+                        <option>Unit 2: Processes</option>
+                        <option>Unit 3: Scheduling</option>
+                      </select>
+                    </div>
+                    <div className="field-group">
+                      <label>Sort By</label>
+                      <select defaultValue="Most Recent">
+                        <option>Most Recent</option>
+                        <option>Highest Rated</option>
+                        <option>Verified First</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="unofficial-label">File Type</p>
+                    <div className="unofficial-chip-row">
+                      <button type="button" className="unofficial-chip active">All</button>
+                      <button type="button" className="unofficial-chip">PDF</button>
+                      <button type="button" className="unofficial-chip">DOCX</button>
+                      <button type="button" className="unofficial-chip">Images</button>
+                      <button type="button" className="unofficial-chip">Handwritten</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="unofficial-results">
+                <h3>Results (24)</h3>
+                <div className="unofficial-result-list">
+                  <article className="unofficial-result-item">
+                    <div>
+                      <div className="unofficial-doc-icon">
+                        <span className="material-symbols-outlined">description</span>
+                      </div>
+                      <div>
+                        <h4>CPU Scheduling Algorithms Summary</h4>
+                        <p>Uploaded By: Rahul Sharma (1RV21CS084)</p>
+                      </div>
+                    </div>
+                    <button type="button" className="dashboard-icon-btn">
+                      <span className="material-symbols-outlined">download</span>
+                    </button>
+                  </article>
+                  <article className="unofficial-result-item">
+                    <div>
+                      <div className="unofficial-doc-icon">
+                        <span className="material-symbols-outlined">description</span>
+                      </div>
+                      <div>
+                        <h4>File Systems - Complete Notes</h4>
+                        <p>Uploaded By: Sneha Gupta (1RV21CS112)</p>
+                      </div>
+                    </div>
+                    <button type="button" className="dashboard-icon-btn">
+                      <span className="material-symbols-outlined">download</span>
+                    </button>
+                  </article>
+                  <article className="unofficial-result-item">
+                    <div>
+                      <div className="unofficial-doc-icon">
+                        <span className="material-symbols-outlined">description</span>
+                      </div>
+                      <div>
+                        <h4>Banker's Algorithm Flowchart</h4>
+                        <p>Uploaded By: Mark Johnson (1RV21CS045)</p>
+                      </div>
+                    </div>
+                    <button type="button" className="dashboard-icon-btn">
+                      <span className="material-symbols-outlined">download</span>
+                    </button>
+                  </article>
+                </div>
+              </div>
+            </section>
+          </section>
+        </div>
+      </main>
+
+      <footer className="dashboard-footer dashboard-container">
+        <div>
+          <p>© 2024 Academic Digital Repository • Unofficial Notes Portal</p>
+        </div>
+        <nav aria-label="Footer links">
+          <a href="#">Portal Guidelines</a>
+          <a href="#">Verification Criteria</a>
+          <a href="#">Report Abuse</a>
+        </nav>
+      </footer>
+    </div>
+  )
+}
+
+function AssignmentReviewScreen() {
+  return (
+    <div className="assignment-page" aria-label="Assignment submission details">
+      <header className="assignment-header">
+        <div className="dashboard-container assignment-header-content">
+          <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
+            <a href="#">Assignments</a>
+            <span className="material-symbols-outlined">chevron_right</span>
+            <a href="#">CS501</a>
+            <span className="material-symbols-outlined">chevron_right</span>
+            <span>Assignment 2</span>
+          </nav>
+
+          <div className="assignment-title-row">
+            <h1>Assignment 2 - SQL Joins</h1>
+            <div className="dashboard-user">
+              <div className="dashboard-user-info">
+                <p>Alex Thompson</p>
+                <p>Semester 5 • CS</p>
+              </div>
+              <div className="dashboard-avatar">
+                <span className="material-symbols-outlined">account_circle</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="assignment-header-accent" />
+      </header>
+
+      <main className="dashboard-container assignment-main">
+        <div className="assignment-layout">
+          <section className="assignment-card assignment-details">
+            <div className="assignment-badges">
+              <span className="assignment-badge blue">Subject: CS501</span>
+              <span className="assignment-badge neutral">Unit 3</span>
+              <span className="assignment-badge green">Marks: 50</span>
+            </div>
+
+            <div className="assignment-due-box">
+              <div>
+                <p>Due Date</p>
+                <h2>November 24, 2023 at 11:59 PM</h2>
+              </div>
+              <span className="assignment-badge warning">
+                <span className="material-symbols-outlined">timer</span>
+                Due soon
+              </span>
+            </div>
+
+            <div className="assignment-instructions">
+              <h3>
+                <span className="material-symbols-outlined">description</span>
+                Instructions
+              </h3>
+              <p>
+                In this assignment, you are required to demonstrate your understanding of complex SQL Joins. You
+                will be working with a sample database of a library system. Please ensure your queries are optimized
+                and include comments explaining your logic.
+              </p>
+              <ul>
+                <li>Write queries for Inner, Left, Right, and Full Outer joins.</li>
+                <li>Include at least two queries with multiple join conditions.</li>
+                <li>Implement a self-join for the Staff Hierarchy table.</li>
+                <li>Export your results in a single .sql file.</li>
+                <li>Provide a brief PDF report explaining the execution plan for Query #4.</li>
+              </ul>
+            </div>
+
+            <div className="assignment-resources">
+              <h3>
+                <span className="material-symbols-outlined">folder_open</span>
+                Faculty Resources
+              </h3>
+              <div className="assignment-resource-list">
+                <button type="button" className="assignment-resource-btn">
+                  <span className="material-symbols-outlined">description</span>
+                  Database_Schema.pdf
+                  <span className="material-symbols-outlined">download</span>
+                </button>
+                <button type="button" className="assignment-resource-btn">
+                  <span className="material-symbols-outlined">table_chart</span>
+                  Sample_Data.docx
+                  <span className="material-symbols-outlined">download</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <aside className="assignment-sidebar">
+            <section className="assignment-card">
+              <div className="assignment-sidebar-head">
+                <h2>Your Work</h2>
+                <span>Not Submitted</span>
+              </div>
+              <div className="assignment-uploaded-item">
+                <div>
+                  <span className="material-symbols-outlined">database</span>
+                  <p>sql_joins_solution.sql</p>
+                </div>
+                <button type="button" aria-label="Remove file">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <button type="button" className="assignment-dropzone">
+                <span className="material-symbols-outlined">upload_file</span>
+                <p>Add or create</p>
+                <p>Drag and drop or click to upload</p>
+              </button>
+
+              <button type="button" className="assignment-submit-btn">
+                Submit Assignment
+              </button>
+              <p className="assignment-note">Submission will be timestamped and logged.</p>
+            </section>
+
+            <section className="assignment-comments">
+              <h4>
+                <span className="material-symbols-outlined">forum</span>
+                Private comments
+              </h4>
+              <div>
+                <input type="text" placeholder="Add a comment to faculty..." />
+                <button type="button">
+                  <span className="material-symbols-outlined">send</span>
+                </button>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </main>
+
+      <footer className="dashboard-footer dashboard-container">
+        <div>
+          <p>© 2024 University Academic Digital Repository</p>
+        </div>
+        <nav aria-label="Footer links">
+          <a href="#">Help Center</a>
+          <a href="#">Privacy Policy</a>
+          <a href="#">Support</a>
+        </nav>
+      </footer>
+    </div>
+  )
+}
+
+function AssignmentResultScreen() {
+  return (
+    <div className="assignment-page" aria-label="Submission and grade status">
+      <header className="assignment-header">
+        <div className="dashboard-container result-header-content">
+          <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
+            <a href="#">Assignments</a>
+            <span className="result-breadcrumb-divider">/</span>
+            <a href="#">CS501</a>
+            <span className="result-breadcrumb-divider">/</span>
+            <span>Lab Report</span>
+          </nav>
+
+          <div className="assignment-title-row">
+            <h1 className="result-title">Memory Mapping Lab Report</h1>
+            <div className="dashboard-user">
+              <div className="dashboard-user-info">
+                <p>Alex Thompson</p>
+                <p>Semester 5 • CS501</p>
+              </div>
+              <div className="dashboard-avatar">
+                <span className="material-symbols-outlined">account_circle</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="assignment-header-accent" />
+      </header>
+
+      <main className="dashboard-container assignment-main">
+        <section className="assignment-card">
+          <div className="result-status-head">
+            <span className="material-symbols-outlined">info</span>
+            <h2>Submission Status</h2>
+            <span className="result-pill">Graded</span>
+          </div>
+
+          <div className="result-grid">
+            <div className="result-left">
+              <div>
+                <p>Overall Grade</p>
+                <h3>Grade: A+</h3>
+              </div>
+              <div>
+                <p>Submission Date</p>
+                <h4>Nov 01, 2023 • 11:45 PM</h4>
+              </div>
+            </div>
+
+            <div className="result-feedback">
+              <div>
+                <span className="material-symbols-outlined">comment</span>
+                <h3>Faculty Feedback</h3>
+              </div>
+              <p>
+                "Excellent work on the memory mapping simulation. Your implementation of the paging mechanism was
+                thorough and well-documented. The performance analysis section shows a deep understanding of TLB
+                misses. Keep up the high standard of technical writing."
+              </p>
+              <div className="result-author">
+                <span className="material-symbols-outlined">person</span>
+                <span>Dr. Robert Wilson • Faculty of OS</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="assignment-card">
+          <div className="result-files-head">
+            <span className="material-symbols-outlined">folder_open</span>
+            <h2>Submitted Files</h2>
+          </div>
+
+          <div className="result-files-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Filename</th>
+                  <th>Size</th>
+                  <th>Upload Date &amp; Time</th>
+                  <th className="align-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div className="result-file-name">
+                      <span className="material-symbols-outlined result-file-pdf">picture_as_pdf</span>
+                      <div>
+                        <p>Lab_Report_Memory_Mapping_Final.pdf</p>
+                        <p>Main Document</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="muted">2.4 MB</td>
+                  <td className="muted">Nov 01, 2023 • 11:42 PM</td>
+                  <td className="align-right">
+                    <button type="button" className="result-view-btn">
+                      <span className="material-symbols-outlined">visibility</span>
+                      View File
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div className="result-file-name">
+                      <span className="material-symbols-outlined">folder_zip</span>
+                      <div>
+                        <p>Source_Code_Simulation_v2.zip</p>
+                        <p>Supporting File</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="muted">15.8 MB</td>
+                  <td className="muted">Nov 01, 2023 • 11:45 PM</td>
+                  <td className="align-right">
+                    <button type="button" className="result-view-btn">
+                      <span className="material-symbols-outlined">visibility</span>
+                      View File
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="result-note-box">
+            <span className="material-symbols-outlined">warning</span>
+            <p>
+              Note: Files once submitted and graded can no longer be replaced or modified. If you notice any
+              discrepancy in the uploaded files, please contact the faculty coordinator.
+            </p>
           </div>
         </section>
       </main>
@@ -597,7 +1123,19 @@ function App() {
 
       {path === '/faculty_login' ? <FacultyLoginScreen /> : null}
 
-      {path === '/student_dashboard' ? <StudentDashboardScreen /> : null}
+      {path === '/student_dashboard' ? (
+        <StudentDashboardScreen
+          onViewBrief={() => navigate('/assignment_review')}
+          onViewResult={() => navigate('/assignment_result')}
+          onUnofficialNotes={() => navigate('/unofficial_notes')}
+        />
+      ) : null}
+
+      {path === '/assignment_review' ? <AssignmentReviewScreen /> : null}
+
+      {path === '/assignment_result' ? <AssignmentResultScreen /> : null}
+
+      {path === '/unofficial_notes' ? <UnofficialNotesScreen /> : null}
 
       {path === '/' ? (
         <HomeScreen
