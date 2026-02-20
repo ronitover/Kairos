@@ -4,7 +4,7 @@ import { useAuth } from './contexts/AuthContext'
 import { authService } from './services/auth'
 import { studentService } from './services/students'
 import { assignmentService } from './services/assignments'
-import { adminService } from './services/admin'
+import { adminService, adminPendingUploadsService } from './services/admin'
 import { facultyService } from './services/faculty'
 import { validateFile, FileUploadError } from './utils/fileUpload'
 
@@ -23,6 +23,8 @@ type RoutePath =
   | '/admin_review_uploads'
   | '/admin_student_details'
   | '/admin_faculty_details'
+  | '/admin_departments'
+  | '/admin_settings'
   | '/forgot_password'
   | '/reset_password'
   | '/faculty_dashboard'
@@ -709,7 +711,9 @@ function getRequiredRole(route: RoutePath): 'student' | 'faculty' | 'admin' | nu
     route === '/admin_enroll_students' ||
     route === '/admin_review_uploads' ||
     route === '/admin_student_details' ||
-    route === '/admin_faculty_details'
+    route === '/admin_faculty_details' ||
+    route === '/admin_departments' ||
+    route === '/admin_settings'
   ) {
     return 'admin'
   }
@@ -785,6 +789,12 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/admin_faculty_details') {
     return '/admin_faculty_details'
+  }
+  if (pathname === '/admin_departments') {
+    return '/admin_departments'
+  }
+  if (pathname === '/admin_settings') {
+    return '/admin_settings'
   }
 
   if (pathname === '/forgot_password' || pathname === '/forgot-password') {
@@ -1365,7 +1375,15 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
   )
 }
 
-function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
+function AdminLoginScreen({
+  onLogin,
+  onBack,
+  onForgotPassword,
+}: {
+  onLogin: () => void
+  onBack?: () => void
+  onForgotPassword?: () => void
+}) {
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -1392,6 +1410,12 @@ function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
     <>
       <main className="student-login-card" aria-label="Admin login">
         <div className="student-card-content">
+          {onBack ? (
+            <button type="button" className="back-link" onClick={onBack}>
+              <span className="material-symbols-outlined">arrow_back</span>
+              <span>Back</span>
+            </button>
+          ) : null}
           <div className="student-logo-wrap">
             <div className="student-logo-shell">
               <span className="material-symbols-outlined icon-faculty">admin_panel_settings</span>
@@ -1458,7 +1482,13 @@ function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
           </form>
 
           <div className="forgot-wrap">
-            <a href="#">Forgot Password?</a>
+            {onForgotPassword ? (
+              <button type="button" className="link-button" onClick={onForgotPassword}>
+                Forgot Password?
+              </button>
+            ) : (
+              <a href="#">Forgot Password?</a>
+            )}
           </div>
         </div>
       </main>
@@ -1466,30 +1496,70 @@ function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
   )
 }
 
+type AdminNavActive = 'dashboard' | 'faculty' | 'subjects' | 'circulars' | 'students' | 'departments' | 'settings'
+
 function AdminHeader({
   active,
   onNavigateDashboard,
   onNavigateFacultyAccounts,
   onNavigateAssignSubjects,
   onNavigateCirculars,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
+  onNotificationsClick,
 }: {
-  active: 'dashboard' | 'faculty' | 'subjects' | 'circulars'
+  active: AdminNavActive
   onNavigateDashboard: () => void
   onNavigateFacultyAccounts: () => void
   onNavigateAssignSubjects: () => void
   onNavigateCirculars: () => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
+  onNotificationsClick?: () => void
 }) {
   const { user } = useAuth()
   const displayName = user?.name || user?.fullName || 'Admin User'
   const roleText = user?.role ? `${user.role[0].toUpperCase()}${user.role.slice(1)} Access` : 'Super Administrator'
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const toggleNotifications = () => {
+    setNotificationsOpen((prev) => !prev)
+    onNotificationsClick?.()
+  }
   return (
     <header className="admin-header">
       <div className="admin-container admin-header-row">
         <h1>Admin Dashboard</h1>
         <div className="admin-header-right">
-          <button type="button" className="admin-notification-btn" aria-label="Notifications">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button type="button" className="admin-notification-btn" aria-label="Notifications" onClick={toggleNotifications}>
+              <span className="material-symbols-outlined">notifications</span>
+            </button>
+            {notificationsOpen ? (
+              <div
+                className="admin-dropdown-panel"
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '0.25rem',
+                  background: 'var(--card-bg, #fff)',
+                  border: '1px solid var(--border, #e5e7eb)',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  padding: '1rem',
+                  minWidth: '280px',
+                  zIndex: 50,
+                }}
+              >
+                <p style={{ margin: 0, color: 'var(--muted, #6b7280)', fontSize: '0.875rem' }}>No notifications yet.</p>
+                <button type="button" onClick={() => setNotificationsOpen(false)} style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                  Close
+                </button>
+              </div>
+            ) : null}
+          </div>
           <div className="admin-user">
             <div>
               <p>{displayName}</p>
@@ -1513,15 +1583,21 @@ function AdminHeader({
           <span className="material-symbols-outlined">assignment_ind</span>
           Assign Subjects
         </button>
+        {onNavigateStudentAccounts ? (
+          <button type="button" onClick={onNavigateStudentAccounts} className={active === 'students' ? 'active' : ''}>
+            <span className="material-symbols-outlined">school</span>
+            Student Accounts
+          </button>
+        ) : null}
         <button type="button" onClick={onNavigateCirculars} className={active === 'circulars' ? 'active' : ''}>
           <span className="material-symbols-outlined">campaign</span>
           Circulars
         </button>
-        <button type="button">
+        <button type="button" onClick={onNavigateDepartments} className={active === 'departments' ? 'active' : ''}>
           <span className="material-symbols-outlined">book</span>
           Departments
         </button>
-        <button type="button">
+        <button type="button" onClick={onNavigateSettings} className={active === 'settings' ? 'active' : ''}>
           <span className="material-symbols-outlined">settings</span>
           System Settings
         </button>
@@ -1596,6 +1672,7 @@ function AdminDashboardScreen({
 
   const stats = dashboardData?.stats
   const recentActivities = dashboardData?.recentActivities ?? []
+  const activitySectionRef = useRef<HTMLElement>(null)
 
   return (
     <div className="admin-page" aria-label="Global admin dashboard">
@@ -1697,13 +1774,15 @@ function AdminDashboardScreen({
         </section>
 
         <section className="admin-content-grid">
-          <article className="admin-activity">
+          <article ref={activitySectionRef} className="admin-activity">
             <div className="admin-card-head">
               <h2>
                 <span className="material-symbols-outlined">history</span>
                 Activity Feed
               </h2>
-              <button type="button">View All</button>
+              <button type="button" onClick={() => activitySectionRef.current?.scrollIntoView({ behavior: 'smooth' })}>
+                View All
+              </button>
             </div>
             <div className="admin-activity-list">
               {recentActivities.length === 0 && stats == null ? (
@@ -1738,7 +1817,9 @@ function AdminDashboardScreen({
                 <span />
               </div>
               <p>650 GB of 1 TB used (65%)</p>
-              <button type="button">Manage Storage</button>
+              <button type="button" onClick={() => window.alert('Storage management coming soon.')}>
+                Manage Storage
+              </button>
             </article>
 
             <article className="admin-support-card">
@@ -1746,10 +1827,14 @@ function AdminDashboardScreen({
               <p>
                 Having issues with the repository system? Contact technical support or view documentation.
               </p>
-              <a href="#">
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                onClick={() => window.alert('Help center link coming soon.')}
+              >
                 Go to Help Center
                 <span className="material-symbols-outlined">arrow_forward</span>
-              </a>
+              </button>
             </article>
           </aside>
         </section>
@@ -1768,10 +1853,15 @@ function AdminCircularsScreen({
   calendarEvents,
   onCreateNotice,
   onCreateCalendarEvent,
+  onUpdateNotice,
   onDeleteNotice,
+  onDeleteCalendarEvent,
   onBackDashboard,
   onFacultyAccounts,
   onAssignSubjects,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
 }: {
   notices: DepartmentNotice[]
   calendarEvents: AcademicEvent[]
@@ -1783,10 +1873,15 @@ function AdminCircularsScreen({
     details: string
     targetAudience?: 'students' | 'faculty' | 'both'
   }) => void
+  onUpdateNotice?: (id: string, payload: { title: string; content: string; urgent: boolean }) => void
   onDeleteNotice: (id: string) => void
+  onDeleteCalendarEvent?: (id: string) => void
   onBackDashboard: () => void
   onFacultyAccounts: () => void
   onAssignSubjects: () => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
 }) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -1797,6 +1892,10 @@ function AdminCircularsScreen({
   const [eventAudience, setEventAudience] = useState<'students' | 'faculty' | 'both'>('students')
   const [eventDetails, setEventDetails] = useState('')
   const [eventFeedback, setEventFeedback] = useState('')
+  const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editContent, setEditContent] = useState('')
+  const [editUrgent, setEditUrgent] = useState(false)
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -1842,6 +1941,9 @@ function AdminCircularsScreen({
         onNavigateFacultyAccounts={onFacultyAccounts}
         onNavigateAssignSubjects={onAssignSubjects}
         onNavigateCirculars={() => {}}
+        onNavigateStudentAccounts={onNavigateStudentAccounts}
+        onNavigateDepartments={onNavigateDepartments}
+        onNavigateSettings={onNavigateSettings}
       />
 
       <main className="admin-container admin-main">
@@ -1958,8 +2060,15 @@ function AdminCircularsScreen({
               {adminCalendarEvents.length === 0 ? <p>No admin events yet.</p> : null}
               {adminCalendarEvents.slice(0, 5).map((event) => (
                 <article key={event.id} className={`admin-calendar-upcoming-item ${event.type}`}>
-                  <strong>{event.title}</strong>
-                  <span>{new Date(event.date).toLocaleDateString()} • {event.type} • {event.targetAudience}</span>
+                  <div>
+                    <strong>{event.title}</strong>
+                    <span>{new Date(event.date).toLocaleDateString()} • {event.type} • {event.targetAudience}</span>
+                  </div>
+                  {onDeleteCalendarEvent ? (
+                    <button type="button" onClick={() => onDeleteCalendarEvent(event.id)} aria-label={`Delete ${event.title}`}>
+                      <span className="material-symbols-outlined">delete</span>
+                    </button>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -1981,14 +2090,31 @@ function AdminCircularsScreen({
                         {isNoticeNew(notice.createdAt) ? <span className="notice-badge new">New</span> : null}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="notice-delete-btn"
-                      onClick={() => onDeleteNotice(notice.id)}
-                      aria-label={`Delete ${notice.title}`}
-                    >
-                      <span className="material-symbols-outlined">delete</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {onUpdateNotice ? (
+                        <button
+                          type="button"
+                          className="notice-delete-btn"
+                          onClick={() => {
+                            setEditingNoticeId(notice.id)
+                            setEditTitle(notice.title)
+                            setEditContent(notice.content)
+                            setEditUrgent(notice.urgent)
+                          }}
+                          aria-label={`Edit ${notice.title}`}
+                        >
+                          <span className="material-symbols-outlined">edit</span>
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="notice-delete-btn"
+                        onClick={() => onDeleteNotice(notice.id)}
+                        aria-label={`Delete ${notice.title}`}
+                      >
+                        <span className="material-symbols-outlined">delete</span>
+                      </button>
+                    </div>
                   </div>
                   <p>{notice.content}</p>
                   <small>
@@ -2001,6 +2127,49 @@ function AdminCircularsScreen({
         </section>
       </main>
 
+      {editingNoticeId && onUpdateNotice ? (
+        <div className="admin-faculty-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setEditingNoticeId(null)}>
+          <div className="admin-faculty-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-faculty-modal-content">
+              <div className="admin-faculty-modal-head">
+                <h3>Edit Notice</h3>
+                <button type="button" onClick={() => setEditingNoticeId(null)} aria-label="Close">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (editTitle.trim() && editContent.trim()) {
+                    onUpdateNotice(editingNoticeId, { title: editTitle.trim(), content: editContent.trim(), urgent: editUrgent })
+                    setEditingNoticeId(null)
+                  }
+                }}
+              >
+                <div className="field-group">
+                  <label>Title</label>
+                  <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+                </div>
+                <div className="field-group">
+                  <label>Content</label>
+                  <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} required rows={4} />
+                </div>
+                <div className="field-group">
+                  <label>
+                    <input type="checkbox" checked={editUrgent} onChange={(e) => setEditUrgent(e.target.checked)} />
+                    Urgent
+                  </label>
+                </div>
+                <div className="admin-faculty-modal-actions">
+                  <button type="button" onClick={() => setEditingNoticeId(null)}>Cancel</button>
+                  <button type="submit">Save</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <AdminFooter />
     </div>
   )
@@ -2011,27 +2180,36 @@ function AdminReviewUploadsScreen({
   onFacultyAccounts,
   onAssignSubjects,
   onCirculars,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
 }: {
   onBackDashboard: () => void
   onFacultyAccounts: () => void
   onAssignSubjects: () => void
   onCirculars: () => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
 }) {
-  const [statusById, setStatusById] = useState<Record<string, 'pending' | 'approved' | 'rejected'>>({
-    'upload-1': 'pending',
-    'upload-2': 'pending',
-    'upload-3': 'approved',
-  })
+  const [uploads, setUploads] = useState<Array<{ id: string; student: string; usn: string; title: string; format: string; date: string }>>([])
+  const [uploadsLoading, setUploadsLoading] = useState(true)
+  const [statusById, setStatusById] = useState<Record<string, 'pending' | 'approved' | 'rejected'>>({})
+  const [viewUploadId, setViewUploadId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    adminPendingUploadsService.getPendingUploads().then((list) => {
+      if (!active) return
+      setUploads(list.map((u) => ({ id: u.id, student: u.student, usn: u.usn, title: u.title, format: u.format, date: u.date })))
+      setStatusById(Object.fromEntries(list.map((u) => [u.id, u.status])))
+    }).finally(() => { if (active) setUploadsLoading(false) })
+    return () => { active = false }
+  }, [])
 
   const handleAction = (id: string, status: 'approved' | 'rejected') => {
     setStatusById((current) => ({ ...current, [id]: status }))
   }
-
-  const uploads = [
-    { id: 'upload-1', student: 'Aditi Sharma', usn: '1RV21CS001', title: 'OS Unit 3 Notes', format: 'PDF', date: 'Oct 24, 2023' },
-    { id: 'upload-2', student: 'Rahul Jayaram', usn: '1RV21IS045', title: 'DBMS Normalization Guide', format: 'DOCX', date: 'Oct 23, 2023' },
-    { id: 'upload-3', student: 'Priya Kapoor', usn: '1RV20EC112', title: 'Network Topology Diagrams', format: 'PNG', date: 'Oct 20, 2023' },
-  ]
 
   return (
     <div className="admin-page" aria-label="Admin review uploads">
@@ -2041,6 +2219,9 @@ function AdminReviewUploadsScreen({
         onNavigateFacultyAccounts={onFacultyAccounts}
         onNavigateAssignSubjects={onAssignSubjects}
         onNavigateCirculars={onCirculars}
+        onNavigateStudentAccounts={onNavigateStudentAccounts}
+        onNavigateDepartments={onNavigateDepartments}
+        onNavigateSettings={onNavigateSettings}
       />
 
       <main className="admin-container admin-main">
@@ -2064,23 +2245,30 @@ function AdminReviewUploadsScreen({
                 </tr>
               </thead>
               <tbody>
-                {uploads.map((upload) => {
-                  const status = statusById[upload.id]
-                  return (
-                    <tr key={upload.id}>
-                      <td>{upload.student}</td>
-                      <td className="mono">{upload.usn}</td>
-                      <td>{upload.title}</td>
-                      <td>{upload.format}</td>
-                      <td className="muted">{upload.date}</td>
-                      <td>
-                        <span className={`admin-review-status ${status}`}>{status}</span>
-                      </td>
-                      <td className="align-right">
-                        <div className={`admin-review-actions ${status !== 'pending' ? 'disabled' : ''}`}>
-                          <button type="button" className="view">
-                            <span className="material-symbols-outlined">visibility</span>
-                          </button>
+                {uploadsLoading ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted, #666)' }}>
+                      Loading uploads…
+                    </td>
+                  </tr>
+                ) : (
+                  uploads.map((upload) => {
+                    const status = statusById[upload.id] ?? 'pending'
+                    return (
+                      <tr key={upload.id}>
+                        <td>{upload.student}</td>
+                        <td className="mono">{upload.usn}</td>
+                        <td>{upload.title}</td>
+                        <td>{upload.format}</td>
+                        <td className="muted">{upload.date}</td>
+                        <td>
+                          <span className={`admin-review-status ${status}`}>{status}</span>
+                        </td>
+                        <td className="align-right">
+                          <div className={`admin-review-actions ${status !== 'pending' ? 'disabled' : ''}`}>
+                            <button type="button" className="view" onClick={() => setViewUploadId(upload.id)}>
+                              <span className="material-symbols-outlined">visibility</span>
+                            </button>
                           <button
                             type="button"
                             className="approve"
@@ -2100,13 +2288,35 @@ function AdminReviewUploadsScreen({
                         </div>
                       </td>
                     </tr>
-                  )
-                })}
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </section>
       </main>
+
+      {viewUploadId ? (
+        <div
+          className="admin-faculty-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setViewUploadId(null)}
+        >
+          <div className="admin-faculty-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-faculty-modal-content">
+              <div className="admin-faculty-modal-head">
+                <h3>Upload Preview</h3>
+                <button type="button" onClick={() => setViewUploadId(null)} aria-label="Close">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <p style={{ color: 'var(--muted, #6b7280)' }}>File preview is not available. Download from repository when implemented.</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <AdminFooter />
     </div>
@@ -2120,40 +2330,91 @@ function AdminStudentAccountsScreen({
   onCirculars,
   onEnrollStudents,
   onViewStudentDetails,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
 }: {
   onBackDashboard: () => void
   onFacultyAccounts: () => void
   onAssignSubjects: () => void
   onCirculars: () => void
   onEnrollStudents?: () => void
-  onViewStudentDetails?: () => void
+  onViewStudentDetails?: (id: string) => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
 }) {
   const [studentList, setStudentList] = useState<Awaited<ReturnType<typeof adminService.getStudents>>>([])
   const [studentError, setStudentError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [programmeFilter, setProgrammeFilter] = useState('All Programmes')
+  const [semesterFilter, setSemesterFilter] = useState('All Semesters')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const fetchStudents = (filters?: { search?: string; programme?: string; semester?: string }) => {
+    adminService
+      .getStudents(filters)
+      .then((list) => setStudentList(list))
+      .catch((err) => setStudentError(err instanceof Error ? err.message : 'Failed to load students'))
+  }
 
   useEffect(() => {
-    let active = true
-    adminService
-      .getStudents()
-      .then((list) => {
-        if (active) setStudentList(list)
-      })
-      .catch((err) => {
-        if (active) setStudentError(err instanceof Error ? err.message : 'Failed to load students')
-      })
-    return () => {
-      active = false
-    }
+    fetchStudents()
   }, [])
+
+  const applyFilters = () => {
+    fetchStudents({
+      search: searchQuery.trim() || undefined,
+      programme: programmeFilter !== 'All Programmes' ? programmeFilter : undefined,
+      semester: semesterFilter !== 'All Semesters' ? semesterFilter.replace(/\D/g, '') || undefined : undefined,
+    })
+  }
+
+  const resetFilters = () => {
+    setSearchQuery('')
+    setProgrammeFilter('All Programmes')
+    setSemesterFilter('All Semesters')
+    fetchStudents()
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === studentList.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(studentList.map((s) => s.id)))
+  }
+
+  const exportCsv = () => {
+    const headers = ['Name', 'USN', 'Programme', 'Semester', 'Email', 'Status']
+    const rows = studentList.map((s) => [s.fullName, s.usn, s.programme, s.semester, s.email, s.status])
+    const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'students.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="admin-page" aria-label="Student accounts management">
       <AdminHeader
-        active="dashboard"
+        active="students"
         onNavigateDashboard={onBackDashboard}
         onNavigateFacultyAccounts={onFacultyAccounts}
         onNavigateAssignSubjects={onAssignSubjects}
         onNavigateCirculars={onCirculars}
+        onNavigateStudentAccounts={onNavigateStudentAccounts}
+        onNavigateDepartments={onNavigateDepartments}
+        onNavigateSettings={onNavigateSettings}
       />
 
       <main className="admin-container admin-main">
@@ -2180,12 +2441,12 @@ function AdminStudentAccountsScreen({
               <label htmlFor="student-search">Search Student</label>
               <div className="admin-students-search">
                 <span className="material-symbols-outlined">search</span>
-                <input id="student-search" type="text" placeholder="USN or Name..." />
+                <input id="student-search" type="text" placeholder="USN or Name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               </div>
             </div>
             <div className="field-group">
               <label htmlFor="student-programme">Programme</label>
-              <select id="student-programme" defaultValue="All Programmes">
+              <select id="student-programme" value={programmeFilter} onChange={(e) => setProgrammeFilter(e.target.value)}>
                 <option>All Programmes</option>
                 <option>Computer Science &amp; Engineering</option>
                 <option>Information Science</option>
@@ -2195,7 +2456,7 @@ function AdminStudentAccountsScreen({
             </div>
             <div className="field-group">
               <label htmlFor="student-semester">Semester</label>
-              <select id="student-semester" defaultValue="All Semesters">
+              <select id="student-semester" value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)}>
                 <option>All Semesters</option>
                 <option>1st Semester</option>
                 <option>2nd Semester</option>
@@ -2208,11 +2469,11 @@ function AdminStudentAccountsScreen({
               </select>
             </div>
             <div className="admin-students-filter-actions">
-              <button type="button" className="apply">
+              <button type="button" className="apply" onClick={applyFilters}>
                 <span className="material-symbols-outlined">filter_list</span>
                 Apply Filters
               </button>
-              <button type="button" className="reset" aria-label="Reset filters">
+              <button type="button" className="reset" aria-label="Reset filters" onClick={resetFilters}>
                 <span className="material-symbols-outlined">restart_alt</span>
               </button>
             </div>
@@ -2226,11 +2487,11 @@ function AdminStudentAccountsScreen({
         ) : null}
         <section className="admin-students-bulk">
           <div>
-            <button type="button" className="deactivate">
+            <button type="button" className="deactivate" onClick={() => selectedIds.size > 0 && window.alert('Deactivate selected requires backend integration.')}>
               <span className="material-symbols-outlined">no_accounts</span>
               Deactivate Selected
             </button>
-            <button type="button" className="export">
+            <button type="button" className="export" onClick={exportCsv}>
               <span className="material-symbols-outlined">file_download</span>
               Export CSV
             </button>
@@ -2246,7 +2507,7 @@ function AdminStudentAccountsScreen({
               <thead>
                 <tr>
                   <th className="align-center">
-                    <input type="checkbox" />
+                    <input type="checkbox" checked={studentList.length > 0 && selectedIds.size === studentList.length} onChange={toggleSelectAll} aria-label="Select all" />
                   </th>
                   <th>Student Name</th>
                   <th>USN</th>
@@ -2268,7 +2529,7 @@ function AdminStudentAccountsScreen({
                   studentList.map((s) => (
                     <tr key={s.id}>
                       <td className="align-center">
-                        <input type="checkbox" />
+                        <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} aria-label={`Select ${s.fullName}`} />
                       </td>
                       <td>
                         <div className="admin-student-person">
@@ -2287,13 +2548,13 @@ function AdminStudentAccountsScreen({
                       </td>
                       <td className="align-right">
                         <div className="admin-student-actions">
-                          <button type="button" className="view" aria-label="View details" onClick={onViewStudentDetails}>
+                          <button type="button" className="view" aria-label="View details" onClick={() => onViewStudentDetails?.(s.id)}>
                             <span className="material-symbols-outlined">visibility</span>
                           </button>
-                          <button type="button" className="reset" aria-label="Reset password">
+                          <button type="button" className="reset" aria-label="Reset password" onClick={() => window.alert('Reset password requires backend integration.')}>
                             <span className="material-symbols-outlined">password</span>
                           </button>
-                          <button type="button" className="disable" aria-label="Disable account">
+                          <button type="button" className="disable" aria-label="Disable account" onClick={() => window.alert('Disable account requires backend integration.')}>
                             <span className="material-symbols-outlined">block</span>
                           </button>
                         </div>
@@ -2340,14 +2601,25 @@ function AdminFacultyAccountsScreen({
   onAssignSubjects,
   onCirculars,
   onViewFacultyDetails,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
 }: {
   onBackDashboard: () => void
   onAssignSubjects: () => void
   onCirculars: () => void
-  onViewFacultyDetails?: () => void
+  onViewFacultyDetails?: (id: string) => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
 }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [tempPassword, setTempPassword] = useState('UNIV-8x2K-99LP')
+  const [newFacultyName, setNewFacultyName] = useState('')
+  const [newFacultyEmail, setNewFacultyEmail] = useState('')
+  const [newFacultyDepartment, setNewFacultyDepartment] = useState('')
+  const [addFacultyError, setAddFacultyError] = useState<string | null>(null)
+  const [addFacultyLoading, setAddFacultyLoading] = useState(false)
   const [facultyList, setFacultyList] = useState<Awaited<ReturnType<typeof adminService.getFaculty>>>([])
   const [facultyError, setFacultyError] = useState<string | null>(null)
 
@@ -2371,6 +2643,33 @@ function AdminFacultyAccountsScreen({
     setTempPassword(`UNIV-${segment()}-${segment()}`)
   }
 
+  const handleAddFacultySubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setAddFacultyError(null)
+    if (!newFacultyName.trim() || !newFacultyEmail.trim() || !newFacultyDepartment) {
+      setAddFacultyError('Please fill in name, email, and department.')
+      return
+    }
+    setAddFacultyLoading(true)
+    try {
+      await adminService.createFaculty({
+        name: newFacultyName.trim(),
+        email: newFacultyEmail.trim(),
+        department: newFacultyDepartment,
+        temporaryPassword: tempPassword,
+      })
+      setIsAddModalOpen(false)
+      setNewFacultyName('')
+      setNewFacultyEmail('')
+      setNewFacultyDepartment('')
+      setAddFacultyError(null)
+    } catch (err) {
+      setAddFacultyError(err instanceof Error ? err.message : 'Failed to create faculty')
+    } finally {
+      setAddFacultyLoading(false)
+    }
+  }
+
   return (
     <div className="admin-page" aria-label="Faculty accounts management">
       <AdminHeader
@@ -2379,6 +2678,9 @@ function AdminFacultyAccountsScreen({
         onNavigateFacultyAccounts={() => {}}
         onNavigateAssignSubjects={onAssignSubjects}
         onNavigateCirculars={onCirculars}
+        onNavigateStudentAccounts={onNavigateStudentAccounts}
+        onNavigateDepartments={onNavigateDepartments}
+        onNavigateSettings={onNavigateSettings}
       />
 
       <main className="admin-container admin-main">
@@ -2439,10 +2741,10 @@ function AdminFacultyAccountsScreen({
                       </td>
                       <td className="align-right">
                         <div className="admin-faculty-actions">
-                          <button type="button" aria-label="View faculty details" onClick={onViewFacultyDetails}>
+                          <button type="button" aria-label="View faculty details" onClick={() => onViewFacultyDetails?.(f.id)}>
                             <span className="material-symbols-outlined">visibility</span>
                           </button>
-                          <button type="button" aria-label="Block faculty">
+                          <button type="button" aria-label="Block faculty" onClick={() => window.alert('Block/activate faculty requires backend integration.')}>
                             <span className="material-symbols-outlined">block</span>
                           </button>
                         </div>
@@ -2480,31 +2782,33 @@ function AdminFacultyAccountsScreen({
 
               <form
                 className="admin-faculty-form"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  setIsAddModalOpen(false)
-                }}
+                onSubmit={handleAddFacultySubmit}
               >
+                {addFacultyError ? (
+                  <div style={{ padding: '0.75rem', background: '#fef2f2', color: '#991b1b', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                    {addFacultyError}
+                  </div>
+                ) : null}
                 <div className="field-group">
                   <label htmlFor="new-faculty-name">Full Name</label>
-                  <input id="new-faculty-name" type="text" placeholder="e.g. Dr. Jane Smith" />
+                  <input id="new-faculty-name" type="text" placeholder="e.g. Dr. Jane Smith" value={newFacultyName} onChange={(e) => setNewFacultyName(e.target.value)} disabled={addFacultyLoading} />
                 </div>
 
                 <div className="field-group">
                   <label htmlFor="new-faculty-email">Institutional Email</label>
-                  <input id="new-faculty-email" type="email" placeholder="j.smith@university.edu" />
+                  <input id="new-faculty-email" type="email" placeholder="j.smith@university.edu" value={newFacultyEmail} onChange={(e) => setNewFacultyEmail(e.target.value)} disabled={addFacultyLoading} />
                 </div>
 
                 <div className="field-group">
                   <label htmlFor="new-faculty-department">Department</label>
-                  <select id="new-faculty-department" defaultValue="">
-                    <option value="" disabled>
+                  <select id="new-faculty-department" value={newFacultyDepartment} onChange={(e) => setNewFacultyDepartment(e.target.value)} disabled={addFacultyLoading}>
+                    <option value="">
                       Select Department
                     </option>
-                    <option>Computer Science</option>
-                    <option>Mathematics</option>
-                    <option>Physics</option>
-                    <option>Engineering</option>
+                    <option value="Computer Science">Computer Science</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Physics">Physics</option>
+                    <option value="Engineering">Engineering</option>
                   </select>
                 </div>
 
@@ -2528,11 +2832,11 @@ function AdminFacultyAccountsScreen({
                 </div>
 
                 <div className="admin-faculty-modal-actions">
-                  <button type="button" className="cancel" onClick={() => setIsAddModalOpen(false)}>
+                  <button type="button" className="cancel" onClick={() => setIsAddModalOpen(false)} disabled={addFacultyLoading}>
                     Cancel
                   </button>
-                  <button type="submit" className="create">
-                    Create Account
+                  <button type="submit" className="create" disabled={addFacultyLoading}>
+                    {addFacultyLoading ? 'Creating…' : 'Create Account'}
                   </button>
                 </div>
               </form>
@@ -2550,29 +2854,45 @@ function AdminAssignSubjectsScreen({
   onBackDashboard,
   onFacultyAccounts,
   onCirculars,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
 }: {
   onBackDashboard: () => void
   onFacultyAccounts: () => void
   onCirculars: () => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
 }) {
   const [subjects, setSubjects] = useState<Awaited<ReturnType<typeof adminService.getSubjects>>>([])
   const [facultyList, setFacultyList] = useState<Awaited<ReturnType<typeof adminService.getFaculty>>>([])
   const [selectedFacultyId, setSelectedFacultyId] = useState<string>('')
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([])
+  const [programmeFilter, setProgrammeFilter] = useState<string>('')
+  const [semesterFilter, setSemesterFilter] = useState<string>('')
   const [isAssigned, setIsAssigned] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [assignLoading, setAssignLoading] = useState(false)
 
   useEffect(() => {
     let active = true
-    Promise.all([adminService.getSubjects(), adminService.getFaculty()]).then(([subjList, facList]) => {
+    adminService.getFaculty().then((facList) => {
       if (!active) return
-      setSubjects(subjList)
       setFacultyList(facList)
       if (facList.length > 0 && !selectedFacultyId) setSelectedFacultyId(facList[0].id)
-    }).catch(() => { if (active) setAssignError('Failed to load subjects or faculty') })
+    }).catch(() => { if (active) setAssignError('Failed to load faculty') })
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    let active = true
+    adminService.getSubjects({ programme: programmeFilter || undefined, semester: semesterFilter ? String(semesterFilter).replace(/\D/g, '') || undefined : undefined }).then((subjList) => {
+      if (!active) return
+      setSubjects(subjList)
+    }).catch(() => { if (active) setAssignError('Failed to load subjects') })
+    return () => { active = false }
+  }, [programmeFilter, semesterFilter])
 
   const selectedFaculty = facultyList.find((f) => f.id === selectedFacultyId)
 
@@ -2609,6 +2929,9 @@ function AdminAssignSubjectsScreen({
         onNavigateFacultyAccounts={onFacultyAccounts}
         onNavigateAssignSubjects={() => {}}
         onNavigateCirculars={onCirculars}
+        onNavigateStudentAccounts={onNavigateStudentAccounts}
+        onNavigateDepartments={onNavigateDepartments}
+        onNavigateSettings={onNavigateSettings}
       />
 
       <main className="admin-container admin-main">
@@ -2666,6 +2989,21 @@ function AdminAssignSubjectsScreen({
 
           <article className="admin-assign-subjects-card">
             <div className="admin-assign-toolbar">
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <select value={programmeFilter} onChange={(e) => setProgrammeFilter(e.target.value)} aria-label="Filter by programme">
+                  <option value="">All Programmes</option>
+                  <option value="B.Tech CSE">B.Tech CSE</option>
+                  <option value="M.Tech AI">M.Tech AI</option>
+                  <option value="B.Sc Physics">B.Sc Physics</option>
+                </select>
+                <select value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)} aria-label="Filter by semester">
+                  <option value="">All Semesters</option>
+                  <option value="1">Semester 1</option>
+                  <option value="2">Semester 2</option>
+                  <option value="3">Semester 3</option>
+                  <option value="4">Semester 4</option>
+                </select>
+              </div>
               <p>
                 Showing <span>{subjects.length}</span> subjects
               </p>
@@ -6158,9 +6496,15 @@ function AssignmentResultScreen({
 function AdminEnrollStudentsScreen({
   onBackDashboard,
   onBackToAccounts,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
 }: {
   onBackDashboard: () => void
   onBackToAccounts: () => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
 }) {
   const [subjects, setSubjects] = useState<Awaited<ReturnType<typeof adminService.getSubjects>>>([])
   const [studentList, setStudentList] = useState<Awaited<ReturnType<typeof adminService.getStudents>>>([])
@@ -6224,6 +6568,9 @@ function AdminEnrollStudentsScreen({
         onNavigateFacultyAccounts={() => {}}
         onNavigateAssignSubjects={() => {}}
         onNavigateCirculars={() => {}}
+        onNavigateStudentAccounts={onNavigateStudentAccounts}
+        onNavigateDepartments={onNavigateDepartments}
+        onNavigateSettings={onNavigateSettings}
       />
 
       <main className="admin-container admin-main">
@@ -6372,17 +6719,42 @@ function AdminEnrollStudentsScreen({
 
 function AdminStudentDetailsScreen({
   onBack,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
 }: {
   onBack: () => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
 }) {
+  const [student, setStudent] = useState<Awaited<ReturnType<typeof adminService.getStudent>>>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    const id = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('admin_selected_student_id') : null
+    if (!id) {
+      if (active) setLoading(false)
+      return
+    }
+    adminService.getStudent(id).then((s) => {
+      if (active) setStudent(s)
+    }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
+
   return (
     <div className="admin-page" aria-label="Student details">
       <AdminHeader
-        active="dashboard"
+        active="students"
         onNavigateDashboard={onBack}
         onNavigateFacultyAccounts={() => {}}
         onNavigateAssignSubjects={() => {}}
         onNavigateCirculars={() => {}}
+        onNavigateStudentAccounts={onNavigateStudentAccounts}
+        onNavigateDepartments={onNavigateDepartments}
+        onNavigateSettings={onNavigateSettings}
       />
 
       <main className="admin-container admin-main">
@@ -6397,6 +6769,11 @@ function AdminStudentDetailsScreen({
           <h2>Student Details</h2>
         </section>
 
+        {loading ? (
+          <p style={{ padding: '2rem', color: 'var(--muted, #666)' }}>Loading…</p>
+        ) : !student ? (
+          <p style={{ padding: '2rem', color: 'var(--muted, #666)' }}>Student not found. Select a student from the accounts list.</p>
+        ) : (
         <section className="admin-content-grid">
           <article className="dashboard-card">
             <div className="admin-assign-profile" style={{ marginBottom: '2rem' }}>
@@ -6404,8 +6781,8 @@ function AdminStudentDetailsScreen({
                 <span className="material-symbols-outlined">account_circle</span>
               </div>
               <div>
-                <h3>Aditi Sharma</h3>
-                <p>USN: 1RV21CS001</p>
+                <h3>{student.fullName}</h3>
+                <p>USN: {student.usn}</p>
               </div>
             </div>
 
@@ -6414,31 +6791,31 @@ function AdminStudentDetailsScreen({
                 <tbody>
                   <tr>
                     <td><strong>Full Name</strong></td>
-                    <td>Aditi Sharma</td>
+                    <td>{student.fullName}</td>
                   </tr>
                   <tr>
                     <td><strong>USN</strong></td>
-                    <td className="mono">1RV21CS001</td>
+                    <td className="mono">{student.usn}</td>
                   </tr>
                   <tr>
                     <td><strong>Email</strong></td>
-                    <td>aditi.s@univ.edu.in</td>
+                    <td>{student.email}</td>
                   </tr>
                   <tr>
                     <td><strong>Programme</strong></td>
-                    <td>Computer Science &amp; Engineering</td>
+                    <td>{student.programme}</td>
                   </tr>
                   <tr>
                     <td><strong>Semester</strong></td>
-                    <td>6th Semester</td>
+                    <td>{student.semester}</td>
                   </tr>
                   <tr>
                     <td><strong>Account Status</strong></td>
-                    <td><span className="admin-student-status active">Active</span></td>
+                    <td><span className={`admin-student-status ${student.status === 'active' ? 'active' : 'disabled'}`}>{student.status === 'active' ? 'Active' : 'Disabled'}</span></td>
                   </tr>
                   <tr>
                     <td><strong>Registration Date</strong></td>
-                    <td className="muted">Oct 15, 2023</td>
+                    <td className="muted">{student.registeredAt ? new Date(student.registeredAt).toLocaleDateString() : '—'}</td>
                   </tr>
                 </tbody>
               </table>
@@ -6511,6 +6888,7 @@ function AdminStudentDetailsScreen({
             </div>
           </article>
         </section>
+        )}
       </main>
 
       <AdminFooter />
@@ -6520,9 +6898,31 @@ function AdminStudentDetailsScreen({
 
 function AdminFacultyDetailsScreen({
   onBack,
+  onNavigateStudentAccounts,
+  onNavigateDepartments,
+  onNavigateSettings,
 }: {
   onBack: () => void
+  onNavigateStudentAccounts?: () => void
+  onNavigateDepartments?: () => void
+  onNavigateSettings?: () => void
 }) {
+  const [faculty, setFaculty] = useState<Awaited<ReturnType<typeof adminService.getFacultyById>>>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    const id = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('admin_selected_faculty_id') : null
+    if (!id) {
+      if (active) setLoading(false)
+      return
+    }
+    adminService.getFacultyById(id).then((f) => {
+      if (active) setFaculty(f)
+    }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
+
   return (
     <div className="admin-page" aria-label="Faculty details">
       <AdminHeader
@@ -6531,6 +6931,9 @@ function AdminFacultyDetailsScreen({
         onNavigateFacultyAccounts={onBack}
         onNavigateAssignSubjects={() => {}}
         onNavigateCirculars={() => {}}
+        onNavigateStudentAccounts={onNavigateStudentAccounts}
+        onNavigateDepartments={onNavigateDepartments}
+        onNavigateSettings={onNavigateSettings}
       />
 
       <main className="admin-container admin-main">
@@ -6545,6 +6948,11 @@ function AdminFacultyDetailsScreen({
           <h2>Faculty Details</h2>
         </section>
 
+        {loading ? (
+          <p style={{ padding: '2rem', color: 'var(--muted, #666)' }}>Loading…</p>
+        ) : !faculty ? (
+          <p style={{ padding: '2rem', color: 'var(--muted, #666)' }}>Faculty not found. Select a faculty member from the accounts list.</p>
+        ) : (
         <section className="admin-content-grid">
           <article className="dashboard-card">
             <div className="admin-assign-profile" style={{ marginBottom: '2rem' }}>
@@ -6552,8 +6960,8 @@ function AdminFacultyDetailsScreen({
                 <span className="material-symbols-outlined">badge</span>
               </div>
               <div>
-                <h3>Dr. David Anderson</h3>
-                <p>Senior Professor • Computer Science</p>
+                <h3>{faculty.name}</h3>
+                <p>{faculty.designation || 'Faculty'} • {faculty.department}</p>
               </div>
             </div>
 
@@ -6562,27 +6970,27 @@ function AdminFacultyDetailsScreen({
                 <tbody>
                   <tr>
                     <td><strong>Full Name</strong></td>
-                    <td>Dr. David Anderson</td>
+                    <td>{faculty.name}</td>
                   </tr>
                   <tr>
                     <td><strong>Email</strong></td>
-                    <td>d.anderson@university.edu</td>
+                    <td>{faculty.email}</td>
                   </tr>
                   <tr>
                     <td><strong>Department</strong></td>
-                    <td>Computer Science</td>
+                    <td>{faculty.department}</td>
                   </tr>
                   <tr>
                     <td><strong>Designation</strong></td>
-                    <td>Senior Professor</td>
+                    <td>{faculty.designation || '—'}</td>
                   </tr>
                   <tr>
                     <td><strong>Account Status</strong></td>
-                    <td><span className="admin-faculty-status active">Active</span></td>
+                    <td><span className={`admin-faculty-status ${faculty.status === 'active' ? 'active' : 'inactive'}`}>{faculty.status === 'active' ? 'Active' : 'Inactive'}</span></td>
                   </tr>
                   <tr>
                     <td><strong>Join Date</strong></td>
-                    <td className="muted">Jan 15, 2020</td>
+                    <td className="muted">{faculty.joinDate ? new Date(faculty.joinDate).toLocaleDateString() : '—'}</td>
                   </tr>
                 </tbody>
               </table>
@@ -6661,8 +7069,57 @@ function AdminFacultyDetailsScreen({
             </div>
           </article>
         </section>
+        )}
       </main>
 
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminDepartmentsPlaceholder({ navigate }: { navigate: (path: RoutePath) => void }) {
+  return (
+    <div className="admin-page" aria-label="Departments">
+      <AdminHeader
+        active="departments"
+        onNavigateDashboard={() => navigate('/admin_dashboard')}
+        onNavigateFacultyAccounts={() => navigate('/admin_faculty_accounts')}
+        onNavigateAssignSubjects={() => navigate('/admin_assign_subjects')}
+        onNavigateCirculars={() => navigate('/admin_circulars')}
+        onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+        onNavigateDepartments={() => navigate('/admin_departments')}
+        onNavigateSettings={() => navigate('/admin_settings')}
+      />
+      <main className="admin-container admin-main">
+        <section className="admin-assign-head">
+          <h2>Departments</h2>
+          <p>Department management coming soon.</p>
+        </section>
+      </main>
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminSettingsPlaceholder({ navigate }: { navigate: (path: RoutePath) => void }) {
+  return (
+    <div className="admin-page" aria-label="System Settings">
+      <AdminHeader
+        active="settings"
+        onNavigateDashboard={() => navigate('/admin_dashboard')}
+        onNavigateFacultyAccounts={() => navigate('/admin_faculty_accounts')}
+        onNavigateAssignSubjects={() => navigate('/admin_assign_subjects')}
+        onNavigateCirculars={() => navigate('/admin_circulars')}
+        onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+        onNavigateDepartments={() => navigate('/admin_departments')}
+        onNavigateSettings={() => navigate('/admin_settings')}
+      />
+      <main className="admin-container admin-main">
+        <section className="admin-assign-head">
+          <h2>System Settings</h2>
+          <p>System settings coming soon.</p>
+        </section>
+      </main>
       <AdminFooter />
     </div>
   )
@@ -7047,6 +7504,16 @@ function App() {
     setNotices((current) => current.filter((notice) => notice.id !== id))
   }
 
+  const updateNotice = (id: string, payload: { title: string; content: string; urgent: boolean }) => {
+    setNotices((current) =>
+      current.map((n) => (n.id === id ? { ...n, ...payload, createdAt: n.createdAt } : n))
+    )
+  }
+
+  const deleteCalendarEvent = (id: string) => {
+    setCalendarEvents((current) => current.filter((e) => e.id !== id))
+  }
+
   const deleteNoticeAsFaculty = (id: string) => {
     const currentFacultyName = user?.name || user?.fullName || 'Faculty User'
     setNotices((current) =>
@@ -7148,7 +7615,13 @@ function App() {
 
       {path === '/faculty_login' ? <FacultyLoginScreen onLogin={() => navigate('/faculty_dashboard')} /> : null}
 
-      {path === '/admin_login' ? <AdminLoginScreen onLogin={() => navigate('/admin_dashboard')} /> : null}
+      {path === '/admin_login' ? (
+        <AdminLoginScreen
+          onLogin={() => navigate('/admin_dashboard')}
+          onBack={() => navigate('/')}
+          onForgotPassword={() => navigate('/forgot_password')}
+        />
+      ) : null}
 
       {path === '/admin_dashboard' ? (
         <AdminDashboardScreen
@@ -7172,7 +7645,13 @@ function App() {
           onBackDashboard={() => navigate('/admin_dashboard')}
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
           onCirculars={() => navigate('/admin_circulars')}
-          onViewFacultyDetails={() => navigate('/admin_faculty_details')}
+          onViewFacultyDetails={(id) => {
+            try { if (id) sessionStorage.setItem('admin_selected_faculty_id', id) } catch { /* ignore */ }
+            navigate('/admin_faculty_details')
+          }}
+          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateDepartments={() => navigate('/admin_departments')}
+          onNavigateSettings={() => navigate('/admin_settings')}
         />
       ) : null}
 
@@ -7181,6 +7660,9 @@ function App() {
           onBackDashboard={() => navigate('/admin_dashboard')}
           onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
           onCirculars={() => navigate('/admin_circulars')}
+          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateDepartments={() => navigate('/admin_departments')}
+          onNavigateSettings={() => navigate('/admin_settings')}
         />
       ) : null}
 
@@ -7191,7 +7673,13 @@ function App() {
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
           onCirculars={() => navigate('/admin_circulars')}
           onEnrollStudents={() => navigate('/admin_enroll_students')}
-          onViewStudentDetails={() => navigate('/admin_student_details')}
+          onViewStudentDetails={(id?: string) => {
+            try { if (id) sessionStorage.setItem('admin_selected_student_id', id) } catch { /* ignore */ }
+            navigate('/admin_student_details')
+          }}
+          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateDepartments={() => navigate('/admin_departments')}
+          onNavigateSettings={() => navigate('/admin_settings')}
         />
       ) : null}
 
@@ -7201,10 +7689,15 @@ function App() {
           calendarEvents={calendarEvents}
           onCreateNotice={createNotice}
           onCreateCalendarEvent={createCalendarEvent}
+          onUpdateNotice={updateNotice}
           onDeleteNotice={deleteNoticeAsAdmin}
+          onDeleteCalendarEvent={deleteCalendarEvent}
           onBackDashboard={() => navigate('/admin_dashboard')}
           onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
+          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateDepartments={() => navigate('/admin_departments')}
+          onNavigateSettings={() => navigate('/admin_settings')}
         />
       ) : null}
 
@@ -7212,6 +7705,9 @@ function App() {
         <AdminEnrollStudentsScreen
           onBackDashboard={() => navigate('/admin_dashboard')}
           onBackToAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateDepartments={() => navigate('/admin_departments')}
+          onNavigateSettings={() => navigate('/admin_settings')}
         />
       ) : null}
 
@@ -7221,15 +7717,36 @@ function App() {
           onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
           onCirculars={() => navigate('/admin_circulars')}
+          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateDepartments={() => navigate('/admin_departments')}
+          onNavigateSettings={() => navigate('/admin_settings')}
         />
       ) : null}
 
       {path === '/admin_student_details' ? (
-        <AdminStudentDetailsScreen onBack={() => navigate('/admin_student_accounts')} />
+        <AdminStudentDetailsScreen
+          onBack={() => navigate('/admin_student_accounts')}
+          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateDepartments={() => navigate('/admin_departments')}
+          onNavigateSettings={() => navigate('/admin_settings')}
+        />
       ) : null}
 
       {path === '/admin_faculty_details' ? (
-        <AdminFacultyDetailsScreen onBack={() => navigate('/admin_faculty_accounts')} />
+        <AdminFacultyDetailsScreen
+          onBack={() => navigate('/admin_faculty_accounts')}
+          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
+          onNavigateDepartments={() => navigate('/admin_departments')}
+          onNavigateSettings={() => navigate('/admin_settings')}
+        />
+      ) : null}
+
+      {path === '/admin_departments' ? (
+        <AdminDepartmentsPlaceholder navigate={navigate} />
+      ) : null}
+
+      {path === '/admin_settings' ? (
+        <AdminSettingsPlaceholder navigate={navigate} />
       ) : null}
 
       {path === '/forgot_password' ? (
