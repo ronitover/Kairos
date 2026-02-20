@@ -10,6 +10,7 @@ type RoutePath =
   | '/admin_dashboard'
   | '/admin_faculty_accounts'
   | '/admin_assign_subjects'
+  | '/admin_student_accounts'
   | '/faculty_dashboard'
   | '/faculty_verification'
   | '/faculty_textbook_upload'
@@ -110,6 +111,10 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/admin_assign_subjects') {
     return '/admin_assign_subjects'
+  }
+
+  if (pathname === '/admin_student_accounts') {
+    return '/admin_student_accounts'
   }
 
   if (pathname === '/faculty_dashboard') {
@@ -585,9 +590,11 @@ function AdminFooter() {
 function AdminDashboardScreen({
   onAddFaculty,
   onAssignSubjects,
+  onStudentAccounts,
 }: {
   onAddFaculty: () => void
   onAssignSubjects: () => void
+  onStudentAccounts: () => void
 }) {
   return (
     <div className="admin-page" aria-label="Global admin dashboard">
@@ -658,9 +665,9 @@ function AdminDashboardScreen({
               <span className="material-symbols-outlined">account_tree</span>
               Manage Programmes
             </button>
-            <button type="button">
-              <span className="material-symbols-outlined">rule</span>
-              View Verifications
+            <button type="button" onClick={onStudentAccounts}>
+              <span className="material-symbols-outlined">school</span>
+              Student Accounts
             </button>
             <button type="button">
               <span className="material-symbols-outlined">monitoring</span>
@@ -751,6 +758,237 @@ function AdminDashboardScreen({
               </a>
             </article>
           </aside>
+        </section>
+      </main>
+
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminStudentAccountsScreen({
+  onBackDashboard,
+  onFacultyAccounts,
+  onAssignSubjects,
+}: {
+  onBackDashboard: () => void
+  onFacultyAccounts: () => void
+  onAssignSubjects: () => void
+}) {
+  return (
+    <div className="admin-page" aria-label="Student accounts management">
+      <AdminHeader
+        active="dashboard"
+        onNavigateDashboard={onBackDashboard}
+        onNavigateFacultyAccounts={onFacultyAccounts}
+        onNavigateAssignSubjects={onAssignSubjects}
+      />
+
+      <main className="admin-container admin-main">
+        <section className="admin-students-head">
+          <div>
+            <nav aria-label="Student account breadcrumbs">
+              <span>Dashboard</span>
+              <span>/</span>
+              <span>Student Accounts</span>
+            </nav>
+            <h2>Student Accounts Management</h2>
+          </div>
+        </section>
+
+        <section className="admin-students-filter-card">
+          <div className="admin-students-filter-grid">
+            <div className="field-group">
+              <label htmlFor="student-search">Search Student</label>
+              <div className="admin-students-search">
+                <span className="material-symbols-outlined">search</span>
+                <input id="student-search" type="text" placeholder="USN or Name..." />
+              </div>
+            </div>
+            <div className="field-group">
+              <label htmlFor="student-programme">Programme</label>
+              <select id="student-programme" defaultValue="All Programmes">
+                <option>All Programmes</option>
+                <option>Computer Science &amp; Engineering</option>
+                <option>Information Science</option>
+                <option>Electronics &amp; Communication</option>
+                <option>Mechanical Engineering</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="student-semester">Semester</label>
+              <select id="student-semester" defaultValue="All Semesters">
+                <option>All Semesters</option>
+                <option>1st Semester</option>
+                <option>2nd Semester</option>
+                <option>3rd Semester</option>
+                <option>4th Semester</option>
+                <option>5th Semester</option>
+                <option>6th Semester</option>
+                <option>7th Semester</option>
+                <option>8th Semester</option>
+              </select>
+            </div>
+            <div className="admin-students-filter-actions">
+              <button type="button" className="apply">
+                <span className="material-symbols-outlined">filter_list</span>
+                Apply Filters
+              </button>
+              <button type="button" className="reset" aria-label="Reset filters">
+                <span className="material-symbols-outlined">restart_alt</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="admin-students-bulk">
+          <div>
+            <button type="button" className="deactivate">
+              <span className="material-symbols-outlined">no_accounts</span>
+              Deactivate Selected
+            </button>
+            <button type="button" className="export">
+              <span className="material-symbols-outlined">file_download</span>
+              Export CSV
+            </button>
+          </div>
+          <p>
+            Showing <span>150</span> student accounts
+          </p>
+        </section>
+
+        <section className="admin-students-table-card">
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th className="align-center">
+                    <input type="checkbox" />
+                  </th>
+                  <th>Student Name</th>
+                  <th>USN</th>
+                  <th>Programme</th>
+                  <th>Semester</th>
+                  <th>Email</th>
+                  <th>Status</th>
+                  <th className="align-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="align-center">
+                    <input type="checkbox" />
+                  </td>
+                  <td>
+                    <div className="admin-student-person">
+                      <span className="blue">AS</span>
+                      <p>Aditi Sharma</p>
+                    </div>
+                  </td>
+                  <td className="mono">1RV21CS001</td>
+                  <td>Computer Science</td>
+                  <td>6th Sem</td>
+                  <td className="muted">aditi.s@univ.edu.in</td>
+                  <td>
+                    <span className="admin-student-status active">Active</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="admin-student-actions">
+                      <button type="button" className="view" aria-label="View details">
+                        <span className="material-symbols-outlined">visibility</span>
+                      </button>
+                      <button type="button" className="reset" aria-label="Reset password">
+                        <span className="material-symbols-outlined">password</span>
+                      </button>
+                      <button type="button" className="disable" aria-label="Disable account">
+                        <span className="material-symbols-outlined">block</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="align-center">
+                    <input type="checkbox" />
+                  </td>
+                  <td>
+                    <div className="admin-student-person">
+                      <span className="amber">RJ</span>
+                      <p>Rahul Jayaram</p>
+                    </div>
+                  </td>
+                  <td className="mono">1RV21IS045</td>
+                  <td>Info. Science</td>
+                  <td>4th Sem</td>
+                  <td className="muted">rahul.j@univ.edu.in</td>
+                  <td>
+                    <span className="admin-student-status active">Active</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="admin-student-actions">
+                      <button type="button" className="view" aria-label="View details">
+                        <span className="material-symbols-outlined">visibility</span>
+                      </button>
+                      <button type="button" className="reset" aria-label="Reset password">
+                        <span className="material-symbols-outlined">password</span>
+                      </button>
+                      <button type="button" className="disable" aria-label="Disable account">
+                        <span className="material-symbols-outlined">block</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="align-center">
+                    <input type="checkbox" />
+                  </td>
+                  <td>
+                    <div className="admin-student-person">
+                      <span className="gray">PK</span>
+                      <p>Priya Kapoor</p>
+                    </div>
+                  </td>
+                  <td className="mono">1RV20EC112</td>
+                  <td>Electronics</td>
+                  <td>8th Sem</td>
+                  <td className="muted">priya.k@univ.edu.in</td>
+                  <td>
+                    <span className="admin-student-status disabled">Disabled</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="admin-student-actions">
+                      <button type="button" className="view" aria-label="View details">
+                        <span className="material-symbols-outlined">visibility</span>
+                      </button>
+                      <button type="button" className="reset" aria-label="Reset password">
+                        <span className="material-symbols-outlined">password</span>
+                      </button>
+                      <button type="button" className="enable" aria-label="Enable account">
+                        <span className="material-symbols-outlined">check_circle</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="admin-students-pagination">
+            <p>Showing 1 to 10 of 150 entries</p>
+            <div>
+              <button type="button" disabled>
+                <span className="material-symbols-outlined">chevron_left</span>
+              </button>
+              <button type="button" className="active">
+                1
+              </button>
+              <button type="button">2</button>
+              <button type="button">3</button>
+              <span>...</span>
+              <button type="button">15</button>
+              <button type="button">
+                <span className="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          </div>
         </section>
       </main>
 
@@ -3243,6 +3481,7 @@ function App() {
         <AdminDashboardScreen
           onAddFaculty={() => navigate('/admin_faculty_accounts')}
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
+          onStudentAccounts={() => navigate('/admin_student_accounts')}
         />
       ) : null}
 
@@ -3257,6 +3496,14 @@ function App() {
         <AdminAssignSubjectsScreen
           onBackDashboard={() => navigate('/admin_dashboard')}
           onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
+        />
+      ) : null}
+
+      {path === '/admin_student_accounts' ? (
+        <AdminStudentAccountsScreen
+          onBackDashboard={() => navigate('/admin_dashboard')}
+          onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
+          onAssignSubjects={() => navigate('/admin_assign_subjects')}
         />
       ) : null}
 
