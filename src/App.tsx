@@ -2086,8 +2086,35 @@ function FacultyDashboardScreen({
 }) {
   const { user } = useAuth()
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [officialNoteFile, setOfficialNoteFile] = useState<File | null>(null)
+  const [officialNoteUploadError, setOfficialNoteUploadError] = useState<string | null>(null)
   const displayName = user?.name || user?.fullName || 'Faculty User'
   const department = user?.department || 'Department'
+
+  const handleOfficialNoteFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0]
+    if (!selectedFile) {
+      return
+    }
+    try {
+      enforceSupportedUploadFile(selectedFile, 25 * 1024 * 1024)
+      setOfficialNoteFile(selectedFile)
+      setOfficialNoteUploadError(null)
+    } catch (error) {
+      setOfficialNoteFile(null)
+      setOfficialNoteUploadError(
+        error instanceof FileUploadError
+          ? `${error.message}. Allowed: ${SUPPORTED_UPLOAD_LABEL}.`
+          : `Invalid file. Allowed: ${SUPPORTED_UPLOAD_LABEL}.`,
+      )
+    }
+  }
+
+  const closeOfficialNoteModal = () => {
+    setIsUploadModalOpen(false)
+    setOfficialNoteFile(null)
+    setOfficialNoteUploadError(null)
+  }
 
   return (
     <div className="faculty-page" aria-label="Faculty management dashboard">
@@ -2331,13 +2358,23 @@ function FacultyDashboardScreen({
                 type="button"
                 className="faculty-modal-close"
                 aria-label="Close upload modal"
-                onClick={() => setIsUploadModalOpen(false)}
+                onClick={closeOfficialNoteModal}
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
-            <form className="faculty-modal-form" onSubmit={(event) => event.preventDefault()}>
+            <form
+              className="faculty-modal-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (!officialNoteFile) {
+                  setOfficialNoteUploadError(`Please choose a file. Allowed: ${SUPPORTED_UPLOAD_LABEL}.`)
+                  return
+                }
+                closeOfficialNoteModal()
+              }}
+            >
               <div className="faculty-modal-field">
                 <label>
                   <span>1</span>
@@ -2385,12 +2422,22 @@ function FacultyDashboardScreen({
                   Upload File
                 </label>
                 <label className="faculty-upload-dropzone">
-                  <input type="file" accept={SUPPORTED_UPLOAD_ACCEPT} />
+                  <input type="file" accept={SUPPORTED_UPLOAD_ACCEPT} onChange={handleOfficialNoteFileChange} />
                   <div>
                     <span className="material-symbols-outlined">cloud_upload</span>
                   </div>
                   <p>Click to upload or drag and drop</p>
                   <p>{SUPPORTED_UPLOAD_LABEL} (Max 25MB)</p>
+                  {officialNoteFile ? (
+                    <p style={{ marginTop: '0.375rem', color: '#059669', fontWeight: 600 }}>
+                      Selected: {officialNoteFile.name}
+                    </p>
+                  ) : null}
+                  {officialNoteUploadError ? (
+                    <p style={{ marginTop: '0.375rem', color: '#b91c1c', fontWeight: 600 }}>
+                      {officialNoteUploadError}
+                    </p>
+                  ) : null}
                 </label>
               </div>
 
@@ -4464,13 +4511,18 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
   const [semester, setSemester] = useState('Semester 5')
   const [subjectCode, setSubjectCode] = useState('All Subjects')
   const [unit, setUnit] = useState('All Units')
+  const [professor, setProfessor] = useState('All Professors')
 
   const resources = searchResourceData.filter((resource) => {
     const semesterMatch = semester === 'All Semesters' || resource.semester === semester
     const subjectMatch = subjectCode === 'All Subjects' || resource.subjectCode === subjectCode
     const unitMatch = unit === 'All Units' || resource.unit === unit
-    return resource.status === 'approved' && semesterMatch && subjectMatch && unitMatch
+    const professorMatch = professor === 'All Professors' || resource.professor === professor
+    return resource.status === 'approved' && semesterMatch && subjectMatch && unitMatch && professorMatch
   })
+
+  const approvedResources = searchResourceData.filter((resource) => resource.status === 'approved')
+  const professorOptions = Array.from(new Set(approvedResources.map((resource) => resource.professor)))
 
   return (
     <div className="search-page" aria-label="Structured repository browser">
@@ -4527,6 +4579,19 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
                 <option>Unit 4</option>
               </select>
             </div>
+            <div className="field-group">
+              <label htmlFor="repository-professor">Uploaded By</label>
+              <select
+                id="repository-professor"
+                value={professor}
+                onChange={(e) => setProfessor(e.target.value)}
+              >
+                <option>All Professors</option>
+                {professorOptions.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </section>
 
@@ -4550,9 +4615,9 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
                   </p>
                 </div>
                 <div className="search-result-meta">
-                  <span>{resource.professor}</span>
-                  <span>{resource.format}</span>
-                  <span>{resource.size}</span>
+                  <span>Uploaded by: {resource.professor}</span>
+                  <span>Type: {resource.format} • {resource.size}</span>
+                  <span>Status: <strong>Approved</strong> • {resource.uploadedAt}</span>
                 </div>
                 <div className="search-result-actions">
                   <button type="button" className="dashboard-btn-secondary dashboard-btn-small">

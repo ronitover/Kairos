@@ -44,19 +44,19 @@ Anything already implemented in the UI and wired to the mock service layer is tr
 ### 3. Gatekeeper System (Approval Workflow UI)
 
 **What’s already done (frontend):**
-- `FacultyVerificationScreen` where faculty can:
-  - See pending notes.
-  - Approve/Reject with button disable states and inline feedback.
-  - Logic is wired to a mock `facultyService.verifyNote` and local status state.
+- ✅ **Notes Verification screen** (`FacultyVerificationScreen`) accessible from faculty dashboard:
+  - Shows pending student uploads (notes) in a table.
+  - Approve/Reject buttons with proper disable states and feedback.
+  - Status badges (Pending/Verified/Rejected) update after actions.
+  - Wired to mock `facultyService.verifyNote` service.
+- ✅ This **IS** the Gatekeeper system — the spec’s “Review Uploads” tab is implemented as “Notes Verification” in the faculty dashboard.
 
 **Still missing (frontend):**
-- **Dedicated HOD/Admin review view:**
-  - Spec mentions a “HOD/Faculty dashboard has a `Review Uploads` tab”.
-  - You currently only have a faculty‑styled review table; there is no explicit **Admin/HOD‑branded review page/tab** surfaced separately.
 - **Repository visibility tied to approval:**
-  - There is no resource list/search screen that:
-    - Only shows items with `Status: Approved`.
-    - Hides `Pending` or `Rejected` items from students in the UI.
+  - When the repository/search page is built, it should:
+    - Only show items with `Status: Approved` to students.
+    - Hide `Pending` or `Rejected` items from student-facing views.
+  - (This is more of a data filtering concern that will be handled when backend is wired, but the UI should be designed to respect approval status.)
 
 ---
 
@@ -126,5 +126,5 @@ These are **not frontend gaps**, but are still required for a full TRACK‑1 sol
   Most major flows that judges will interact with (auth for three roles, dashboards, uploads, approval UI, assignment lifecycle) are **implemented and routed through a clean service layer with mocks**, so swapping to real APIs should be straightforward.
 
 - **Still missing from the frontend POV:**  
-  A unified repository/search page, an explicit Department Circulars module, stronger route/role guarding, and tighter alignment of all upload/search UIs with the exact TRACK‑1 concepts (4 formats, approved‑only visibility, Subject/Semester/Professor filters).
+  A unified repository/search page, an explicit Department Circulars module, stronger route/role guarding, and tighter alignment of all upload/search UIs with the exact TRACK‑1 concepts (4 formats, approved‑only visibility in repository views, Subject/Semester/Professor filters).
 
