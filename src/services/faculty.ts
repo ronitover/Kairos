@@ -28,6 +28,18 @@ export interface FacultyDashboard {
       usn: string
     }
   }>
+  verificationNotes?: Array<{
+    id: string
+    title: string
+    chapter: string | null
+    uploadedAt: string
+    status: 'pending' | 'verified' | 'rejected'
+    student: {
+      id: string
+      name: string
+      usn: string
+    }
+  }>
   recentAssignments: Array<{
     id: string
     title: string
@@ -76,36 +88,16 @@ class FacultyService {
   }
 
   async getPendingNotes(): Promise<PendingNote[]> {
-    const response = await apiClient.get<{ notes: Array<{
-      id: string
-      title: string
-      chapter: string | null
-      uploaded_at: string
-      status: 'pending' | 'verified' | 'rejected'
-      students?: {
-        id: string
-        full_name: string
-        usn: string
-      }
-      note_files?: Array<{
-        file_url: string
-      }>
-      uploaded_by: string
-    }> }>('/notes', { type: 'unofficial', status: 'pending' })
-    if (response.error || !response.data) throw new Error(response.error?.message || 'Failed to load pending notes')
-
-    return response.data.notes.map((note) => ({
+    const dashboard = await this.getDashboard()
+    const notes = dashboard.verificationNotes ?? dashboard.pendingNotes
+    return notes.map((note) => ({
       id: note.id,
       title: note.title,
-      student: {
-        id: note.students?.id || note.uploaded_by,
-        name: note.students?.full_name || 'Student',
-        usn: note.students?.usn || 'NA',
-      },
+      student: note.student,
       chapter: note.chapter || '',
-      uploadedAt: note.uploaded_at,
+      uploadedAt: note.uploadedAt,
       status: note.status,
-      downloadUrl: note.note_files?.[0]?.file_url || '#',
+      downloadUrl: '#',
     }))
   }
 

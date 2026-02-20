@@ -272,6 +272,22 @@ function requireRoles(...allowedRoles) {
   }
 }
 
+function normalizeEventType(value) {
+  const normalized = normalizeString(value)?.toLowerCase()
+  if (normalized === 'assignment' || normalized === 'test' || normalized === 'holiday' || normalized === 'event') {
+    return normalized
+  }
+  return null
+}
+
+function normalizeAudience(value) {
+  const normalized = normalizeString(value)?.toLowerCase()
+  if (normalized === 'students' || normalized === 'faculty' || normalized === 'both') {
+    return normalized
+  }
+  return null
+}
+
 async function uploadToDrive({ file, userId, role, subjectName, folderId, fileName, category, metadata = {} }) {
   const effectiveParent = normalizeString(folderId) || GOOGLE_DRIVE_PARENT_FOLDER_ID
   const normalizedSubject = normalizeString(subjectName) || null
@@ -999,6 +1015,144 @@ app.post('/api/subjects/:subjectId/enroll', requireAuth, requireRoles('admin'), 
   const { error } = await adminSupabase.from('student_subjects').upsert(rows, { onConflict: 'student_id,subject_id' })
   if (error) throw error
   return res.json({ message: 'Students enrolled successfully.', enrolledCount: rows.length })
+})
+
+app.get('/api/notices', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const createdByRole = normalizeString(req.query?.createdByRole)?.toLowerCase()
+  let query = adminSupabase
+    .from('department_notices')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (createdByRole === 'admin' || createdByRole === 'faculty') {
+    query = query.eq('created_by_role', createdByRole)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+  return res.json({ notices: data ?? [] })
+})
+
+app.post('/api/notices', requireAuth, requireRoles('admin', 'faculty'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const title = normalizeString(req.body?.title)
+  const content = normalizeString(req.body?.content)
+  const urgent = req.body?.urgent === true
+  if (!title || !content) {
+    return res.status(400).json({ message: 'title and content are required.' })
+  }
+
+  const role = req.auth.role === 'admin' ? 'admin' : 'faculty'
+  const profile = await getRoleProfile(req.auth.user.id, role)
+  const authorName =
+    (role === 'admin' ? profile?.name : profile?.name) ||
+    normalizeString(req.auth.user.user_metadata?.name || req.auth.user.user_metadata?.fullName) ||
+    (role === 'admin' ? 'Admin' : 'Faculty')
+
+  const { data, error } = await adminSupabase
+    .from('department_notices')
+    .insert({
+      title,
+      content,
+      urgent,
+      created_by: req.auth.user.id,
+      created_by_role: role,
+      author_name: authorName,
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return res.status(201).json({ message: 'Notice created.', notice: data })
+})
+
+app.delete('/api/notices/:noticeId', requireAuth, requireRoles('admin', 'faculty'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const noticeId = normalizeString(req.params.noticeId)
+  const { data: notice, error: findError } = await adminSupabase
+    .from('department_notices')
+    .select('*')
+    .eq('id', noticeId)
+    .maybeSingle()
+  if (findError) throw findError
+  if (!notice) return res.status(404).json({ message: 'Notice not found.' })
+
+  if (req.auth.role === 'faculty' && notice.created_by !== req.auth.user.id) {
+    return res.status(403).json({ message: 'You can delete only your own notices.' })
+  }
+
+  const { error } = await adminSupabase.from('department_notices').delete().eq('id', noticeId)
+  if (error) throw error
+  return res.json({ message: 'Notice deleted.' })
+})
+
+app.get('/api/academic-events', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const audienceFilter = normalizeAudience(req.query?.targetAudience)
+  let query = adminSupabase
+    .from('academic_events')
+    .select('*')
+    .order('event_date', { ascending: true })
+
+  if (audienceFilter) {
+    query = query.or(`target_audience.eq.${audienceFilter},target_audience.eq.both`)
+  } else if (req.auth.role === 'student') {
+    query = query.or('target_audience.eq.students,target_audience.eq.both')
+  } else if (req.auth.role === 'faculty') {
+    query = query.or('target_audience.eq.faculty,target_audience.eq.both')
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+  return res.json({ events: data ?? [] })
+})
+
+app.post('/api/academic-events', requireAuth, requireRoles('admin', 'faculty'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const title = normalizeString(req.body?.title)
+  const eventDate = normalizeString(req.body?.date)
+  const eventType = normalizeEventType(req.body?.type)
+  const details = normalizeString(req.body?.details) || ''
+  const targetAudience = normalizeAudience(req.body?.targetAudience) || (req.auth.role === 'admin' ? 'students' : 'both')
+
+  if (!title || !eventDate || !eventType) {
+    return res.status(400).json({ message: 'title, date and valid type are required.' })
+  }
+
+  const role = req.auth.role === 'admin' ? 'admin' : 'faculty'
+  const profile = await getRoleProfile(req.auth.user.id, role)
+  const createdBy =
+    (role === 'admin' ? profile?.name : profile?.name) ||
+    normalizeString(req.auth.user.user_metadata?.name || req.auth.user.user_metadata?.fullName) ||
+    (role === 'admin' ? 'Admin' : 'Faculty')
+
+  const { data, error } = await adminSupabase
+    .from('academic_events')
+    .insert({
+      title,
+      event_date: eventDate,
+      event_type: eventType,
+      details: details || 'Academic event scheduled.',
+      created_by: req.auth.user.id,
+      created_by_role: role,
+      target_audience: targetAudience,
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+
+  return res.status(201).json({
+    message: 'Academic event created.',
+    event: {
+      ...data,
+      created_by_name: createdBy,
+    },
+  })
 })
 
 app.get('/api/subjects/:subjectId/students', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {

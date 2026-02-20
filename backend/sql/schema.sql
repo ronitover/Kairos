@@ -176,6 +176,31 @@ create table if not exists activities (
   created_at timestamp default current_timestamp
 );
 
+create table if not exists department_notices (
+  id uuid primary key default gen_random_uuid(),
+  title varchar(255) not null,
+  content text not null,
+  urgent boolean default false,
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_by_role varchar(20) not null check (created_by_role in ('admin', 'faculty')),
+  author_name varchar(255) not null,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp
+);
+
+create table if not exists academic_events (
+  id uuid primary key default gen_random_uuid(),
+  title varchar(255) not null,
+  event_date timestamp not null,
+  event_type varchar(20) not null check (event_type in ('assignment', 'test', 'holiday', 'event')),
+  details text not null,
+  created_by uuid not null references auth.users(id) on delete cascade,
+  created_by_role varchar(20) not null check (created_by_role in ('admin', 'faculty')),
+  target_audience varchar(20) not null check (target_audience in ('students', 'faculty', 'both')),
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp
+);
+
 create index if not exists idx_students_usn on students(usn);
 create index if not exists idx_students_programme on students(programme);
 create index if not exists idx_students_semester on students(semester);
@@ -203,6 +228,11 @@ create index if not exists idx_notes_uploaded_by on notes(uploaded_by);
 create index if not exists idx_notes_type on notes(note_type);
 create index if not exists idx_notes_status on notes(status);
 create index if not exists idx_activities_type on activities(type);
+create index if not exists idx_department_notices_created_at on department_notices(created_at);
+create index if not exists idx_department_notices_role on department_notices(created_by_role);
+create index if not exists idx_academic_events_date on academic_events(event_date);
+create index if not exists idx_academic_events_type on academic_events(event_type);
+create index if not exists idx_academic_events_audience on academic_events(target_audience);
 
 insert into subjects (code, name, programme, semester)
 values
