@@ -9,6 +9,9 @@ type RoutePath =
   | '/faculty_dashboard'
   | '/faculty_verification'
   | '/faculty_textbook_upload'
+  | '/faculty_create_assignment'
+  | '/faculty_assignment_submissions'
+  | '/faculty_grade_submission'
   | '/student_dashboard'
   | '/assignment_review'
   | '/assignment_result'
@@ -97,6 +100,18 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/faculty_textbook_upload') {
     return '/faculty_textbook_upload'
+  }
+
+  if (pathname === '/faculty_create_assignment') {
+    return '/faculty_create_assignment'
+  }
+
+  if (pathname === '/faculty_assignment_submissions') {
+    return '/faculty_assignment_submissions'
+  }
+
+  if (pathname === '/faculty_grade_submission') {
+    return '/faculty_grade_submission'
   }
 
   if (pathname === '/student_dashboard' || pathname === '/dashboard') {
@@ -416,9 +431,13 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
 function FacultyDashboardScreen({
   onViewAllVerification,
   onUploadTextbook,
+  onCreateAssignment,
+  onViewAssignment,
 }: {
   onViewAllVerification: () => void
   onUploadTextbook: () => void
+  onCreateAssignment: () => void
+  onViewAssignment: () => void
 }) {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
 
@@ -620,7 +639,7 @@ function FacultyDashboardScreen({
                 <span className="material-symbols-outlined">assignment_turned_in</span>
                 <h2>Active Assignments</h2>
               </div>
-              <button type="button" className="dashboard-btn-primary dashboard-btn-small">
+              <button type="button" className="dashboard-btn-primary dashboard-btn-small" onClick={onCreateAssignment}>
                 Create New
               </button>
             </div>
@@ -630,7 +649,7 @@ function FacultyDashboardScreen({
                   <h3>Multi-threaded Scheduler</h3>
                   <p>42 Submissions • Due: 3 Days</p>
                 </div>
-                <button type="button" className="faculty-view-btn">
+                <button type="button" className="faculty-view-btn" onClick={onViewAssignment}>
                   View
                   <span className="material-symbols-outlined">arrow_forward</span>
                 </button>
@@ -640,7 +659,7 @@ function FacultyDashboardScreen({
                   <h3>Disk Management Quiz</h3>
                   <p>128 Submissions • Closed</p>
                 </div>
-                <button type="button" className="faculty-view-btn">
+                <button type="button" className="faculty-view-btn" onClick={onViewAssignment}>
                   View
                   <span className="material-symbols-outlined">arrow_forward</span>
                 </button>
@@ -1379,6 +1398,571 @@ function FacultyTextbookUploadScreen() {
   )
 }
 
+function FacultyCreateAssignmentScreen() {
+  return (
+    <div className="create-assignment-page" aria-label="Create assignment">
+      <header className="create-assignment-header">
+        <div className="create-assignment-container create-assignment-header-row">
+          <div className="create-assignment-brand">
+            <div className="create-assignment-brand-icon">
+              <span className="material-symbols-outlined">school</span>
+            </div>
+            <h1>UniRepo</h1>
+          </div>
+          <nav className="create-assignment-nav">
+            <a href="#">Dashboard</a>
+            <a href="#" className="active">
+              Assignments
+            </a>
+            <a href="#">Subjects</a>
+            <a href="#">Resources</a>
+          </nav>
+          <div className="create-assignment-header-right">
+            <button type="button" className="create-assignment-notify">
+              <span className="material-symbols-outlined">notifications</span>
+            </button>
+            <div className="dashboard-avatar">
+              <span className="material-symbols-outlined">account_circle</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="create-assignment-main">
+        <div className="create-assignment-title">
+          <h2>Create Assignment</h2>
+          <div />
+        </div>
+
+        <form className="create-assignment-form" onSubmit={(event) => event.preventDefault()}>
+          <section className="create-assignment-card">
+            <div className="create-assignment-section-title">
+              <span className="material-symbols-outlined">info</span>
+              <h3>General Info</h3>
+            </div>
+            <div className="create-assignment-fields">
+              <div>
+                <label htmlFor="assignment-title">Assignment Title</label>
+                <input id="assignment-title" type="text" placeholder="e.g., Introduction to Algorithms" />
+              </div>
+              <div>
+                <label htmlFor="assignment-instructions">Instructions</label>
+                <textarea
+                  id="assignment-instructions"
+                  rows={6}
+                  placeholder="Provide detailed steps for students..."
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="create-assignment-card">
+            <div className="create-assignment-section-title">
+              <span className="material-symbols-outlined">calendar_today</span>
+              <h3>Grading &amp; Timeline</h3>
+            </div>
+            <div className="create-assignment-grid">
+              <div>
+                <label htmlFor="assignment-marks">Total Marks</label>
+                <div className="create-assignment-marks-wrap">
+                  <input id="assignment-marks" type="number" placeholder="100" />
+                  <span>pts</span>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="assignment-due">Due Date &amp; Time</label>
+                <input id="assignment-due" type="datetime-local" />
+              </div>
+            </div>
+          </section>
+
+          <section className="create-assignment-card">
+            <div className="create-assignment-section-title">
+              <span className="material-symbols-outlined">attach_file</span>
+              <h3>Resources</h3>
+            </div>
+            <label className="create-assignment-dropzone">
+              <input type="file" />
+              <div>
+                <span className="material-symbols-outlined">upload_file</span>
+              </div>
+              <p>
+                <span>Click to upload</span> or drag and drop reference files
+              </p>
+              <p>PDF, DOCX, or ZIP (max. 50MB)</p>
+            </label>
+          </section>
+
+          <section className="create-assignment-card">
+            <div className="create-assignment-toggle-row">
+              <div>
+                <h3>Allow Late Submission</h3>
+                <p>Students can submit after the deadline with a penalty</p>
+              </div>
+              <label className="create-assignment-switch">
+                <input type="checkbox" />
+                <span />
+              </label>
+            </div>
+          </section>
+
+          <div className="create-assignment-actions">
+            <button type="submit" className="create-assignment-publish">
+              <span className="material-symbols-outlined">publish</span>
+              Publish Assignment
+            </button>
+            <div>
+              <span className="material-symbols-outlined">info</span>
+              <p>This assignment will be visible to students under this subject.</p>
+            </div>
+          </div>
+        </form>
+      </main>
+
+      <footer className="create-assignment-footer">
+        <p>© 2024 University Digital Repository Platform. All faculty rights reserved.</p>
+      </footer>
+    </div>
+  )
+}
+
+function FacultyAssignmentSubmissionsScreen({ onGrade }: { onGrade: () => void }) {
+  return (
+    <div className="faculty-submissions-page" aria-label="Assignment submissions overview">
+      <header className="faculty-submissions-header">
+        <div className="faculty-submissions-container faculty-submissions-header-row">
+          <div className="faculty-submissions-brand">
+            <span className="material-symbols-outlined">school</span>
+            <h2>EduRepo</h2>
+          </div>
+          <nav className="faculty-submissions-nav">
+            <a href="#">Dashboard</a>
+            <a href="#" className="active">
+              Courses
+            </a>
+            <a href="#">Faculty Docs</a>
+            <a href="#">Reports</a>
+          </nav>
+          <div className="faculty-submissions-user">
+            <button type="button" className="faculty-submissions-notify">
+              <span className="material-symbols-outlined">notifications</span>
+            </button>
+            <div className="dashboard-avatar">
+              <span className="material-symbols-outlined">account_circle</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="faculty-submissions-container faculty-submissions-main">
+        <div className="faculty-submissions-top">
+          <nav className="faculty-submissions-breadcrumb">
+            <a href="#">Courses</a>
+            <span className="material-symbols-outlined">chevron_right</span>
+            <a href="#">CS301: Computer Architecture</a>
+            <span className="material-symbols-outlined">chevron_right</span>
+            <span>Submissions</span>
+          </nav>
+          <div className="faculty-submissions-actions">
+            <button type="button" className="faculty-submissions-outline-btn">
+              <span className="material-symbols-outlined">download</span>
+              Export CSV
+            </button>
+            <button type="button" className="faculty-submissions-primary-btn">
+              <span className="material-symbols-outlined">publish</span>
+              Release Grades
+            </button>
+          </div>
+        </div>
+
+        <section className="faculty-submissions-title-block">
+          <h1>Assignment Submissions - Memory Mapping Lab</h1>
+          <div />
+          <p>
+            Review and grade student submissions for the CS301 Laboratory Session 4. Ensure all late submissions are
+            marked before final grade release.
+          </p>
+        </section>
+
+        <section className="faculty-submissions-stats">
+          <article className="faculty-submissions-stat-card">
+            <div>
+              <p>Total Students</p>
+              <span className="material-symbols-outlined">group</span>
+            </div>
+            <h3>60</h3>
+            <small>Enrolled</small>
+          </article>
+          <article className="faculty-submissions-stat-card">
+            <div>
+              <p>Submitted</p>
+              <span className="material-symbols-outlined text-success">check_circle</span>
+            </div>
+            <h3 className="text-success">45</h3>
+            <small className="text-success">+75% Complete</small>
+          </article>
+          <article className="faculty-submissions-stat-card">
+            <div>
+              <p>Pending</p>
+              <span className="material-symbols-outlined">hourglass_empty</span>
+            </div>
+            <h3 className="text-muted">10</h3>
+            <small>In progress</small>
+          </article>
+          <article className="faculty-submissions-stat-card">
+            <div>
+              <p>Late</p>
+              <span className="material-symbols-outlined text-warning">error</span>
+            </div>
+            <h3 className="text-warning">5</h3>
+            <small>After Oct 12</small>
+          </article>
+        </section>
+
+        <section className="faculty-submissions-table-card">
+          <div className="faculty-submissions-table-head">
+            <div className="faculty-submissions-search">
+              <span className="material-symbols-outlined">search</span>
+              <input type="text" placeholder="Search by name or USN..." />
+            </div>
+            <div className="faculty-submissions-table-controls">
+              <button type="button">
+                <span className="material-symbols-outlined">filter_list</span>
+              </button>
+              <select defaultValue="All Submissions">
+                <option>All Submissions</option>
+                <option>Submitted</option>
+                <option>Late</option>
+                <option>Pending</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Student Name</th>
+                  <th>USN</th>
+                  <th>Submission Time</th>
+                  <th>Status</th>
+                  <th className="align-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div className="faculty-submissions-student">
+                      <span>AM</span>
+                      <strong>Aditi Mishra</strong>
+                    </div>
+                  </td>
+                  <td className="muted">1RV21CS001</td>
+                  <td className="muted">Oct 12, 2023 10:45 AM</td>
+                  <td>
+                    <span className="faculty-submissions-badge submitted">Submitted</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-submissions-row-actions">
+                      <button type="button" className="faculty-submissions-view-btn">
+                        View Submission
+                      </button>
+                      <button type="button" className="faculty-submissions-grade-btn" onClick={onGrade}>
+                        Grade
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div className="faculty-submissions-student">
+                      <span>RJ</span>
+                      <strong>Rahul Jain</strong>
+                    </div>
+                  </td>
+                  <td className="muted">1RV21CS042</td>
+                  <td className="muted">Oct 12, 2023 11:15 PM</td>
+                  <td>
+                    <span className="faculty-submissions-badge late">Late</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-submissions-row-actions">
+                      <button type="button" className="faculty-submissions-view-btn">
+                        View Submission
+                      </button>
+                      <button type="button" className="faculty-submissions-grade-btn" onClick={onGrade}>
+                        Grade
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div className="faculty-submissions-student">
+                      <span>SK</span>
+                      <strong>Sneha Kapoor</strong>
+                    </div>
+                  </td>
+                  <td className="muted">1RV21CS085</td>
+                  <td className="muted">Oct 12, 2023 09:30 AM</td>
+                  <td>
+                    <span className="faculty-submissions-badge submitted">Submitted</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-submissions-row-actions">
+                      <button type="button" className="faculty-submissions-view-btn">
+                        View Submission
+                      </button>
+                      <button type="button" className="faculty-submissions-grade-btn" onClick={onGrade}>
+                        Grade
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div className="faculty-submissions-student">
+                      <span>VP</span>
+                      <strong>Vikram Patil</strong>
+                    </div>
+                  </td>
+                  <td className="muted">1RV21CS102</td>
+                  <td className="muted">No submission</td>
+                  <td>
+                    <span className="faculty-submissions-badge pending">Pending</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-submissions-row-actions disabled">
+                      <button type="button" className="faculty-submissions-view-btn" disabled>
+                        View Submission
+                      </button>
+                      <button type="button" className="faculty-submissions-grade-btn" disabled>
+                        Grade
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="faculty-submissions-pagination">
+            <p>Showing 1 to 5 of 60 students</p>
+            <div>
+              <button type="button">
+                <span className="material-symbols-outlined">chevron_left</span>
+              </button>
+              <button type="button" className="active">
+                1
+              </button>
+              <button type="button">2</button>
+              <button type="button">3</button>
+              <span>...</span>
+              <button type="button">12</button>
+              <button type="button">
+                <span className="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="faculty-submissions-footer faculty-submissions-container">
+        <div>
+          <p>© 2023 University Digital Repository</p>
+          <a href="#">Privacy Policy</a>
+          <a href="#">Support</a>
+        </div>
+        <p>Platform version 2.4.1-stable</p>
+      </footer>
+    </div>
+  )
+}
+
+function FacultyGradeSubmissionScreen() {
+  return (
+    <div className="faculty-grade-page" aria-label="Faculty grading and feedback">
+      <header className="faculty-grade-header">
+        <div className="faculty-grade-container faculty-grade-header-row">
+          <div className="faculty-grade-brand">
+            <div className="faculty-grade-brand-icon">
+              <span className="material-symbols-outlined">school</span>
+            </div>
+            <h2>Institutional Grading Portal</h2>
+          </div>
+          <nav className="faculty-grade-nav">
+            <a href="#">Dashboard</a>
+            <a href="#" className="active">
+              Courses
+            </a>
+            <a href="#">Students</a>
+            <a href="#">Reports</a>
+          </nav>
+          <div className="faculty-grade-avatar">
+            <span className="material-symbols-outlined">account_circle</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="faculty-grade-container faculty-grade-main">
+        <div className="faculty-grade-success">
+          <span className="material-symbols-outlined">check_circle</span>
+          <p>Grade saved successfully</p>
+        </div>
+
+        <section className="faculty-grade-title">
+          <div className="faculty-grade-breadcrumb">
+            <a href="#">Courses</a>
+            <span className="material-symbols-outlined">chevron_right</span>
+            <a href="#">Advanced Algorithms</a>
+            <span className="material-symbols-outlined">chevron_right</span>
+            <span>Project Phase 1</span>
+          </div>
+          <h1>Grade Submission: Arjun Mehra</h1>
+          <div className="faculty-grade-title-accent" />
+        </section>
+
+        <div className="faculty-grade-layout">
+          <section className="faculty-grade-left">
+            <article className="faculty-grade-card">
+              <h3>
+                <span className="material-symbols-outlined">person</span>
+                Submission Details
+              </h3>
+              <div className="faculty-grade-details-grid">
+                <div>
+                  <p>Student Name</p>
+                  <strong>Arjun Mehra</strong>
+                </div>
+                <div>
+                  <p>USN / Student ID</p>
+                  <strong>1MS20CS042</strong>
+                </div>
+                <div>
+                  <p>Submitted On</p>
+                  <strong>Oct 24, 2023 • 11:42 AM</strong>
+                </div>
+                <div>
+                  <p>Attempt Number</p>
+                  <strong>1 (Final)</strong>
+                </div>
+              </div>
+            </article>
+
+            <article className="faculty-grade-card">
+              <h3>
+                <span className="material-symbols-outlined">description</span>
+                Submitted Files
+              </h3>
+              <div className="faculty-grade-file-list">
+                <div className="faculty-grade-file-item">
+                  <div className="faculty-grade-file-meta">
+                    <span className="material-symbols-outlined">description</span>
+                    <div>
+                      <p>Project_Phase1_Report.pdf</p>
+                      <p>2.4 MB • PDF Document</p>
+                    </div>
+                  </div>
+                  <button type="button" className="faculty-grade-download-icon-btn" aria-label="Download PDF file">
+                    <span className="material-symbols-outlined">download</span>
+                  </button>
+                </div>
+                <div className="faculty-grade-file-item">
+                  <div className="faculty-grade-file-meta">
+                    <span className="material-symbols-outlined">folder_zip</span>
+                    <div>
+                      <p>Algorithm_Source_Code.zip</p>
+                      <p>14.8 MB • Compressed Archive</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="faculty-grade-download-icon-btn"
+                    aria-label="Download ZIP file"
+                  >
+                    <span className="material-symbols-outlined">download</span>
+                  </button>
+                </div>
+                <div className="faculty-grade-file-item">
+                  <div className="faculty-grade-file-meta">
+                    <span className="material-symbols-outlined">table</span>
+                    <div>
+                      <p>Data_Analysis_Results.xlsx</p>
+                      <p>842 KB • Excel Spreadsheet</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="faculty-grade-download-icon-btn"
+                    aria-label="Download spreadsheet file"
+                  >
+                    <span className="material-symbols-outlined">download</span>
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <div className="faculty-grade-preview">
+              <span className="material-symbols-outlined">visibility</span>
+              <p>Select a file to preview it here.</p>
+            </div>
+          </section>
+
+          <aside className="faculty-grade-right">
+            <article className="faculty-grade-card faculty-grade-panel">
+              <h3>Grading Panel</h3>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                }}
+              >
+                <div className="faculty-grade-field">
+                  <label htmlFor="marks-secured">Marks Secured</label>
+                  <div className="faculty-grade-marks-wrap">
+                    <input id="marks-secured" type="number" step="0.5" defaultValue="85.5" />
+                    <span>/ 100</span>
+                  </div>
+                </div>
+
+                <div className="faculty-grade-field">
+                  <label>Submission Status</label>
+                  <div className="faculty-grade-toggle">
+                    <button type="button" className="active">
+                      Graded
+                    </button>
+                    <button type="button">Needs Revision</button>
+                  </div>
+                </div>
+
+                <button type="submit" className="faculty-grade-save">
+                  <span className="material-symbols-outlined">save</span>
+                  Save Grade
+                </button>
+                <p>Last autosaved at 12:04 PM</p>
+              </form>
+            </article>
+
+            <article className="faculty-grade-help">
+              <span className="material-symbols-outlined">info</span>
+              <div>
+                <h4>Grading Rubric Active</h4>
+                <p>
+                  This assignment follows the &quot;Engineering Phase 1&quot; rubric. Hover over marks to see
+                  breakdown.
+                </p>
+              </div>
+            </article>
+          </aside>
+        </div>
+      </main>
+
+      <footer className="faculty-grade-footer">
+        <p>© 2023 Institutional Learning Management System. All rights reserved.</p>
+      </footer>
+    </div>
+  )
+}
+
 function UnofficialNotesScreen() {
   const [uploadedNotes, setUploadedNotes] = useState<UploadedNote[]>(initialUploadedNotes)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1955,12 +2539,22 @@ function App() {
         <FacultyDashboardScreen
           onViewAllVerification={() => navigate('/faculty_verification')}
           onUploadTextbook={() => navigate('/faculty_textbook_upload')}
+          onCreateAssignment={() => navigate('/faculty_create_assignment')}
+          onViewAssignment={() => navigate('/faculty_assignment_submissions')}
         />
       ) : null}
 
       {path === '/faculty_verification' ? <FacultyVerificationScreen /> : null}
 
       {path === '/faculty_textbook_upload' ? <FacultyTextbookUploadScreen /> : null}
+
+      {path === '/faculty_create_assignment' ? <FacultyCreateAssignmentScreen /> : null}
+
+      {path === '/faculty_assignment_submissions' ? (
+        <FacultyAssignmentSubmissionsScreen onGrade={() => navigate('/faculty_grade_submission')} />
+      ) : null}
+
+      {path === '/faculty_grade_submission' ? <FacultyGradeSubmissionScreen /> : null}
 
       {path === '/student_dashboard' ? (
         <StudentDashboardScreen
