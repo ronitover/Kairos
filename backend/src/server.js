@@ -455,6 +455,38 @@ async function getOrCreateSubjectByName(subjectName, extra = {}) {
   return data
 }
 
+async function getSubjectById(subjectId) {
+  const id = normalizeString(subjectId)
+  if (!id) return null
+
+  const { data, error } = await adminSupabase
+    .from('subjects')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+async function resolveSubjectName({ subjectId, subjectName }) {
+  const normalizedId = normalizeString(subjectId)
+  if (normalizedId) {
+    const subject = await getSubjectById(normalizedId)
+    if (!subject) {
+      throw new Error('Invalid subjectId. Subject not found.')
+    }
+    return { subjectId: subject.id, subjectName: subject.name }
+  }
+
+  const normalizedName = normalizeString(subjectName)
+  if (!normalizedName) {
+    return { subjectId: null, subjectName: null }
+  }
+
+  const subject = await getOrCreateSubjectByName(normalizedName)
+  return { subjectId: subject.id, subjectName: subject.name }
+}
+
 function createRoleLoginHandler(expectedRole) {
   return async (req, res) => {
     const rawEmail = req.body?.email
@@ -577,7 +609,7 @@ app.post('/api/drive/oauth/exchange-code', async (req, res) => {
 })
 
 app.post('/api/files/upload', requireAuth, upload.single('file'), async (req, res) => {
-  if (!ensureDriveConfigured(res)) {
+  if (!ensureDriveConfigured(res) || !ensureDatabaseConfigured(res)) {
     return
   }
 
@@ -586,11 +618,15 @@ app.post('/api/files/upload', requireAuth, upload.single('file'), async (req, re
   }
 
   const { user, role } = req.auth
+  const resolvedSubject = await resolveSubjectName({
+    subjectId: req.body?.subjectId,
+    subjectName: req.body?.subjectName,
+  })
   const uploaded = await uploadToDrive({
     file: req.file,
     userId: user.id,
     role,
-    subjectName: req.body?.subjectName,
+    subjectName: resolvedSubject.subjectName,
     folderId: req.body?.folderId,
     fileName: req.body?.fileName,
     category: req.body?.category,
@@ -600,6 +636,7 @@ app.post('/api/files/upload', requireAuth, upload.single('file'), async (req, re
     message: 'File uploaded to Google Drive successfully.',
     file: uploaded.file,
     folder: uploaded.folder,
+    subject: resolvedSubject,
   })
 })
 
@@ -749,18 +786,21 @@ app.post('/api/notes/unofficial', requireAuth, requireRoles('student'), upload.s
   if (!req.file) return res.status(400).json({ message: 'File is required.' })
 
   const title = normalizeString(req.body?.title) || req.file.originalname
-  const subjectName = normalizeString(req.body?.subjectName)
-  if (!subjectName) return res.status(400).json({ message: 'subjectName is required.' })
+  const resolvedSubject = await resolveSubjectName({
+    subjectId: req.body?.subjectId,
+    subjectName: req.body?.subjectName,
+  })
+  if (!resolvedSubject.subjectName) return res.status(400).json({ message: 'subjectId or subjectName is required.' })
 
   const { user, role } = req.auth
-  const subject = await getOrCreateSubjectByName(subjectName)
+  const subject = await getSubjectById(resolvedSubject.subjectId)
   await syncStudentProfileFromUser(user)
 
   const uploaded = await uploadToDrive({
     file: req.file,
     userId: user.id,
     role,
-    subjectName,
+    subjectName: resolvedSubject.subjectName,
     folderId: req.body?.folderId,
     fileName: req.body?.fileName,
     category: 'unofficial-note',
@@ -799,11 +839,14 @@ app.post('/api/notes/official', requireAuth, requireRoles('faculty', 'admin'), u
   if (!req.file) return res.status(400).json({ message: 'File is required.' })
 
   const title = normalizeString(req.body?.title) || req.file.originalname
-  const subjectName = normalizeString(req.body?.subjectName)
-  if (!subjectName) return res.status(400).json({ message: 'subjectName is required.' })
+  const resolvedSubject = await resolveSubjectName({
+    subjectId: req.body?.subjectId,
+    subjectName: req.body?.subjectName,
+  })
+  if (!resolvedSubject.subjectName) return res.status(400).json({ message: 'subjectId or subjectName is required.' })
 
   const { user, role } = req.auth
-  const subject = await getOrCreateSubjectByName(subjectName)
+  const subject = await getSubjectById(resolvedSubject.subjectId)
   if (role === 'faculty') await syncFacultyProfileFromUser(user)
   if (role === 'admin') await syncAdminProfileFromUser(user)
 
@@ -811,7 +854,7 @@ app.post('/api/notes/official', requireAuth, requireRoles('faculty', 'admin'), u
     file: req.file,
     userId: user.id,
     role,
-    subjectName,
+    subjectName: resolvedSubject.subjectName,
     folderId: req.body?.folderId,
     fileName: req.body?.fileName,
     category: 'official-note',
@@ -905,16 +948,20 @@ app.post('/api/assignments', requireAuth, requireRoles('faculty', 'admin'), asyn
   if (!ensureDatabaseConfigured(res)) return
 
   const title = normalizeString(req.body?.title)
-  const subjectName = normalizeString(req.body?.subjectName)
+  const subjectNameInput = normalizeString(req.body?.subjectName)
+  const subjectIdInput = normalizeString(req.body?.subjectId)
   const instructions = normalizeString(req.body?.description || req.body?.instructions) || ''
   const dueAt = normalizeString(req.body?.dueAt || req.body?.dueDate)
   const maxMarks = Number(req.body?.maxMarks || req.body?.totalMarks)
 
-  if (!title || !subjectName || !dueAt || Number.isNaN(maxMarks)) {
-    return res.status(400).json({ message: 'title, subjectName, dueAt and numeric maxMarks are required.' })
+  if (!title || (!subjectNameInput && !subjectIdInput) || !dueAt || Number.isNaN(maxMarks)) {
+    return res.status(400).json({ message: 'title, subjectId/subjectName, dueAt and numeric maxMarks are required.' })
   }
 
-  const subject = await getOrCreateSubjectByName(subjectName)
+  const subject = subjectIdInput
+    ? await getSubjectById(subjectIdInput)
+    : await getOrCreateSubjectByName(subjectNameInput)
+  if (!subject) return res.status(400).json({ message: 'Invalid subjectId.' })
   const facultyId = req.auth.user.id
   if (req.auth.role === 'faculty') await syncFacultyProfileFromUser(req.auth.user)
 

@@ -1,0 +1,32 @@
+[
+  {
+    "role": "faculty",
+    "email": "faculty1@example.com",
+    "password": "Pass@1234",
+    "name": "Dr. Alice Dsouza",
+    "department": "Computer Applications",
+    "designation": "Assistant Professor"
+  },
+  {
+    "role": "faculty",
+    "email": "faculty2@example.com",
+    "password": "Pass@1234",
+    "name": "Prof. Brian Thomas",
+    "department": "Computer Applications",
+    "designation": "Associate Professor"
+  },
+  {
+    "role": "admin",
+    "email": "admin1@example.com",
+    "password": "Pass@1234",
+    "name": "HOD Admin",
+    "adminRole": "admin"
+  },
+  {
+    "role": "admin",
+    "email": "superadmin1@example.com",
+    "password": "Pass@1234",
+    "name": "Super Admin",
+    "adminRole": "super_admin"
+  }
+]

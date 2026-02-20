@@ -107,8 +107,9 @@ This creates Auth users and upserts profile rows into `faculty` / `admins`.
    - Headers: `Authorization: Bearer <accessToken>`
    - Body: `form-data`
    - Key: `file` (type `File`)
-   - Optional text fields: `fileName`, `category`, `folderId`, `subjectName`
-   - If `subjectName` is sent, backend creates/reuses a subject folder and uploads file inside it.
+   - Optional text fields: `fileName`, `category`, `folderId`, `subjectId`, `subjectName`
+   - Preferred: send `subjectId` from DB subject dropdown.
+   - Backend resolves subject name from DB and creates/reuses that subject folder for upload.
    - Expect `201` and returned Drive file metadata.
 4. `GET /api/files` with Bearer token
    - Student should see own uploads.
@@ -135,10 +136,10 @@ This creates Auth users and upserts profile rows into `faculty` / `admins`.
    - Body JSON: `marks`, optional `grade`, optional `feedback`
 5. Student upload unofficial note:
    - `POST /api/notes/unofficial`
-   - Body form-data with `file`, `subjectName`, optional `title`
+   - Body form-data with `file`, `subjectId` (preferred) or `subjectName`, optional `title`
 6. Faculty/admin upload official note:
    - `POST /api/notes/official`
-   - Body form-data with `file`, `subjectName`, optional `title`
+   - Body form-data with `file`, `subjectId` (preferred) or `subjectName`, optional `title`
 7. Faculty/admin verify unofficial note:
    - `PATCH /api/notes/:noteId/verify`
    - Body JSON: `status` (`approved` or `rejected`), optional `reviewerComment`
