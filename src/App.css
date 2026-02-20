@@ -31,6 +31,38 @@
   box-sizing: border-box;
 }
 
+.auth-top-brand {
+  width: min(100%, 26.25rem);
+  margin-bottom: 0.75rem;
+}
+
+.brand-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: #1e3a8a;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.brand-identity.small {
+  transform: scale(0.9);
+  transform-origin: left center;
+}
+
+.brand-logo-placeholder {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px dashed #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.625rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
 .background-pattern {
   position: fixed;
   inset: 0;
@@ -670,6 +702,135 @@
   gap: 1rem;
 }
 
+.common-dashboard-header {
+  box-shadow: 0 1px 0 rgb(15 23 42 / 0.04);
+}
+
+.common-dashboard-top-row {
+  min-height: 4.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.common-dashboard-top-row .brand-identity {
+  gap: 0.75rem;
+}
+
+.common-dashboard-top-row .brand-logo-placeholder {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-style: solid;
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #1e40af;
+}
+
+.common-dashboard-top-row .brand-identity span {
+  font-size: 1.9rem;
+  line-height: 1.05;
+}
+
+.common-dashboard-controls {
+  padding-top: 0.9rem;
+  padding-bottom: 0.55rem;
+}
+
+.common-dashboard-controls h1 {
+  margin: 0;
+  font-size: 1.85rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-primary);
+}
+
+.common-dashboard-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  margin-top: 0.7rem;
+  padding-bottom: 0.2rem;
+}
+
+.common-dashboard-nav button {
+  border: 1px solid var(--color-border-light);
+  background: #fff;
+  color: #334155;
+  padding: 0.4rem 0.8rem;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.common-dashboard-nav button.active {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.common-dashboard-logout {
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  text-align: center;
+}
+
+.common-dashboard-logout:hover {
+  background: transparent;
+}
+
+.common-profile-wrap {
+  position: relative;
+  gap: 0.45rem;
+}
+
+.common-profile-trigger {
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.common-profile-trigger .dashboard-avatar {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.common-profile-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 50%;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  min-width: auto;
+}
+
+.common-profile-menu.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
 .dashboard-header h1 {
   margin: 0;
   font-size: 1.75rem;
@@ -1129,6 +1290,32 @@
   color: var(--color-primary);
 }
 
+@media (max-width: 767px) {
+  .common-dashboard-top-row {
+    flex-direction: column;
+    align-items: flex-start;
+    padding-top: 0.5rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .common-dashboard-top-row .dashboard-user {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .common-profile-menu {
+    left: 50%;
+  }
+
+  .common-dashboard-controls {
+    padding-top: 0.85rem;
+  }
+
+  .common-dashboard-controls h1 {
+    font-size: 1.45rem;
+  }
+}
+
 @media (min-width: 768px) {
   .search-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1298,6 +1485,38 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
+}
+
+.search-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.search-filter-toggle {
+  border: 1px solid var(--color-border-light);
+  background: #fff;
+  color: #334155;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-filter-toggle .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.search-filter-collapsed-note p {
+  margin: 0.8rem 0 0;
+  font-size: 0.8125rem;
+  color: #64748b;
 }
 
 .search-results-card {
@@ -1808,90 +2027,6 @@
 .admin-review-actions.disabled button {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-.studysync-header {
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  position: sticky;
-  top: 0;
-  z-index: 40;
-}
-
-.studysync-header-row {
-  width: min(1200px, calc(100% - 2rem));
-  margin: 0 auto;
-  min-height: 4rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.studysync-brand {
-  border: 0;
-  background: transparent;
-  color: #1e3a8a;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-}
-
-.studysync-nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.studysync-nav button {
-  border: 1px solid #dbe2f1;
-  background: #fff;
-  color: #334155;
-  border-radius: 0.5rem;
-  padding: 0.35rem 0.7rem;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.studysync-nav button.active {
-  color: #1e3a8a;
-  border-color: #bfdbfe;
-  background: #eff6ff;
-}
-
-.studysync-user {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.studysync-user span {
-  color: #0f172a;
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.studysync-user button {
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #334155;
-  border-radius: 0.5rem;
-  padding: 0.35rem 0.65rem;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.studysync-footer {
-  margin-top: 1.25rem;
-  border-top: 1px solid #e2e8f0;
-  padding: 0.9rem 1rem;
-  text-align: center;
-  color: #64748b;
-  font-size: 0.8rem;
-  background: #fff;
 }
 
 .result-header-content {

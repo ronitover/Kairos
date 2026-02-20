@@ -119,6 +119,130 @@ const roleLoginRoute: Record<'student' | 'faculty' | 'admin', RoutePath> = {
   admin: '/admin_login',
 }
 
+type HeaderNavItem = {
+  label: string
+  path: RoutePath
+}
+
+function BrandIdentity({ small = false }: { small?: boolean }) {
+  return (
+    <div className={`brand-identity ${small ? 'small' : ''}`} aria-label="StudySync">
+      <div className="brand-logo-placeholder">Logo</div>
+      <span>StudySync</span>
+    </div>
+  )
+}
+
+function CommonDashboardHeader({
+  title,
+  subtitle,
+  navItems,
+  currentPath,
+  onNavigate,
+  onLogout,
+  containerClassName,
+}: {
+  title: string
+  subtitle: string
+  navItems: HeaderNavItem[]
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
+  containerClassName: string
+}) {
+  const { user } = useAuth()
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
+  const displayName = user?.name || user?.fullName || 'User'
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      if (!profileMenuRef.current) {
+        return
+      }
+      if (!profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [])
+
+  return (
+    <>
+      <header className="dashboard-header common-dashboard-header">
+        <div className={`${containerClassName} common-dashboard-top-row`}>
+          <BrandIdentity />
+
+          <div className="dashboard-user common-profile-wrap" ref={profileMenuRef}>
+            <div className="dashboard-user-info">
+              <p>{displayName}</p>
+              <p>{subtitle}</p>
+            </div>
+            <button
+              type="button"
+              className="common-profile-trigger"
+              onClick={() => setIsProfileMenuOpen((current) => !current)}
+              aria-expanded={isProfileMenuOpen}
+              aria-haspopup="menu"
+              aria-label="Open profile menu"
+            >
+              <div className="dashboard-avatar">
+                <span className="material-symbols-outlined">account_circle</span>
+              </div>
+            </button>
+            <div className={`common-profile-menu ${isProfileMenuOpen ? 'open' : ''}`} role="menu">
+              <button type="button" onClick={onLogout} className="common-dashboard-logout" role="menuitem">
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="dashboard-header-accent" />
+      </header>
+      <div className={`${containerClassName} common-dashboard-controls`}>
+        <h1>{title}</h1>
+        <nav className="common-dashboard-nav" aria-label="Dashboard sections">
+          {navItems.map((item) => (
+            <button
+              key={item.path}
+              type="button"
+              className={currentPath === item.path ? 'active' : ''}
+              onClick={() => {
+                setIsProfileMenuOpen(false)
+                onNavigate(item.path)
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </>
+  )
+}
+
+function CommonDashboardFooter({
+  containerClassName,
+  caption,
+}: {
+  containerClassName: string
+  caption: string
+}) {
+  return (
+    <footer className={`dashboard-footer ${containerClassName}`}>
+      <div>
+        <p>{caption}</p>
+      </div>
+      <nav aria-label="Footer links">
+        <a href="#">Help Center</a>
+        <a href="#">Privacy Policy</a>
+        <a href="#">Support</a>
+      </nav>
+    </footer>
+  )
+}
+
 function getRequiredRole(route: RoutePath): 'student' | 'faculty' | 'admin' | null {
   if (
     route === '/student_dashboard' ||
@@ -1044,6 +1168,9 @@ function AdminDashboardScreen({
   onEnrollStudents,
   onCirculars,
   onReviewUploads,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
   onAddFaculty: () => void
   onAssignSubjects: () => void
@@ -1051,15 +1178,25 @@ function AdminDashboardScreen({
   onEnrollStudents?: () => void
   onCirculars: () => void
   onReviewUploads: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   return (
     <div className="admin-page" aria-label="Global admin dashboard">
-      <AdminHeader
-        active="dashboard"
-        onNavigateDashboard={() => {}}
-        onNavigateFacultyAccounts={onAddFaculty}
-        onNavigateAssignSubjects={onAssignSubjects}
-        onNavigateCirculars={onCirculars}
+      <CommonDashboardHeader
+        title="Admin Dashboard"
+        subtitle="Super Administrator"
+        navItems={[
+          { label: 'Dashboard', path: '/admin_dashboard' },
+          { label: 'Faculty Accounts', path: '/admin_faculty_accounts' },
+          { label: 'Assign Subjects', path: '/admin_assign_subjects' },
+          { label: 'Student Accounts', path: '/admin_student_accounts' },
+        ]}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="admin-container"
       />
 
       <main className="admin-container admin-main">
@@ -1224,7 +1361,10 @@ function AdminDashboardScreen({
         </section>
       </main>
 
-      <AdminFooter />
+      <CommonDashboardFooter
+        containerClassName="admin-container"
+        caption="© 2024 University Digital Repository. Global Administrative Control."
+      />
     </div>
   )
 }
@@ -2078,17 +2218,22 @@ function FacultyDashboardScreen({
   onUploadTextbook,
   onCreateAssignment,
   onViewAssignment,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
   onViewAllVerification: () => void
   onUploadTextbook: () => void
   onCreateAssignment: () => void
   onViewAssignment: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const { user } = useAuth()
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [officialNoteFile, setOfficialNoteFile] = useState<File | null>(null)
   const [officialNoteUploadError, setOfficialNoteUploadError] = useState<string | null>(null)
-  const displayName = user?.name || user?.fullName || 'Faculty User'
   const department = user?.department || 'Department'
 
   const handleOfficialNoteFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2118,27 +2263,20 @@ function FacultyDashboardScreen({
 
   return (
     <div className="faculty-page" aria-label="Faculty management dashboard">
-      <header className="faculty-header">
-        <div className="faculty-container faculty-header-row">
-          <div className="faculty-brand">
-            <div className="faculty-brand-icon">
-              <span className="material-symbols-outlined">account_balance</span>
-            </div>
-            <h1>Faculty Dashboard</h1>
-          </div>
-          <div className="dashboard-user">
-            <div className="dashboard-user-info">
-              <p>{displayName}</p>
-              <p>{department}</p>
-            </div>
-            <div className="dashboard-avatar">
-              <span className="material-symbols-outlined">account_circle</span>
-            </div>
-            <span className="material-symbols-outlined dashboard-chevron">expand_more</span>
-          </div>
-        </div>
-        <div className="faculty-header-accent" />
-      </header>
+      <CommonDashboardHeader
+        title="Faculty Dashboard"
+        subtitle={department}
+        navItems={[
+          { label: 'Dashboard', path: '/faculty_dashboard' },
+          { label: 'Verification', path: '/faculty_verification' },
+          { label: 'Textbooks', path: '/faculty_textbook_upload' },
+          { label: 'Assignments', path: '/faculty_assignment_submissions' },
+        ]}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="faculty-container"
+      />
 
       <main className="faculty-container faculty-main">
         <section className="dashboard-card">
@@ -2455,16 +2593,10 @@ function FacultyDashboardScreen({
         </div>
       ) : null}
 
-      <footer className="dashboard-footer faculty-container">
-        <div>
-          <p>University Digital Repository • Faculty Portal</p>
-        </div>
-        <nav aria-label="Footer links">
-          <a href="#">Internal Guidelines</a>
-          <a href="#">Faculty Support</a>
-          <a href="#">System Status</a>
-        </nav>
-      </footer>
+      <CommonDashboardFooter
+        containerClassName="faculty-container"
+        caption="University Digital Repository • Faculty Portal"
+      />
     </div>
   )
 }
@@ -2475,36 +2607,39 @@ function StudentDashboardScreen({
   onUnofficialNotes,
   onSearchResources,
   onBrowseRepository,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
   onViewBrief: () => void
   onViewResult: () => void
   onUnofficialNotes: () => void
   onSearchResources: () => void
   onBrowseRepository: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const { user } = useAuth()
-  const displayName = user?.fullName || user?.name || 'Student User'
   const semester = user?.semester ? `Semester ${user.semester}` : 'Semester'
   const programme = user?.programme || 'Programme'
 
   return (
     <div className="dashboard-page" aria-label="Student dashboard">
-      <header className="dashboard-header">
-        <div className="dashboard-container dashboard-header-row">
-          <h1>Student Dashboard</h1>
-          <div className="dashboard-user">
-            <div className="dashboard-user-info">
-              <p>{displayName}</p>
-              <p>{semester} • {programme}</p>
-            </div>
-            <div className="dashboard-avatar">
-              <span className="material-symbols-outlined">account_circle</span>
-            </div>
-            <span className="material-symbols-outlined dashboard-chevron">expand_more</span>
-          </div>
-        </div>
-        <div className="dashboard-header-accent" />
-      </header>
+      <CommonDashboardHeader
+        title="Student Dashboard"
+        subtitle={`${semester} • ${programme}`}
+        navItems={[
+          { label: 'Dashboard', path: '/student_dashboard' },
+          { label: 'Repository', path: '/repository' },
+          { label: 'Search', path: '/search_results' },
+          { label: 'Unofficial Notes', path: '/unofficial_notes' },
+        ]}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="dashboard-container"
+      />
 
       <main className="dashboard-container dashboard-main">
         <section className="dashboard-card">
@@ -2709,16 +2844,10 @@ function StudentDashboardScreen({
         </section>
       </main>
 
-      <footer className="dashboard-footer dashboard-container">
-        <div>
-          <p>© 2024 University Academic Digital Repository</p>
-        </div>
-        <nav aria-label="Footer links">
-          <a href="#">Help Center</a>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Support</a>
-        </nav>
-      </footer>
+      <CommonDashboardFooter
+        containerClassName="dashboard-container"
+        caption="© 2024 University Academic Digital Repository"
+      />
     </div>
   )
 }
@@ -4361,6 +4490,7 @@ function SearchResultsScreen({ onBackDashboard }: { onBackDashboard: () => void 
   const [semester, setSemester] = useState('All Semesters')
   const [professor, setProfessor] = useState('All Professors')
   const [query, setQuery] = useState('')
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
 
   const results = searchResourceData.filter((resource) => {
     const isVisible = resource.status === 'approved'
@@ -4399,48 +4529,68 @@ function SearchResultsScreen({ onBackDashboard }: { onBackDashboard: () => void 
 
       <main className="dashboard-container search-main">
         <section className="dashboard-card">
-          <div className="dashboard-section-title">
-            <span className="material-symbols-outlined">filter_alt</span>
-            <h2>Advanced Filters</h2>
+          <div className="search-filter-head">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">filter_alt</span>
+              <h2>Advanced Filters</h2>
+            </div>
+            <button
+              type="button"
+              className="search-filter-toggle"
+              onClick={() => setShowAdvancedFilters((current) => !current)}
+              aria-expanded={showAdvancedFilters}
+              aria-controls="repository-advanced-filters"
+            >
+              {showAdvancedFilters ? 'Hide Filters' : 'Show Filters'}
+              <span className="material-symbols-outlined">
+                {showAdvancedFilters ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
           </div>
-          <div className="search-filter-grid">
-            <div className="field-group">
-              <label htmlFor="search-keyword">Keyword</label>
-              <input
-                id="search-keyword"
-                type="text"
-                placeholder="Title, subject code, or professor"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
+          {showAdvancedFilters ? (
+            <div id="repository-advanced-filters" className="search-filter-grid">
+              <div className="field-group">
+                <label htmlFor="search-keyword">Keyword</label>
+                <input
+                  id="search-keyword"
+                  type="text"
+                  placeholder="Title, subject code, or professor"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+              <div className="field-group">
+                <label htmlFor="search-subject-code">Subject Code</label>
+                <select id="search-subject-code" value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)}>
+                  <option>All Subjects</option>
+                  <option>CS501</option>
+                  <option>CS502</option>
+                  <option>CS503</option>
+                </select>
+              </div>
+              <div className="field-group">
+                <label htmlFor="search-semester">Semester</label>
+                <select id="search-semester" value={semester} onChange={(e) => setSemester(e.target.value)}>
+                  <option>All Semesters</option>
+                  <option>Semester 5</option>
+                  <option>Semester 6</option>
+                </select>
+              </div>
+              <div className="field-group">
+                <label htmlFor="search-professor">Professor</label>
+                <select id="search-professor" value={professor} onChange={(e) => setProfessor(e.target.value)}>
+                  <option>All Professors</option>
+                  <option>Dr. Robert Wilson</option>
+                  <option>Dr. Sarah Jenkins</option>
+                  <option>Dr. Alan Green</option>
+                </select>
+              </div>
             </div>
-            <div className="field-group">
-              <label htmlFor="search-subject-code">Subject Code</label>
-              <select id="search-subject-code" value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)}>
-                <option>All Subjects</option>
-                <option>CS501</option>
-                <option>CS502</option>
-                <option>CS503</option>
-              </select>
+          ) : (
+            <div className="search-filter-collapsed-note">
+              <p>Use filters to narrow by subject, semester, and professor.</p>
             </div>
-            <div className="field-group">
-              <label htmlFor="search-semester">Semester</label>
-              <select id="search-semester" value={semester} onChange={(e) => setSemester(e.target.value)}>
-                <option>All Semesters</option>
-                <option>Semester 5</option>
-                <option>Semester 6</option>
-              </select>
-            </div>
-            <div className="field-group">
-              <label htmlFor="search-professor">Professor</label>
-              <select id="search-professor" value={professor} onChange={(e) => setProfessor(e.target.value)}>
-                <option>All Professors</option>
-                <option>Dr. Robert Wilson</option>
-                <option>Dr. Sarah Jenkins</option>
-                <option>Dr. Alan Green</option>
-              </select>
-            </div>
-          </div>
+          )}
         </section>
 
         <section className="dashboard-card search-results-card">
@@ -5793,7 +5943,7 @@ function ResetPasswordScreen({
 }
 
 function App() {
-  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
+  const { user, isAuthenticated, isLoading: isAuthLoading, logout } = useAuth()
   const [path, setPath] = useState<RoutePath>(() => normalizePath(window.location.pathname))
   const [sessionNotice, setSessionNotice] = useState<string | null>(null)
   const [notices, setNotices] = useState<DepartmentNotice[]>(() => {
@@ -5894,6 +6044,12 @@ function App() {
 
   return (
     <div className={isAuthRoute ? 'app-shell auth-shell' : 'app-shell'}>
+      {isAuthRoute ? (
+        <div className="auth-top-brand">
+          <BrandIdentity />
+        </div>
+      ) : null}
+
       {sessionNotice ? (
         <div className="app-session-notice" role="alert">
           <span className="material-symbols-outlined">info</span>
@@ -5929,6 +6085,12 @@ function App() {
           onEnrollStudents={() => navigate('/admin_enroll_students')}
           onCirculars={() => navigate('/admin_circulars')}
           onReviewUploads={() => navigate('/admin_review_uploads')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
         />
       ) : null}
 
@@ -6014,6 +6176,12 @@ function App() {
           onUploadTextbook={() => navigate('/faculty_textbook_upload')}
           onCreateAssignment={() => navigate('/faculty_create_assignment')}
           onViewAssignment={() => navigate('/faculty_assignment_submissions')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
         />
       ) : null}
 
@@ -6043,6 +6211,12 @@ function App() {
           onUnofficialNotes={() => navigate('/unofficial_notes')}
           onSearchResources={() => navigate('/search_results')}
           onBrowseRepository={() => navigate('/repository')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
         />
       ) : null}
 
