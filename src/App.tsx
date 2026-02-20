@@ -335,14 +335,25 @@ function CommonDashboardFooter({
 function PdfPreviewModal({
   isOpen,
   title,
+  previewUrl,
+  downloadUrl,
   onClose,
 }: {
   isOpen: boolean
   title: string
+  previewUrl?: string | null
+  downloadUrl?: string | null
   onClose: () => void
 }) {
   if (!isOpen) {
     return null
+  }
+
+  const handleDownload = () => {
+    if (!downloadUrl || downloadUrl === '#') {
+      return
+    }
+    window.open(downloadUrl, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -354,7 +365,7 @@ function PdfPreviewModal({
             <h3>{title}</h3>
           </div>
           <div>
-            <button type="button" className="pdf-preview-download">
+            <button type="button" className="pdf-preview-download" onClick={handleDownload} disabled={!downloadUrl || downloadUrl === '#'}>
               <span className="material-symbols-outlined">download</span>
               Download
             </button>
@@ -364,14 +375,26 @@ function PdfPreviewModal({
           </div>
         </header>
         <div className="pdf-preview-body">
-          <div className="pdf-preview-page">
-            <p>PDF preview placeholder</p>
-            <h4>{title}</h4>
-            <p>Preview content will render here when backend file streaming is connected.</p>
-          </div>
+          {previewUrl ? (
+            <div className="pdf-preview-page embed">
+              <iframe src={previewUrl} title={title} className="pdf-preview-embed" allow="autoplay" />
+            </div>
+          ) : (
+            <div className="pdf-preview-page pdf-preview-empty">
+              <p>Preview unavailable</p>
+              <h4>{title}</h4>
+              <p>This file cannot be previewed. Use Download to open it.</p>
+            </div>
+          )}
         </div>
       </div>
-      <StudyAssistantOverlay visible />
+      <StudyAssistantOverlay
+        visible
+        sourceDocument={{
+          title,
+          fileUrl: downloadUrl || previewUrl || null,
+        }}
+      />
     </div>
   )
 }
@@ -384,11 +407,24 @@ type AssistantMessage = {
   text: string
 }
 
-function StudyAssistantOverlay({ visible }: { visible: boolean }) {
+type AssistantSourceDocument = {
+  title: string
+  fileUrl?: string | null
+}
+
+function StudyAssistantOverlay({
+  visible,
+  sourceDocument,
+}: {
+  visible: boolean
+  sourceDocument?: AssistantSourceDocument | null
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const [isPreviewVisible, setIsPreviewVisible] = useState(true)
   const [mode, setMode] = useState<AssistantMode>('summarize')
   const [input, setInput] = useState('')
+  const [attachedDocument, setAttachedDocument] = useState<AssistantSourceDocument | null>(null)
+  const lastAutoAttachKeyRef = useRef<string | null>(null)
   const [messages, setMessages] = useState<AssistantMessage[]>([
     {
       id: 'assistant-welcome',
@@ -405,22 +441,52 @@ function StudyAssistantOverlay({ visible }: { visible: boolean }) {
     setIsPreviewVisible(false)
   }, [visible])
 
+  useEffect(() => {
+    if (!sourceDocument) {
+      setAttachedDocument(null)
+      lastAutoAttachKeyRef.current = null
+      return
+    }
+
+    const key = `${sourceDocument.title}|${sourceDocument.fileUrl || ''}`
+    setAttachedDocument(sourceDocument)
+    if (lastAutoAttachKeyRef.current !== key) {
+      lastAutoAttachKeyRef.current = key
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-auto-attach-${Date.now()}`,
+          role: 'assistant',
+          text: `Auto-attached "${sourceDocument.title}" for this chat.`,
+        },
+      ])
+    }
+  }, [sourceDocument?.title, sourceDocument?.fileUrl])
+
   const sendMessage = () => {
     const trimmed = input.trim()
     if (!trimmed) {
       return
     }
 
+    const contextPrefix = attachedDocument ? `[File: ${attachedDocument.title}] ` : ''
+
     const userMessage: AssistantMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      text: trimmed,
+      text: `${contextPrefix}${trimmed}`,
     }
 
     const cannedResponseByMode: Record<AssistantMode, string> = {
-      summarize: 'I can summarize this into key points, definitions, and likely exam questions.',
-      explain: 'I can break this topic into simple steps with examples and memory aids.',
-      quiz: 'I can generate a quick 5-question quiz with answers and explanations.',
+      summarize: attachedDocument
+        ? `Using "${attachedDocument.title}", I can summarize this into key points, definitions, and likely exam questions.`
+        : 'I can summarize this into key points, definitions, and likely exam questions.',
+      explain: attachedDocument
+        ? `Using "${attachedDocument.title}", I can break this topic into simple steps with examples and memory aids.`
+        : 'I can break this topic into simple steps with examples and memory aids.',
+      quiz: attachedDocument
+        ? `Using "${attachedDocument.title}", I can generate a quick 5-question quiz with answers and explanations.`
+        : 'I can generate a quick 5-question quiz with answers and explanations.',
     }
 
     const assistantMessage: AssistantMessage = {
@@ -506,6 +572,16 @@ function StudyAssistantOverlay({ visible }: { visible: boolean }) {
             </button>
           </div>
 
+          {sourceDocument ? (
+            <div className="assistant-source-row">
+              <div>
+                <span className="material-symbols-outlined">description</span>
+                <p>{sourceDocument.title}</p>
+              </div>
+              <span className="assistant-source-badge">Auto-attached</span>
+            </div>
+          ) : null}
+
           <div className="assistant-messages">
             {messages.map((message) => (
               <article key={message.id} className={`assistant-msg ${message.role}`}>
@@ -519,7 +595,11 @@ function StudyAssistantOverlay({ visible }: { visible: boolean }) {
               rows={2}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Paste notes or ask a question..."
+              placeholder={
+                attachedDocument
+                  ? `Ask about ${attachedDocument.title}...`
+                  : 'Paste notes or ask a question...'
+              }
             />
             <button type="button" onClick={sendMessage} disabled={!input.trim()}>
               <span className="material-symbols-outlined">north_east</span>
@@ -734,6 +814,28 @@ function formatUploadDate(date: Date): string {
     day: 'numeric',
     year: 'numeric',
   })}`
+}
+
+function getDriveFileId(fileUrl: string): string | null {
+  const byPath = fileUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
+  if (byPath?.[1]) {
+    return byPath[1]
+  }
+  const byQuery = fileUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)
+  return byQuery?.[1] || null
+}
+
+function getPreviewUrl(fileUrl?: string): string | null {
+  if (!fileUrl || fileUrl === '#') {
+    return null
+  }
+
+  const driveFileId = getDriveFileId(fileUrl)
+  if (driveFileId) {
+    return `https://drive.google.com/file/d/${driveFileId}/preview`
+  }
+
+  return fileUrl
 }
 
 function normalizePath(pathname: string): RoutePath {
@@ -5538,6 +5640,10 @@ function UnofficialNotesScreen({
   const [findSortBy, setFindSortBy] = useState('Most Recent')
   const [findFileType, setFindFileType] = useState<'all' | 'pdf' | 'docx' | 'images' | 'handwritten'>('all')
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewTitle, setPreviewTitle] = useState('Document.pdf')
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewDownloadUrl, setPreviewDownloadUrl] = useState<string | null>(null)
 
   const loadUnofficialData = async (search?: string, chapter?: string) => {
     const data = await studentService.getUnofficialNotesData({
@@ -5656,6 +5762,13 @@ function UnofficialNotesScreen({
     window.open(note.fileUrl, '_blank', 'noopener,noreferrer')
   }
 
+  const openPreview = (title: string, fileUrl?: string) => {
+    setPreviewTitle(title)
+    setPreviewDownloadUrl(fileUrl || null)
+    setPreviewUrl(getPreviewUrl(fileUrl))
+    setIsPreviewOpen(true)
+  }
+
   return (
     <div className="unofficial-page dashboard-page" aria-label="Student unofficial notes portal">
       <CommonDashboardHeader
@@ -5709,15 +5822,26 @@ function UnofficialNotesScreen({
                     </div>
                     <div className="unofficial-upload-bottom">
                       <span>{note.fileInfo}</span>
-                      <button
-                        type="button"
-                        className="dashboard-btn-primary dashboard-btn-small"
-                        disabled={!note.canDownload}
-                        onClick={() => handleDownload(note)}
-                      >
-                        <span className="material-symbols-outlined">download</span>
-                        Download
-                      </button>
+                      <div className="unofficial-upload-actions">
+                        <button
+                          type="button"
+                          className="dashboard-btn-secondary dashboard-btn-small"
+                          disabled={!note.canDownload}
+                          onClick={() => openPreview(note.fileName || note.title, note.downloadUrl)}
+                        >
+                          <span className="material-symbols-outlined">visibility</span>
+                          Preview
+                        </button>
+                        <button
+                          type="button"
+                          className="dashboard-btn-primary dashboard-btn-small"
+                          disabled={!note.canDownload}
+                          onClick={() => handleDownload(note)}
+                        >
+                          <span className="material-symbols-outlined">download</span>
+                          Download
+                        </button>
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -5839,14 +5963,24 @@ function UnofficialNotesScreen({
                           <p>Uploaded By: {item.author} ({item.usn})</p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="dashboard-icon-btn"
-                        aria-label={`Download ${item.title}`}
-                        onClick={() => handleDownloadFindNote({ fileUrl: item.fileUrl })}
-                      >
-                        <span className="material-symbols-outlined">download</span>
-                      </button>
+                      <div className="unofficial-result-actions">
+                        <button
+                          type="button"
+                          className="dashboard-icon-btn"
+                          aria-label={`Preview ${item.title}`}
+                          onClick={() => openPreview(item.title, item.fileUrl)}
+                        >
+                          <span className="material-symbols-outlined">visibility</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="dashboard-icon-btn"
+                          aria-label={`Download ${item.title}`}
+                          onClick={() => handleDownloadFindNote({ fileUrl: item.fileUrl })}
+                        >
+                          <span className="material-symbols-outlined">download</span>
+                        </button>
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -5857,6 +5991,13 @@ function UnofficialNotesScreen({
       </main>
 
       <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        title={previewTitle}
+        previewUrl={previewUrl}
+        downloadUrl={previewDownloadUrl}
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>
   )
 }
@@ -7899,4 +8040,3 @@ function App() {
 }
 
 export default App
-
