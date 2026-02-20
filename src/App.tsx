@@ -8,6 +8,7 @@ type RoutePath =
   | '/faculty_login'
   | '/admin_login'
   | '/admin_dashboard'
+  | '/admin_faculty_accounts'
   | '/faculty_dashboard'
   | '/faculty_verification'
   | '/faculty_textbook_upload'
@@ -100,6 +101,10 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/admin_dashboard') {
     return '/admin_dashboard'
+  }
+
+  if (pathname === '/admin_faculty_accounts') {
+    return '/admin_faculty_accounts'
   }
 
   if (pathname === '/faculty_dashboard') {
@@ -504,27 +509,76 @@ function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
   )
 }
 
-function AdminDashboardScreen() {
+function AdminHeader({
+  active,
+  onNavigateDashboard,
+  onNavigateFacultyAccounts,
+}: {
+  active: 'dashboard' | 'faculty'
+  onNavigateDashboard: () => void
+  onNavigateFacultyAccounts: () => void
+}) {
   return (
-    <div className="admin-page" aria-label="Global admin dashboard">
-      <header className="admin-header">
-        <div className="admin-container admin-header-row">
-          <h1>Admin Dashboard</h1>
-          <div className="admin-header-right">
-            <button type="button" className="admin-notification-btn" aria-label="Notifications">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
-            <div className="admin-user">
-              <div>
-                <p>Admin User</p>
-                <p>Super Administrator</p>
-              </div>
-              <div>AU</div>
+    <header className="admin-header">
+      <div className="admin-container admin-header-row">
+        <h1>Admin Dashboard</h1>
+        <div className="admin-header-right">
+          <button type="button" className="admin-notification-btn" aria-label="Notifications">
+            <span className="material-symbols-outlined">notifications</span>
+          </button>
+          <div className="admin-user">
+            <div>
+              <p>Admin User</p>
+              <p>Super Administrator</p>
             </div>
+            <div>AU</div>
           </div>
         </div>
-        <div className="admin-header-accent" />
-      </header>
+      </div>
+      <div className="admin-header-accent" />
+      <div className="admin-container admin-top-nav">
+        <button type="button" onClick={onNavigateDashboard} className={active === 'dashboard' ? 'active' : ''}>
+          <span className="material-symbols-outlined">dashboard</span>
+          Dashboard
+        </button>
+        <button type="button" onClick={onNavigateFacultyAccounts} className={active === 'faculty' ? 'active' : ''}>
+          <span className="material-symbols-outlined">group</span>
+          Faculty Accounts
+        </button>
+        <button type="button">
+          <span className="material-symbols-outlined">book</span>
+          Departments
+        </button>
+        <button type="button">
+          <span className="material-symbols-outlined">settings</span>
+          System Settings
+        </button>
+      </div>
+    </header>
+  )
+}
+
+function AdminFooter() {
+  return (
+    <footer className="admin-footer admin-container">
+      <p>© 2024 University Digital Repository. Global Administrative Control.</p>
+      <nav aria-label="Admin footer links">
+        <a href="#">System Status</a>
+        <a href="#">Privacy Policy</a>
+        <a href="#">User Audit Log</a>
+      </nav>
+    </footer>
+  )
+}
+
+function AdminDashboardScreen({ onAddFaculty }: { onAddFaculty: () => void }) {
+  return (
+    <div className="admin-page" aria-label="Global admin dashboard">
+      <AdminHeader
+        active="dashboard"
+        onNavigateDashboard={() => {}}
+        onNavigateFacultyAccounts={onAddFaculty}
+      />
 
       <main className="admin-container admin-main">
         <section className="admin-kpi-grid">
@@ -574,7 +628,7 @@ function AdminDashboardScreen() {
             Quick Actions
           </h2>
           <div>
-            <button type="button">
+            <button type="button" onClick={onAddFaculty}>
               <span className="material-symbols-outlined">person_add</span>
               Add Faculty
             </button>
@@ -682,14 +736,224 @@ function AdminDashboardScreen() {
         </section>
       </main>
 
-      <footer className="admin-footer admin-container">
-        <p>© 2024 University Digital Repository. Global Administrative Control.</p>
-        <nav aria-label="Admin footer links">
-          <a href="#">System Status</a>
-          <a href="#">Privacy Policy</a>
-          <a href="#">User Audit Log</a>
-        </nav>
-      </footer>
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminFacultyAccountsScreen({ onBackDashboard }: { onBackDashboard: () => void }) {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [tempPassword, setTempPassword] = useState('UNIV-8x2K-99LP')
+
+  const generatePassword = () => {
+    const segment = () => Math.random().toString(36).slice(2, 6).toUpperCase()
+    setTempPassword(`UNIV-${segment()}-${segment()}`)
+  }
+
+  return (
+    <div className="admin-page" aria-label="Faculty accounts management">
+      <AdminHeader
+        active="faculty"
+        onNavigateDashboard={onBackDashboard}
+        onNavigateFacultyAccounts={() => {}}
+      />
+
+      <main className="admin-container admin-main">
+        <section className="admin-faculty-head">
+          <div>
+            <h2>Faculty Accounts</h2>
+            <div />
+          </div>
+          <button type="button" className="admin-faculty-add-btn" onClick={() => setIsAddModalOpen(true)}>
+            <span className="material-symbols-outlined">person_add</span>
+            Add Faculty
+          </button>
+        </section>
+
+        <section className="admin-faculty-table-card">
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Faculty Name</th>
+                  <th>Email</th>
+                  <th>Department</th>
+                  <th>Subjects</th>
+                  <th>Status</th>
+                  <th className="align-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div className="admin-faculty-person">
+                      <span>DA</span>
+                      <p>Dr. David Anderson</p>
+                    </div>
+                  </td>
+                  <td className="muted">d.anderson@university.edu</td>
+                  <td className="muted">Computer Science</td>
+                  <td>
+                    <span className="admin-faculty-subject-pill">4 Assigned</span>
+                  </td>
+                  <td>
+                    <span className="admin-faculty-status active">Active</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="admin-faculty-actions">
+                      <button type="button" aria-label="Edit faculty">
+                        <span className="material-symbols-outlined">edit</span>
+                      </button>
+                      <button type="button" aria-label="Block faculty">
+                        <span className="material-symbols-outlined">block</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div className="admin-faculty-person">
+                      <span>SW</span>
+                      <p>Prof. Sarah Wilson</p>
+                    </div>
+                  </td>
+                  <td className="muted">s.wilson@university.edu</td>
+                  <td className="muted">Mathematics</td>
+                  <td>
+                    <span className="admin-faculty-subject-pill">3 Assigned</span>
+                  </td>
+                  <td>
+                    <span className="admin-faculty-status active">Active</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="admin-faculty-actions">
+                      <button type="button" aria-label="Edit faculty">
+                        <span className="material-symbols-outlined">edit</span>
+                      </button>
+                      <button type="button" aria-label="Block faculty">
+                        <span className="material-symbols-outlined">block</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div className="admin-faculty-person">
+                      <span>RK</span>
+                      <p>Dr. Robert Kovac</p>
+                    </div>
+                  </td>
+                  <td className="muted">r.kovac@university.edu</td>
+                  <td className="muted">Physics</td>
+                  <td>
+                    <span className="admin-faculty-subject-pill">2 Assigned</span>
+                  </td>
+                  <td>
+                    <span className="admin-faculty-status inactive">Inactive</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="admin-faculty-actions">
+                      <button type="button" aria-label="Edit faculty">
+                        <span className="material-symbols-outlined">edit</span>
+                      </button>
+                      <button type="button" aria-label="Activate faculty">
+                        <span className="material-symbols-outlined">check_circle</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="admin-faculty-pagination">
+            <p>Showing 1 to 3 of 42 entries</p>
+            <div>
+              <button type="button" disabled>
+                Previous
+              </button>
+              <button type="button">Next</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {isAddModalOpen ? (
+        <div className="admin-faculty-modal-backdrop">
+          <div className="admin-faculty-modal" role="dialog" aria-modal="true" aria-label="Add new faculty account">
+            <div className="admin-faculty-modal-accent" />
+            <div className="admin-faculty-modal-content">
+              <div className="admin-faculty-modal-head">
+                <h3>Add New Faculty Account</h3>
+                <button type="button" onClick={() => setIsAddModalOpen(false)} aria-label="Close dialog">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <form
+                className="admin-faculty-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  setIsAddModalOpen(false)
+                }}
+              >
+                <div className="field-group">
+                  <label htmlFor="new-faculty-name">Full Name</label>
+                  <input id="new-faculty-name" type="text" placeholder="e.g. Dr. Jane Smith" />
+                </div>
+
+                <div className="field-group">
+                  <label htmlFor="new-faculty-email">Institutional Email</label>
+                  <input id="new-faculty-email" type="email" placeholder="j.smith@university.edu" />
+                </div>
+
+                <div className="field-group">
+                  <label htmlFor="new-faculty-department">Department</label>
+                  <select id="new-faculty-department" defaultValue="">
+                    <option value="" disabled>
+                      Select Department
+                    </option>
+                    <option>Computer Science</option>
+                    <option>Mathematics</option>
+                    <option>Physics</option>
+                    <option>Engineering</option>
+                  </select>
+                </div>
+
+                <div className="admin-faculty-credentials">
+                  <p>Security Credentials</p>
+                  <div className="admin-faculty-credentials-row">
+                    <div>
+                      <span>Temporary Password</span>
+                      <div>
+                        <code>{tempPassword}</code>
+                        <button type="button" onClick={generatePassword} aria-label="Regenerate password">
+                          <span className="material-symbols-outlined">refresh</span>
+                        </button>
+                      </div>
+                    </div>
+                    <label className="admin-faculty-force-change">
+                      <input type="checkbox" defaultChecked />
+                      <span>Force change</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="admin-faculty-modal-actions">
+                  <button type="button" className="cancel" onClick={() => setIsAddModalOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="create">
+                    Create Account
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <AdminFooter />
     </div>
   )
 }
@@ -2807,7 +3071,13 @@ function App() {
 
       {path === '/admin_login' ? <AdminLoginScreen onLogin={() => navigate('/admin_dashboard')} /> : null}
 
-      {path === '/admin_dashboard' ? <AdminDashboardScreen /> : null}
+      {path === '/admin_dashboard' ? (
+        <AdminDashboardScreen onAddFaculty={() => navigate('/admin_faculty_accounts')} />
+      ) : null}
+
+      {path === '/admin_faculty_accounts' ? (
+        <AdminFacultyAccountsScreen onBackDashboard={() => navigate('/admin_dashboard')} />
+      ) : null}
 
       {path === '/faculty_dashboard' ? (
         <FacultyDashboardScreen
