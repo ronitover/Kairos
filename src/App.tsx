@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import './App.css'
 
 type RoutePath =
@@ -15,6 +15,61 @@ const links = [
   { label: 'Help Center', href: '#' },
   { label: 'Support', href: '#' },
 ]
+
+type UploadStatus = 'verified' | 'pending' | 'rejected'
+
+type UploadedNote = {
+  id: string
+  title: string
+  uploadedOn: string
+  fileInfo: string
+  status: UploadStatus
+  canDownload: boolean
+  downloadUrl?: string
+  fileName?: string
+}
+
+const initialUploadedNotes: UploadedNote[] = [
+  {
+    id: 'upload-1',
+    title: 'OS - Deadlocks Short Notes',
+    uploadedOn: 'Uploaded on Oct 24, 2023',
+    fileInfo: 'PDF • 1.2 MB',
+    status: 'verified',
+    canDownload: true,
+  },
+  {
+    id: 'upload-2',
+    title: 'Virtual Memory Lab Manual',
+    uploadedOn: 'Uploaded on Oct 28, 2023',
+    fileInfo: 'DOCX • 850 KB',
+    status: 'pending',
+    canDownload: false,
+  },
+  {
+    id: 'upload-3',
+    title: 'Networking - OSI Model',
+    uploadedOn: 'Uploaded on Oct 15, 2023',
+    fileInfo: 'PDF • 3.4 MB',
+    status: 'rejected',
+    canDownload: false,
+  },
+]
+
+function formatFileSize(sizeInBytes: number): string {
+  if (sizeInBytes < 1024 * 1024) {
+    return `${(sizeInBytes / 1024).toFixed(1)} KB`
+  }
+  return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatUploadDate(date: Date): string {
+  return `Uploaded on ${date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })}`
+}
 
 function normalizePath(pathname: string): RoutePath {
   if (pathname === '/student_login' || pathname === '/login') {
@@ -574,6 +629,48 @@ function StudentDashboardScreen({
 }
 
 function UnofficialNotesScreen() {
+  const [uploadedNotes, setUploadedNotes] = useState<UploadedNote[]>(initialUploadedNotes)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleOpenUploadPicker = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFilesSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) {
+      return
+    }
+
+    const now = new Date()
+    const newNotes: UploadedNote[] = Array.from(files).map((file) => ({
+      id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+      title: file.name,
+      uploadedOn: formatUploadDate(now),
+      fileInfo: `${file.name.split('.').pop()?.toUpperCase() || 'FILE'} • ${formatFileSize(file.size)}`,
+      status: 'pending',
+      canDownload: true,
+      downloadUrl: URL.createObjectURL(file),
+      fileName: file.name,
+    }))
+
+    setUploadedNotes((current) => [...newNotes, ...current])
+    event.target.value = ''
+  }
+
+  const handleDownload = (note: UploadedNote) => {
+    if (!note.downloadUrl || !note.canDownload) {
+      return
+    }
+
+    const link = document.createElement('a')
+    link.href = note.downloadUrl
+    link.download = note.fileName ?? note.title
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
   return (
     <div className="unofficial-page" aria-label="Student unofficial notes portal">
       <header className="unofficial-header">
@@ -583,10 +680,17 @@ function UnofficialNotesScreen() {
             <div className="unofficial-header-accent" />
           </div>
           <div className="unofficial-header-right">
-            <button type="button" className="dashboard-upload-btn">
+            <button type="button" className="dashboard-upload-btn" onClick={handleOpenUploadPicker}>
               <span className="material-symbols-outlined">cloud_upload</span>
               Upload Notes
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="visually-hidden-input"
+              onChange={handleFilesSelected}
+            />
             <div className="dashboard-user">
               <div className="dashboard-user-info">
                 <p>Alex Thompson</p>
@@ -609,60 +713,33 @@ function UnofficialNotesScreen() {
                   <span className="material-symbols-outlined">folder_shared</span>
                   <h2>My Uploads</h2>
                 </div>
-                <span>3 Total</span>
+                <span>{uploadedNotes.length} Total</span>
               </div>
 
               <div className="unofficial-upload-list">
-                <article className="unofficial-upload-item">
-                  <div className="unofficial-upload-top">
-                    <div>
-                      <h3>OS - Deadlocks Short Notes</h3>
-                      <p>Uploaded on Oct 24, 2023</p>
+                {uploadedNotes.map((note) => (
+                  <article key={note.id} className="unofficial-upload-item">
+                    <div className="unofficial-upload-top">
+                      <div>
+                        <h3>{note.title}</h3>
+                        <p>{note.uploadedOn}</p>
+                      </div>
+                      <span className={`unofficial-badge ${note.status}`}>{note.status}</span>
                     </div>
-                    <span className="unofficial-badge verified">Verified</span>
-                  </div>
-                  <div className="unofficial-upload-bottom">
-                    <span>PDF • 1.2 MB</span>
-                    <button type="button" className="dashboard-btn-primary dashboard-btn-small">
-                      <span className="material-symbols-outlined">download</span>
-                      Download
-                    </button>
-                  </div>
-                </article>
-
-                <article className="unofficial-upload-item">
-                  <div className="unofficial-upload-top">
-                    <div>
-                      <h3>Virtual Memory Lab Manual</h3>
-                      <p>Uploaded on Oct 28, 2023</p>
+                    <div className="unofficial-upload-bottom">
+                      <span>{note.fileInfo}</span>
+                      <button
+                        type="button"
+                        className="dashboard-btn-primary dashboard-btn-small"
+                        disabled={!note.canDownload}
+                        onClick={() => handleDownload(note)}
+                      >
+                        <span className="material-symbols-outlined">download</span>
+                        Download
+                      </button>
                     </div>
-                    <span className="unofficial-badge pending">Pending</span>
-                  </div>
-                  <div className="unofficial-upload-bottom">
-                    <span>DOCX • 850 KB</span>
-                    <button type="button" className="dashboard-btn-primary dashboard-btn-small" disabled>
-                      <span className="material-symbols-outlined">download</span>
-                      Download
-                    </button>
-                  </div>
-                </article>
-
-                <article className="unofficial-upload-item">
-                  <div className="unofficial-upload-top">
-                    <div>
-                      <h3>Networking - OSI Model</h3>
-                      <p>Uploaded on Oct 15, 2023</p>
-                    </div>
-                    <span className="unofficial-badge rejected">Rejected</span>
-                  </div>
-                  <div className="unofficial-upload-bottom">
-                    <span>PDF • 3.4 MB</span>
-                    <button type="button" className="dashboard-btn-primary dashboard-btn-small" disabled>
-                      <span className="material-symbols-outlined">download</span>
-                      Download
-                    </button>
-                  </div>
-                </article>
+                  </article>
+                ))}
               </div>
             </section>
           </aside>
