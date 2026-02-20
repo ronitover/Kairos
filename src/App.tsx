@@ -2844,7 +2844,7 @@ function StudentDashboardScreen({
                 <div className="dashboard-assignment-icon warning">
                   <span className="material-symbols-outlined">warning</span>
                 </div>
-                <div>
+                <div className="dashboard-assignment-content">
                   <h3>Implement Multi-threaded Scheduler</h3>
                   <p>Subject: CS501 • 15th Nov 2023</p>
                 </div>
@@ -2854,7 +2854,7 @@ function StudentDashboardScreen({
                   <p className="status-warning-text">Due in 2 Days</p>
                   <span className="pill">Not Submitted</span>
                 </div>
-                <button type="button" className="dashboard-btn-primary dashboard-btn-small" onClick={onViewBrief}>
+                <button type="button" className="dashboard-btn-primary dashboard-btn-small dashboard-assignment-action" onClick={onViewBrief}>
                   View Brief
                 </button>
               </div>
@@ -2865,7 +2865,7 @@ function StudentDashboardScreen({
                 <div className="dashboard-assignment-icon info">
                   <span className="material-symbols-outlined">check_circle</span>
                 </div>
-                <div>
+                <div className="dashboard-assignment-content">
                   <h3>Memory Mapping Lab Report</h3>
                   <p>Subject: CS501 • 01st Nov 2023</p>
                 </div>
@@ -2875,7 +2875,7 @@ function StudentDashboardScreen({
                   <p className="status-success-text">Completed</p>
                   <span className="pill success">Submitted</span>
                 </div>
-                <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onViewResult}>
+                <button type="button" className="dashboard-btn-secondary dashboard-btn-small dashboard-assignment-action" onClick={onViewResult}>
                   View Result
                 </button>
               </div>
@@ -2886,7 +2886,7 @@ function StudentDashboardScreen({
                 <div className="dashboard-assignment-icon success">
                   <span className="material-symbols-outlined">grade</span>
                 </div>
-                <div>
+                <div className="dashboard-assignment-content">
                   <h3>CPU Scheduling Quiz</h3>
                   <p>Subject: CS501 • 25th Oct 2023</p>
                 </div>
@@ -2896,7 +2896,7 @@ function StudentDashboardScreen({
                   <p className="grade-text">Grade: A+</p>
                   <span className="pill info">Graded</span>
                 </div>
-                <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onViewResult}>
+                <button type="button" className="dashboard-btn-secondary dashboard-btn-small dashboard-assignment-action" onClick={onViewResult}>
                   Details
                 </button>
               </div>
@@ -3003,7 +3003,7 @@ function FacultyVerificationScreen({
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#1e3a8a',
+                color: '#556B2F',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
                 marginBottom: '0.5rem',
