@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import './App.css'
 import { useAuth } from './contexts/AuthContext'
 import { authService } from './services/auth'
@@ -80,6 +80,19 @@ type DepartmentNotice = {
   urgent: boolean
 }
 
+type AcademicEventType = 'assignment' | 'test' | 'holiday' | 'event'
+
+type AcademicEvent = {
+  id: string
+  title: string
+  date: string
+  type: AcademicEventType
+  details: string
+  createdBy: string
+  createdByRole: 'faculty' | 'admin'
+  targetAudience: 'students' | 'faculty' | 'both'
+}
+
 const defaultDepartmentNotices: DepartmentNotice[] = [
   {
     id: 'notice-1',
@@ -99,6 +112,72 @@ const defaultDepartmentNotices: DepartmentNotice[] = [
     authorRole: 'admin',
     urgent: false,
   },
+]
+
+const academicHolidaySeeds = [
+  { month: 0, day: 1, title: "New Year's Day", details: 'National holiday.' },
+  { month: 0, day: 26, title: 'Republic Day', details: 'National holiday.' },
+  { month: 7, day: 15, title: 'Independence Day', details: 'National holiday.' },
+  { month: 9, day: 2, title: 'Gandhi Jayanti', details: 'National holiday.' },
+  { month: 11, day: 25, title: 'Christmas Day', details: 'National holiday.' },
+]
+
+function getAcademicHolidays(year: number): AcademicEvent[] {
+  return academicHolidaySeeds.map((holiday, index) => ({
+    id: `event-holiday-${year}-${index + 1}`,
+    title: holiday.title,
+    date: new Date(year, holiday.month, holiday.day).toISOString(),
+    type: 'holiday' as const,
+    details: holiday.details,
+    createdBy: 'Admin Office',
+    createdByRole: 'admin' as const,
+    targetAudience: 'both' as const,
+  }))
+}
+
+function mergeCalendarEventsWithDefaults(events: AcademicEvent[]): AcademicEvent[] {
+  const merged = [...events]
+  const existingKeys = new Set(
+    events.map((event) => `${event.type}|${event.title.toLowerCase()}|${new Date(event.date).toDateString()}`),
+  )
+  for (const event of defaultAcademicEvents) {
+    const key = `${event.type}|${event.title.toLowerCase()}|${new Date(event.date).toDateString()}`
+    if (!existingKeys.has(key)) {
+      merged.push(event)
+    }
+  }
+  return merged
+}
+
+function isEventVisibleToRole(event: AcademicEvent, role: 'student' | 'faculty'): boolean {
+  if (event.targetAudience === 'both') {
+    return true
+  }
+  return role === 'student' ? event.targetAudience === 'students' : event.targetAudience === 'faculty'
+}
+
+const defaultAcademicEvents: AcademicEvent[] = [
+  {
+    id: 'event-1',
+    title: 'Class Test: Unit 3',
+    date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+    type: 'test',
+    details: 'Syllabus: Memory management and process synchronization.',
+    createdBy: 'Faculty Office',
+    createdByRole: 'faculty',
+    targetAudience: 'both',
+  },
+  {
+    id: 'event-2',
+    title: 'Lab Evaluation',
+    date: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(),
+    type: 'assignment',
+    details: 'Carry records and completed lab sheets.',
+    createdBy: 'Faculty Office',
+    createdByRole: 'faculty',
+    targetAudience: 'both',
+  },
+  ...getAcademicHolidays(new Date().getFullYear()),
 ]
 
 function isNoticeNew(createdAt: string): boolean {
@@ -450,6 +529,155 @@ function StudyAssistantOverlay({ visible }: { visible: boolean }) {
   )
 }
 
+function AcademicCalendarWidget({ events }: { events: Array<{ id: string; title: string; date: string; type: AcademicEventType; details: string }> }) {
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const eventsScrollerRef = useRef<HTMLDivElement>(null)
+
+  const year = monthCursor.getFullYear()
+  const month = monthCursor.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const firstDayOffset = new Date(year, month, 1).getDay()
+  const monthLabel = monthCursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+
+  const days = Array.from({ length: daysInMonth }, (_, index) => index + 1)
+
+  const toDateKey = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+  const selectedKey = toDateKey(selectedDate)
+  const eventsByDay = events.reduce<Record<string, Array<{ id: string; title: string; type: AcademicEventType; details: string }>>>(
+    (acc, event) => {
+      const eventDate = new Date(event.date)
+      if (Number.isNaN(eventDate.getTime())) return acc
+      const key = toDateKey(eventDate)
+      if (!acc[key]) acc[key] = []
+      acc[key].push({ id: event.id, title: event.title, type: event.type, details: event.details })
+      return acc
+    },
+    {},
+  )
+
+  const selectedEvents = eventsByDay[selectedKey] ?? []
+
+  useEffect(() => {
+    const scroller = eventsScrollerRef.current
+    if (!scroller) {
+      return
+    }
+
+    scroller.scrollTop = 0
+
+    if (selectedEvents.length <= 1) {
+      return
+    }
+
+    const interval = window.setInterval(() => {
+      const maxScroll = scroller.scrollHeight - scroller.clientHeight
+      if (maxScroll <= 0) {
+        return
+      }
+
+      const next = scroller.scrollTop + 1
+      if (next >= maxScroll) {
+        scroller.scrollTop = 0
+        return
+      }
+      scroller.scrollTop = next
+    }, 45)
+
+    return () => window.clearInterval(interval)
+  }, [selectedEvents])
+
+  return (
+    <section className="dashboard-card calendar-widget-card" aria-label="Academic calendar widget">
+      <div className="dashboard-section-title">
+        <span className="material-symbols-outlined">calendar_month</span>
+        <h2>Academic Calendar</h2>
+      </div>
+
+      <div className="calendar-widget-head">
+        <button
+          type="button"
+          onClick={() => setMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+          aria-label="Previous month"
+        >
+          <span className="material-symbols-outlined">chevron_left</span>
+        </button>
+        <strong>{monthLabel}</strong>
+        <button
+          type="button"
+          onClick={() => setMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+          aria-label="Next month"
+        >
+          <span className="material-symbols-outlined">chevron_right</span>
+        </button>
+      </div>
+
+      <div className="calendar-widget-body">
+        <div className="calendar-grid-wrap">
+          <div className="calendar-grid" role="grid" aria-label="Month view">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday) => (
+              <span key={weekday} className="calendar-weekday">
+                {weekday}
+              </span>
+            ))}
+
+            {Array.from({ length: firstDayOffset }, (_, idx) => (
+              <span key={`empty-${idx}`} className="calendar-day-empty" />
+            ))}
+
+            {days.map((day) => {
+              const date = new Date(year, month, day)
+              const key = toDateKey(date)
+              const dayEvents = eventsByDay[key] ?? []
+              const hasEvents = dayEvents.length > 0
+              const hasAssignment = dayEvents.some((event) => event.type === 'assignment')
+              const hasTest = dayEvents.some((event) => event.type === 'test')
+              const hasHoliday = dayEvents.some((event) => event.type === 'holiday')
+              const isSelected = key === selectedKey
+              const isToday = key === toDateKey(new Date())
+
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className={`calendar-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''} ${hasAssignment ? 'has-assignment' : ''} ${hasTest ? 'has-test' : ''} ${hasHoliday ? 'has-holiday' : ''}`}
+                  onClick={() => setSelectedDate(date)}
+                  aria-label={`${monthLabel} ${day}`}
+                >
+                  <span>{day}</span>
+                  {hasEvents ? <i /> : null}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="calendar-events" ref={eventsScrollerRef}>
+          <h3>
+            Events on{' '}
+            {selectedDate.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+          </h3>
+          {selectedEvents.length === 0 ? <p>No events scheduled.</p> : null}
+          {selectedEvents.map((event) => (
+            <article key={event.id} className={`calendar-event-item ${event.type}`}>
+              <div>
+                <strong>{event.title}</strong>
+                <span>{event.type}</span>
+              </div>
+              <p>{event.details}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function getRequiredRole(route: RoutePath): 'student' | 'faculty' | 'admin' | null {
   if (
     route === '/student_dashboard' ||
@@ -625,9 +853,11 @@ function normalizePath(pathname: string): RoutePath {
 function HomeScreen({
   onStudentLogin,
   onFacultyLogin,
+  onAdminLogin,
 }: {
   onStudentLogin: () => void
   onFacultyLogin: () => void
+  onAdminLogin: () => void
 }) {
   return (
     <>
@@ -651,6 +881,11 @@ function HomeScreen({
             <button type="button" className="login-button" onClick={onFacultyLogin}>
               <span className="material-symbols-outlined">badge</span>
               <span>Faculty Login</span>
+            </button>
+
+            <button type="button" className="login-button" onClick={onAdminLogin}>
+              <span className="material-symbols-outlined">admin_panel_settings</span>
+              <span>Admin Login</span>
             </button>
           </div>
 
@@ -1308,6 +1543,18 @@ function AdminFooter() {
   )
 }
 
+function formatRelativeTime(iso: string): string {
+  const d = new Date(iso)
+  const now = Date.now()
+  const diff = now - d.getTime()
+  const mins = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins} min${mins !== 1 ? 's' : ''} ago`
+  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`
+  return `${Math.floor(hours / 24)} days ago`
+}
+
 function AdminDashboardScreen({
   onAddFaculty,
   onAssignSubjects,
@@ -1329,6 +1576,27 @@ function AdminDashboardScreen({
   onNavigate: (path: RoutePath) => void
   onLogout: () => void
 }) {
+  const [dashboardData, setDashboardData] = useState<Awaited<ReturnType<typeof adminService.getDashboard>> | null>(null)
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    adminService
+      .getDashboard()
+      .then((data) => {
+        if (active) setDashboardData(data)
+      })
+      .catch((err) => {
+        if (active) setDashboardError(err instanceof Error ? err.message : 'Failed to load dashboard')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const stats = dashboardData?.stats
+  const recentActivities = dashboardData?.recentActivities ?? []
+
   return (
     <div className="admin-page" aria-label="Global admin dashboard">
       <CommonDashboardHeader
@@ -1347,14 +1615,19 @@ function AdminDashboardScreen({
       />
 
       <main className="admin-container admin-main">
+        {dashboardError ? (
+          <div className="admin-kpi-grid" style={{ gridColumn: '1 / -1', padding: '1rem', background: '#fef2f2', color: '#991b1b', borderRadius: '8px' }}>
+            {dashboardError}
+          </div>
+        ) : null}
         <section className="admin-kpi-grid">
           <article className="admin-kpi-card">
             <div>
               <p>Total Students</p>
-              <h3>12,482</h3>
+              <h3>{stats != null ? stats.totalStudents.toLocaleString() : '—'}</h3>
               <small>
                 <span className="material-symbols-outlined">trending_up</span>
-                +3.2%
+                Active
               </small>
             </div>
             <span className="material-symbols-outlined">group</span>
@@ -1362,10 +1635,10 @@ function AdminDashboardScreen({
           <article className="admin-kpi-card">
             <div>
               <p>Total Faculty</p>
-              <h3>845</h3>
+              <h3>{stats != null ? stats.totalFaculty.toLocaleString() : '—'}</h3>
               <small>
                 <span className="material-symbols-outlined">trending_up</span>
-                +1.5%
+                Active
               </small>
             </div>
             <span className="material-symbols-outlined">badge</span>
@@ -1373,7 +1646,7 @@ function AdminDashboardScreen({
           <article className="admin-kpi-card">
             <div>
               <p>Total Subjects</p>
-              <h3>312</h3>
+              <h3>{stats != null ? stats.totalSubjects.toLocaleString() : '—'}</h3>
               <small>Active Curricula</small>
             </div>
             <span className="material-symbols-outlined">library_books</span>
@@ -1381,7 +1654,7 @@ function AdminDashboardScreen({
           <article className="admin-kpi-card warning">
             <div>
               <p>Pending Verifications</p>
-              <h3>58</h3>
+              <h3>{stats != null ? stats.pendingVerifications.toLocaleString() : '—'}</h3>
               <small>Requires action</small>
             </div>
             <span className="material-symbols-outlined">verified_user</span>
@@ -1433,54 +1706,28 @@ function AdminDashboardScreen({
               <button type="button">View All</button>
             </div>
             <div className="admin-activity-list">
-              <div className="admin-activity-item">
-                <div className="admin-activity-icon">
-                  <span className="material-symbols-outlined">person_add</span>
-                </div>
-                <div>
-                  <div>
-                    <h4>New student registered</h4>
-                    <span>2 mins ago</span>
+              {recentActivities.length === 0 && stats == null ? (
+                <p style={{ padding: '1rem', color: 'var(--muted, #666)' }}>Loading activity…</p>
+              ) : recentActivities.length === 0 ? (
+                <p style={{ padding: '1rem', color: 'var(--muted, #666)' }}>No recent activity.</p>
+              ) : (
+                recentActivities.map((act) => (
+                  <div key={act.id} className="admin-activity-item">
+                    <div className="admin-activity-icon">
+                      <span className="material-symbols-outlined">
+                        {act.type === 'student_registered' ? 'person_add' : act.type === 'notes_verified' ? 'verified' : 'history'}
+                      </span>
+                    </div>
+                    <div>
+                      <div>
+                        <h4>{act.type.replace(/_/g, ' ')}</h4>
+                        <span>{formatRelativeTime(act.timestamp)}</span>
+                      </div>
+                      <p>{act.description}</p>
+                    </div>
                   </div>
-                  <p>David Smith (ID: ST2024001) has completed the portal registration.</p>
-                </div>
-              </div>
-              <div className="admin-activity-item">
-                <div className="admin-activity-icon blue">
-                  <span className="material-symbols-outlined">verified</span>
-                </div>
-                <div>
-                  <div>
-                    <h4>Notes verified</h4>
-                    <span>45 mins ago</span>
-                  </div>
-                  <p>Dr. Sarah Jenkins verified "Introduction to Quantum Physics" lecture notes.</p>
-                </div>
-              </div>
-              <div className="admin-activity-item">
-                <div className="admin-activity-icon amber">
-                  <span className="material-symbols-outlined">upload_file</span>
-                </div>
-                <div>
-                  <div>
-                    <h4>New Resource Uploaded</h4>
-                    <span>2 hours ago</span>
-                  </div>
-                  <p>Faculty of Engineering uploaded 4 new research papers for verification.</p>
-                </div>
-              </div>
-              <div className="admin-activity-item">
-                <div className="admin-activity-icon gray">
-                  <span className="material-symbols-outlined">settings</span>
-                </div>
-                <div>
-                  <div>
-                    <h4>System backup completed</h4>
-                    <span>6 hours ago</span>
-                  </div>
-                  <p>Weekly system redundancy and security patch successfully deployed.</p>
-                </div>
-              </div>
+                ))
+              )}
             </div>
           </article>
 
@@ -1518,14 +1765,24 @@ function AdminDashboardScreen({
 
 function AdminCircularsScreen({
   notices,
+  calendarEvents,
   onCreateNotice,
+  onCreateCalendarEvent,
   onDeleteNotice,
   onBackDashboard,
   onFacultyAccounts,
   onAssignSubjects,
 }: {
   notices: DepartmentNotice[]
+  calendarEvents: AcademicEvent[]
   onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => void
+  onCreateCalendarEvent: (input: {
+    title: string
+    date: string
+    type: AcademicEventType
+    details: string
+    targetAudience?: 'students' | 'faculty' | 'both'
+  }) => void
   onDeleteNotice: (id: string) => void
   onBackDashboard: () => void
   onFacultyAccounts: () => void
@@ -1534,6 +1791,12 @@ function AdminCircularsScreen({
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [urgent, setUrgent] = useState(false)
+  const [eventTitle, setEventTitle] = useState('')
+  const [eventDate, setEventDate] = useState('')
+  const [eventType, setEventType] = useState<'holiday' | 'event'>('holiday')
+  const [eventAudience, setEventAudience] = useState<'students' | 'faculty' | 'both'>('students')
+  const [eventDetails, setEventDetails] = useState('')
+  const [eventFeedback, setEventFeedback] = useState('')
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -1545,6 +1808,31 @@ function AdminCircularsScreen({
     setContent('')
     setUrgent(false)
   }
+
+  const handleCalendarSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!eventTitle.trim() || !eventDate) {
+      setEventFeedback('Enter both title and date.')
+      return
+    }
+    onCreateCalendarEvent({
+      title: eventTitle.trim(),
+      date: new Date(eventDate).toISOString(),
+      type: eventType,
+      details: eventDetails.trim() || `${eventType === 'holiday' ? 'Holiday' : 'Department event'} posted by admin.`,
+      targetAudience: eventAudience,
+    })
+    setEventTitle('')
+    setEventDate('')
+    setEventDetails('')
+    setEventType('holiday')
+    setEventAudience('students')
+    setEventFeedback('Calendar event published.')
+  }
+
+  const adminCalendarEvents = [...calendarEvents]
+    .filter((event) => event.createdByRole === 'admin')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
   return (
     <div className="admin-page" aria-label="Department circulars management">
@@ -1599,6 +1887,82 @@ function AdminCircularsScreen({
                 Publish Circular
               </button>
             </form>
+          </article>
+
+          <article className="admin-circulars-form-card admin-calendar-form-card">
+            <h3>Add Holiday / Event</h3>
+            <form onSubmit={handleCalendarSubmit}>
+              <div className="field-group">
+                <label htmlFor="admin-event-title">Title</label>
+                <input
+                  id="admin-event-title"
+                  type="text"
+                  value={eventTitle}
+                  onChange={(e) => setEventTitle(e.target.value)}
+                  placeholder="Holiday name or event title"
+                />
+              </div>
+              <div className="admin-calendar-inline-fields">
+                <div className="field-group">
+                  <label htmlFor="admin-event-date">Date</label>
+                  <input
+                    id="admin-event-date"
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                  />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="admin-event-type">Type</label>
+                  <select
+                    id="admin-event-type"
+                    value={eventType}
+                    onChange={(e) => setEventType(e.target.value as 'holiday' | 'event')}
+                  >
+                    <option value="holiday">Holiday</option>
+                    <option value="event">Event</option>
+                  </select>
+                </div>
+                <div className="field-group">
+                  <label htmlFor="admin-event-audience">Assign To</label>
+                  <select
+                    id="admin-event-audience"
+                    value={eventAudience}
+                    onChange={(e) => setEventAudience(e.target.value as 'students' | 'faculty' | 'both')}
+                  >
+                    <option value="students">Student Calendar</option>
+                    <option value="faculty">Faculty Calendar</option>
+                    <option value="both">Both Calendars</option>
+                  </select>
+                </div>
+              </div>
+              <div className="field-group">
+                <label htmlFor="admin-event-details">Details</label>
+                <textarea
+                  id="admin-event-details"
+                  rows={3}
+                  value={eventDetails}
+                  onChange={(e) => setEventDetails(e.target.value)}
+                  placeholder="Optional note for students..."
+                />
+              </div>
+              <button type="submit">
+                <span className="material-symbols-outlined">event_available</span>
+                Publish to Calendar
+              </button>
+              {eventFeedback ? <p className="admin-calendar-feedback">{eventFeedback}</p> : null}
+            </form>
+
+            <div className="admin-calendar-upcoming">
+              <h4>Upcoming Admin Events</h4>
+              {adminCalendarEvents.length === 0 ? <p>No admin events yet.</p> : null}
+              {adminCalendarEvents.slice(0, 5).map((event) => (
+                <article key={event.id} className={`admin-calendar-upcoming-item ${event.type}`}>
+                  <strong>{event.title}</strong>
+                  <span>{new Date(event.date).toLocaleDateString()} • {event.type} • {event.targetAudience}</span>
+                </article>
+              ))}
+            </div>
           </article>
 
           <article className="admin-circulars-list-card">
@@ -1764,6 +2128,24 @@ function AdminStudentAccountsScreen({
   onEnrollStudents?: () => void
   onViewStudentDetails?: () => void
 }) {
+  const [studentList, setStudentList] = useState<Awaited<ReturnType<typeof adminService.getStudents>>>([])
+  const [studentError, setStudentError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    adminService
+      .getStudents()
+      .then((list) => {
+        if (active) setStudentList(list)
+      })
+      .catch((err) => {
+        if (active) setStudentError(err instanceof Error ? err.message : 'Failed to load students')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <div className="admin-page" aria-label="Student accounts management">
       <AdminHeader
@@ -1837,6 +2219,11 @@ function AdminStudentAccountsScreen({
           </div>
         </section>
 
+        {studentError ? (
+          <div style={{ padding: '1rem', background: '#fef2f2', color: '#991b1b', borderRadius: '8px', marginBottom: '1rem' }}>
+            {studentError}
+          </div>
+        ) : null}
         <section className="admin-students-bulk">
           <div>
             <button type="button" className="deactivate">
@@ -1849,7 +2236,7 @@ function AdminStudentAccountsScreen({
             </button>
           </div>
           <p>
-            Showing <span>150</span> student accounts
+            Showing <span>{studentList.length}</span> student accounts
           </p>
         </section>
 
@@ -1871,104 +2258,54 @@ function AdminStudentAccountsScreen({
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td className="align-center">
-                    <input type="checkbox" />
-                  </td>
-                  <td>
-                    <div className="admin-student-person">
-                      <span className="blue">AS</span>
-                      <p>Aditi Sharma</p>
-                    </div>
-                  </td>
-                  <td className="mono">1RV21CS001</td>
-                  <td>Computer Science</td>
-                  <td>6th Sem</td>
-                  <td className="muted">aditi.s@univ.edu.in</td>
-                  <td>
-                    <span className="admin-student-status active">Active</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="admin-student-actions">
-                      <button type="button" className="view" aria-label="View details" onClick={onViewStudentDetails}>
-                        <span className="material-symbols-outlined">visibility</span>
-                      </button>
-                      <button type="button" className="reset" aria-label="Reset password">
-                        <span className="material-symbols-outlined">password</span>
-                      </button>
-                      <button type="button" className="disable" aria-label="Disable account">
-                        <span className="material-symbols-outlined">block</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="align-center">
-                    <input type="checkbox" />
-                  </td>
-                  <td>
-                    <div className="admin-student-person">
-                      <span className="amber">RJ</span>
-                      <p>Rahul Jayaram</p>
-                    </div>
-                  </td>
-                  <td className="mono">1RV21IS045</td>
-                  <td>Info. Science</td>
-                  <td>4th Sem</td>
-                  <td className="muted">rahul.j@univ.edu.in</td>
-                  <td>
-                    <span className="admin-student-status active">Active</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="admin-student-actions">
-                      <button type="button" className="view" aria-label="View details" onClick={onViewStudentDetails}>
-                        <span className="material-symbols-outlined">visibility</span>
-                      </button>
-                      <button type="button" className="reset" aria-label="Reset password">
-                        <span className="material-symbols-outlined">password</span>
-                      </button>
-                      <button type="button" className="disable" aria-label="Disable account">
-                        <span className="material-symbols-outlined">block</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="align-center">
-                    <input type="checkbox" />
-                  </td>
-                  <td>
-                    <div className="admin-student-person">
-                      <span className="gray">PK</span>
-                      <p>Priya Kapoor</p>
-                    </div>
-                  </td>
-                  <td className="mono">1RV20EC112</td>
-                  <td>Electronics</td>
-                  <td>8th Sem</td>
-                  <td className="muted">priya.k@univ.edu.in</td>
-                  <td>
-                    <span className="admin-student-status disabled">Disabled</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="admin-student-actions">
-                      <button type="button" className="view" aria-label="View details">
-                        <span className="material-symbols-outlined">visibility</span>
-                      </button>
-                      <button type="button" className="reset" aria-label="Reset password">
-                        <span className="material-symbols-outlined">password</span>
-                      </button>
-                      <button type="button" className="enable" aria-label="Enable account">
-                        <span className="material-symbols-outlined">check_circle</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                {studentList.length === 0 && !studentError ? (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted, #666)' }}>
+                      Loading students…
+                    </td>
+                  </tr>
+                ) : (
+                  studentList.map((s) => (
+                    <tr key={s.id}>
+                      <td className="align-center">
+                        <input type="checkbox" />
+                      </td>
+                      <td>
+                        <div className="admin-student-person">
+                          <span className="blue">{initials(s.fullName)}</span>
+                          <p>{s.fullName}</p>
+                        </div>
+                      </td>
+                      <td className="mono">{s.usn}</td>
+                      <td>{s.programme}</td>
+                      <td>{s.semester}</td>
+                      <td className="muted">{s.email}</td>
+                      <td>
+                        <span className={`admin-student-status ${s.status === 'active' ? 'active' : 'disabled'}`}>
+                          {s.status === 'active' ? 'Active' : 'Disabled'}
+                        </span>
+                      </td>
+                      <td className="align-right">
+                        <div className="admin-student-actions">
+                          <button type="button" className="view" aria-label="View details" onClick={onViewStudentDetails}>
+                            <span className="material-symbols-outlined">visibility</span>
+                          </button>
+                          <button type="button" className="reset" aria-label="Reset password">
+                            <span className="material-symbols-outlined">password</span>
+                          </button>
+                          <button type="button" className="disable" aria-label="Disable account">
+                            <span className="material-symbols-outlined">block</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
           <div className="admin-students-pagination">
-            <p>Showing 1 to 10 of 150 entries</p>
+            <p>Showing 1 to {studentList.length} of {studentList.length} entries</p>
             <div>
               <button type="button" disabled>
                 <span className="material-symbols-outlined">chevron_left</span>
@@ -1976,10 +2313,6 @@ function AdminStudentAccountsScreen({
               <button type="button" className="active">
                 1
               </button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <span>...</span>
-              <button type="button">15</button>
               <button type="button">
                 <span className="material-symbols-outlined">chevron_right</span>
               </button>
@@ -1991,6 +2324,15 @@ function AdminStudentAccountsScreen({
       <AdminFooter />
     </div>
   )
+}
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((s) => s[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 }
 
 function AdminFacultyAccountsScreen({
@@ -2006,6 +2348,23 @@ function AdminFacultyAccountsScreen({
 }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [tempPassword, setTempPassword] = useState('UNIV-8x2K-99LP')
+  const [facultyList, setFacultyList] = useState<Awaited<ReturnType<typeof adminService.getFaculty>>>([])
+  const [facultyError, setFacultyError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    adminService
+      .getFaculty()
+      .then((list) => {
+        if (active) setFacultyList(list)
+      })
+      .catch((err) => {
+        if (active) setFacultyError(err instanceof Error ? err.message : 'Failed to load faculty')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   const generatePassword = () => {
     const segment = () => Math.random().toString(36).slice(2, 6).toUpperCase()
@@ -2034,6 +2393,11 @@ function AdminFacultyAccountsScreen({
           </button>
         </section>
 
+        {facultyError ? (
+          <div style={{ padding: '1rem', background: '#fef2f2', color: '#991b1b', borderRadius: '8px', marginBottom: '1rem' }}>
+            {facultyError}
+          </div>
+        ) : null}
         <section className="admin-faculty-table-card">
           <div className="dashboard-table-wrap">
             <table className="dashboard-table">
@@ -2048,90 +2412,50 @@ function AdminFacultyAccountsScreen({
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>
-                    <div className="admin-faculty-person">
-                      <span>DA</span>
-                      <p>Dr. David Anderson</p>
-                    </div>
-                  </td>
-                  <td className="muted">d.anderson@university.edu</td>
-                  <td className="muted">Computer Science</td>
-                  <td>
-                    <span className="admin-faculty-subject-pill">4 Assigned</span>
-                  </td>
-                  <td>
-                    <span className="admin-faculty-status active">Active</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="admin-faculty-actions">
-                      <button type="button" aria-label="View faculty details" onClick={onViewFacultyDetails}>
-                        <span className="material-symbols-outlined">visibility</span>
-                      </button>
-                      <button type="button" aria-label="Block faculty">
-                        <span className="material-symbols-outlined">block</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="admin-faculty-person">
-                      <span>SW</span>
-                      <p>Prof. Sarah Wilson</p>
-                    </div>
-                  </td>
-                  <td className="muted">s.wilson@university.edu</td>
-                  <td className="muted">Mathematics</td>
-                  <td>
-                    <span className="admin-faculty-subject-pill">3 Assigned</span>
-                  </td>
-                  <td>
-                    <span className="admin-faculty-status active">Active</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="admin-faculty-actions">
-                      <button type="button" aria-label="View faculty details" onClick={onViewFacultyDetails}>
-                        <span className="material-symbols-outlined">visibility</span>
-                      </button>
-                      <button type="button" aria-label="Block faculty">
-                        <span className="material-symbols-outlined">block</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="admin-faculty-person">
-                      <span>RK</span>
-                      <p>Dr. Robert Kovac</p>
-                    </div>
-                  </td>
-                  <td className="muted">r.kovac@university.edu</td>
-                  <td className="muted">Physics</td>
-                  <td>
-                    <span className="admin-faculty-subject-pill">2 Assigned</span>
-                  </td>
-                  <td>
-                    <span className="admin-faculty-status inactive">Inactive</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="admin-faculty-actions">
-                      <button type="button" aria-label="Edit faculty">
-                        <span className="material-symbols-outlined">edit</span>
-                      </button>
-                      <button type="button" aria-label="Activate faculty">
-                        <span className="material-symbols-outlined">check_circle</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                {facultyList.length === 0 && !facultyError ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted, #666)' }}>
+                      Loading faculty…
+                    </td>
+                  </tr>
+                ) : (
+                  facultyList.map((f) => (
+                    <tr key={f.id}>
+                      <td>
+                        <div className="admin-faculty-person">
+                          <span>{initials(f.name)}</span>
+                          <p>{f.name}</p>
+                        </div>
+                      </td>
+                      <td className="muted">{f.email}</td>
+                      <td className="muted">{f.department}</td>
+                      <td>
+                        <span className="admin-faculty-subject-pill">{f.assignedSubjectsCount} Assigned</span>
+                      </td>
+                      <td>
+                        <span className={`admin-faculty-status ${f.status === 'active' ? 'active' : 'inactive'}`}>
+                          {f.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="align-right">
+                        <div className="admin-faculty-actions">
+                          <button type="button" aria-label="View faculty details" onClick={onViewFacultyDetails}>
+                            <span className="material-symbols-outlined">visibility</span>
+                          </button>
+                          <button type="button" aria-label="Block faculty">
+                            <span className="material-symbols-outlined">block</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="admin-faculty-pagination">
-            <p>Showing 1 to 3 of 42 entries</p>
+            <p>Showing 1 to {facultyList.length} of {facultyList.length} entries</p>
             <div>
               <button type="button" disabled>
                 Previous
@@ -2231,29 +2555,51 @@ function AdminAssignSubjectsScreen({
   onFacultyAccounts: () => void
   onCirculars: () => void
 }) {
-  const [selectedSubjectCodes, setSelectedSubjectCodes] = useState<string[]>(['CS-401', 'CS-405'])
+  const [subjects, setSubjects] = useState<Awaited<ReturnType<typeof adminService.getSubjects>>>([])
+  const [facultyList, setFacultyList] = useState<Awaited<ReturnType<typeof adminService.getFaculty>>>([])
+  const [selectedFacultyId, setSelectedFacultyId] = useState<string>('')
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([])
   const [isAssigned, setIsAssigned] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
+  const [assignLoading, setAssignLoading] = useState(false)
 
-  const handleAssign = () => {
-    setIsAssigned(true)
-    setTimeout(() => {
-      setIsAssigned(false)
-    }, 3000)
+  useEffect(() => {
+    let active = true
+    Promise.all([adminService.getSubjects(), adminService.getFaculty()]).then(([subjList, facList]) => {
+      if (!active) return
+      setSubjects(subjList)
+      setFacultyList(facList)
+      if (facList.length > 0 && !selectedFacultyId) setSelectedFacultyId(facList[0].id)
+    }).catch(() => { if (active) setAssignError('Failed to load subjects or faculty') })
+    return () => { active = false }
+  }, [])
+
+  const selectedFaculty = facultyList.find((f) => f.id === selectedFacultyId)
+
+  const handleAssign = async () => {
+    if (!selectedFacultyId || selectedSubjectIds.length === 0) {
+      setAssignError('Select a faculty and at least one subject.')
+      return
+    }
+    setAssignError(null)
+    setAssignLoading(true)
+    try {
+      await adminService.assignSubjectsToFaculty(selectedFacultyId, selectedSubjectIds)
+      setIsAssigned(true)
+      setSelectedSubjectIds([])
+      setTimeout(() => setIsAssigned(false), 3000)
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : 'Assign failed')
+    } finally {
+      setAssignLoading(false)
+    }
   }
 
-  const toggleSubject = (code: string) => {
-    setSelectedSubjectCodes((current) =>
-      current.includes(code) ? current.filter((item) => item !== code) : [...current, code],
+  const toggleSubject = (id: string) => {
+    setSelectedSubjectIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     )
   }
-
-  const subjects = [
-    { code: 'CS-401', name: 'Advanced Algorithms', programme: 'B.Tech CSE', semester: 'Sem IV' },
-    { code: 'CS-405', name: 'Machine Learning Fundamentals', programme: 'B.Tech CSE', semester: 'Sem IV' },
-    { code: 'CS-402', name: 'Distributed Systems', programme: 'B.Tech CSE', semester: 'Sem IV' },
-    { code: 'AI-101', name: 'Introduction to AI', programme: 'M.Tech AI', semester: 'Sem I' },
-    { code: 'CS-202', name: 'Operating Systems', programme: 'B.Tech CSE', semester: 'Sem II' },
-  ]
 
   return (
     <div className="admin-page" aria-label="Assign subjects to faculty">
@@ -2271,54 +2617,57 @@ function AdminAssignSubjectsScreen({
           <p>Select a faculty member and map their academic responsibilities.</p>
         </section>
 
+        {assignError ? (
+          <div style={{ padding: '1rem', background: '#fef2f2', color: '#991b1b', borderRadius: '8px', marginBottom: '1rem' }}>
+            {assignError}
+          </div>
+        ) : null}
         <section className="admin-assign-layout">
           <article className="admin-assign-faculty-card">
-            <label htmlFor="assign-faculty-search">Select Faculty Member</label>
-            <div className="admin-assign-search">
-              <span className="material-symbols-outlined">search</span>
-              <input id="assign-faculty-search" type="text" defaultValue="Dr. Robert Henderson" />
-            </div>
+            <label htmlFor="assign-faculty-select">Select Faculty Member</label>
+            <select
+              id="assign-faculty-select"
+              value={selectedFacultyId}
+              onChange={(e) => setSelectedFacultyId(e.target.value)}
+              className="admin-assign-search"
+            >
+              <option value="">Select faculty…</option>
+              {facultyList.map((f) => (
+                <option key={f.id} value={f.id}>{f.name} • {f.department}</option>
+              ))}
+            </select>
 
-            <div className="admin-assign-profile">
-              <div>
-                <span className="material-symbols-outlined">badge</span>
-              </div>
-              <div>
-                <h3>Dr. Robert Henderson</h3>
-                <p>Senior Professor • Computer Science</p>
-              </div>
-            </div>
-
-            <div className="admin-assign-meta">
-              <div>
-                <span>Currently Assigned</span>
-                <strong>04 Subjects</strong>
-              </div>
-              <div>
-                <span>Workload Status</span>
-                <strong>Optimal</strong>
-              </div>
-            </div>
+            {selectedFaculty ? (
+              <>
+                <div className="admin-assign-profile">
+                  <div>
+                    <span className="material-symbols-outlined">badge</span>
+                  </div>
+                  <div>
+                    <h3>{selectedFaculty.name}</h3>
+                    <p>{selectedFaculty.designation || 'Faculty'} • {selectedFaculty.department}</p>
+                  </div>
+                </div>
+                <div className="admin-assign-meta">
+                  <div>
+                    <span>Currently Assigned</span>
+                    <strong>{selectedFaculty.assignedSubjectsCount} Subjects</strong>
+                  </div>
+                  <div>
+                    <span>Status</span>
+                    <strong>{selectedFaculty.status === 'active' ? 'Active' : 'Inactive'}</strong>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p style={{ padding: '1rem', color: 'var(--muted, #666)' }}>Select a faculty to assign subjects.</p>
+            )}
           </article>
 
           <article className="admin-assign-subjects-card">
             <div className="admin-assign-toolbar">
-              <div>
-                <select defaultValue="All Programmes">
-                  <option>All Programmes</option>
-                  <option>B.Tech CSE</option>
-                  <option>M.Tech AI</option>
-                  <option>B.Sc Physics</option>
-                </select>
-                <select defaultValue="Semester 1">
-                  <option>Semester 1</option>
-                  <option>Semester 2</option>
-                  <option>Semester 3</option>
-                  <option>Semester 4</option>
-                </select>
-              </div>
               <p>
-                Showing <span>12</span> subjects
+                Showing <span>{subjects.length}</span> subjects
               </p>
             </div>
 
@@ -2334,25 +2683,33 @@ function AdminAssignSubjectsScreen({
                   </tr>
                 </thead>
                 <tbody>
-                  {subjects.map((subject) => {
-                    const isSelected = selectedSubjectCodes.includes(subject.code)
-                    return (
-                      <tr key={subject.code} className={isSelected ? 'admin-assign-row-selected' : ''}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSubject(subject.code)}
-                            aria-label={`Select ${subject.name}`}
-                          />
-                        </td>
-                        <td>{subject.code}</td>
-                        <td>{subject.name}</td>
-                        <td>{subject.programme}</td>
-                        <td>{subject.semester}</td>
-                      </tr>
-                    )
-                  })}
+                  {subjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted, #666)' }}>
+                        Loading subjects…
+                      </td>
+                    </tr>
+                  ) : (
+                    subjects.map((subject) => {
+                      const isSelected = selectedSubjectIds.includes(subject.id)
+                      return (
+                        <tr key={subject.id} className={isSelected ? 'admin-assign-row-selected' : ''}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSubject(subject.id)}
+                              aria-label={`Select ${subject.name}`}
+                            />
+                          </td>
+                          <td>{subject.code}</td>
+                          <td>{subject.name}</td>
+                          <td>{subject.programme}</td>
+                          <td>{subject.semester}</td>
+                        </tr>
+                      )
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -2365,9 +2722,9 @@ function AdminAssignSubjectsScreen({
                 </div>
               ) : (
                 <>
-                  <button type="button" onClick={handleAssign}>
+                  <button type="button" onClick={handleAssign} disabled={assignLoading || !selectedFacultyId || selectedSubjectIds.length === 0}>
                     <span className="material-symbols-outlined">assignment_turned_in</span>
-                    Assign Selected Subjects ({selectedSubjectCodes.length})
+                    {assignLoading ? 'Assigning…' : `Assign Selected Subjects (${selectedSubjectIds.length})`}
                   </button>
                   <p>
                     <span className="material-symbols-outlined">info</span>
@@ -2390,6 +2747,8 @@ function FacultyDashboardScreen({
   onUploadTextbook,
   onCreateAssignment,
   onViewAssignment,
+  calendarEvents,
+  onCreateCalendarEvent,
   notices,
   onCreateNotice,
   onDeleteOwnNotice,
@@ -2401,6 +2760,14 @@ function FacultyDashboardScreen({
   onUploadTextbook: () => void
   onCreateAssignment: () => void
   onViewAssignment: () => void
+  calendarEvents: AcademicEvent[]
+  onCreateCalendarEvent: (input: {
+    title: string
+    date: string
+    type: AcademicEventType
+    details: string
+    targetAudience?: 'students' | 'faculty' | 'both'
+  }) => void
   notices: DepartmentNotice[]
   onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => void
   onDeleteOwnNotice: (id: string) => void
@@ -2425,6 +2792,11 @@ function FacultyDashboardScreen({
   const [isUrgentNotification, setIsUrgentNotification] = useState(false)
   const [notificationError, setNotificationError] = useState<string | null>(null)
   const [notificationSuccess, setNotificationSuccess] = useState<string | null>(null)
+  const [eventTitle, setEventTitle] = useState('')
+  const [eventDate, setEventDate] = useState('')
+  const [eventType, setEventType] = useState<AcademicEventType>('test')
+  const [eventDetails, setEventDetails] = useState('')
+  const [eventFeedback, setEventFeedback] = useState<string | null>(null)
   const department = user?.department || 'Department'
   const facultyNotices = notices.filter((notice) => notice.authorRole === 'faculty' && notice.author === displayName)
 
@@ -2506,6 +2878,28 @@ function FacultyDashboardScreen({
     setIsUrgentNotification(false)
     setNotificationError(null)
     setNotificationSuccess('Notification sent to students.')
+  }
+
+  const handleCreateCalendarEvent = (event: React.FormEvent) => {
+    event.preventDefault()
+    const title = eventTitle.trim()
+    const details = eventDetails.trim()
+    if (!title || !eventDate) {
+      setEventFeedback('Please provide event title and date.')
+      return
+    }
+    onCreateCalendarEvent({
+      title,
+      date: new Date(eventDate).toISOString(),
+      type: eventType,
+      details: details || 'Academic event scheduled.',
+      targetAudience: 'both',
+    })
+    setEventTitle('')
+    setEventDate('')
+    setEventType('test')
+    setEventDetails('')
+    setEventFeedback('Calendar event published for students.')
   }
 
   return (
@@ -2742,6 +3136,79 @@ function FacultyDashboardScreen({
               ))}
             </div>
           </section>
+        </section>
+
+        <section className="dashboard-card faculty-calendar-editor">
+          <div className="faculty-section-head">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">event</span>
+              <h2>Schedule Academic Event</h2>
+            </div>
+          </div>
+          <form className="faculty-calendar-form" onSubmit={handleCreateCalendarEvent}>
+            <div className="field-group">
+              <label htmlFor="faculty-event-title">Event Title</label>
+              <input
+                id="faculty-event-title"
+                type="text"
+                value={eventTitle}
+                onChange={(e) => setEventTitle(e.target.value)}
+                placeholder="Class test, internal exam, seminar..."
+              />
+            </div>
+            <div className="faculty-calendar-grid">
+              <div className="field-group">
+                <label htmlFor="faculty-event-date">Date</label>
+                <input
+                  id="faculty-event-date"
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                />
+              </div>
+              <div className="field-group">
+                <label htmlFor="faculty-event-type">Type</label>
+                <select
+                  id="faculty-event-type"
+                  value={eventType}
+                  onChange={(e) => setEventType(e.target.value as AcademicEventType)}
+                >
+                  <option value="test">Test</option>
+                  <option value="assignment">Assignment</option>
+                  <option value="holiday">Holiday</option>
+                  <option value="event">Event</option>
+                </select>
+              </div>
+            </div>
+            <div className="field-group">
+              <label htmlFor="faculty-event-details">Details</label>
+              <textarea
+                id="faculty-event-details"
+                rows={3}
+                value={eventDetails}
+                onChange={(e) => setEventDetails(e.target.value)}
+                placeholder="Syllabus, venue, instructions..."
+              />
+            </div>
+            <div className="faculty-calendar-actions">
+              <button type="submit" className="dashboard-btn-primary">
+                <span className="material-symbols-outlined">add_task</span>
+                Add to Calendar
+              </button>
+              {eventFeedback ? <p>{eventFeedback}</p> : null}
+            </div>
+          </form>
+
+          <div className="faculty-calendar-upcoming">
+            <h3>Upcoming Events</h3>
+            {calendarEvents.length === 0 ? <p>No events scheduled yet.</p> : null}
+            {calendarEvents.slice(0, 4).map((event) => (
+              <article key={event.id}>
+                <strong>{event.title}</strong>
+                <span>{new Date(event.date).toLocaleDateString()} • {event.type}</span>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section className="dashboard-card faculty-notification-card">
@@ -2987,6 +3454,7 @@ function StudentDashboardScreen({
   onViewResult,
   onUnofficialNotes,
   onGoToRepository,
+  calendarEvents,
   notices,
   currentPath,
   onNavigate,
@@ -2996,6 +3464,7 @@ function StudentDashboardScreen({
   onViewResult: () => void
   onUnofficialNotes: () => void
   onGoToRepository: () => void
+  calendarEvents: AcademicEvent[]
   notices: DepartmentNotice[]
   currentPath: RoutePath
   onNavigate: (path: RoutePath) => void
@@ -3092,6 +3561,22 @@ function StudentDashboardScreen({
     }
   }, [subjectOptions])
 
+  const assignmentCalendarEvents: AcademicEvent[] = assignments.map((assignment) => ({
+    id: `assignment-${assignment.id}`,
+    title: assignment.title,
+    date: assignment.dueDate,
+    type: 'assignment',
+    details: `${assignment.subjectCode} assignment deadline`,
+    createdBy: 'Assignment',
+    createdByRole: 'faculty',
+    targetAudience: 'students',
+  }))
+
+  const mergedCalendarEvents = [
+    ...assignmentCalendarEvents,
+    ...calendarEvents.filter((event) => isEventVisibleToRole(event, 'student')),
+  ]
+
   return (
     <div className="dashboard-page" aria-label="Student dashboard">
       <CommonDashboardHeader
@@ -3170,6 +3655,8 @@ function StudentDashboardScreen({
             </div>
           </div>
         </section>
+
+        <AcademicCalendarWidget events={mergedCalendarEvents} />
 
         <section className="dashboard-card">
           <div className="dashboard-notes-header">
@@ -5675,10 +6162,26 @@ function AdminEnrollStudentsScreen({
   onBackDashboard: () => void
   onBackToAccounts: () => void
 }) {
-  const [selectedSubject, setSelectedSubject] = useState('CS-401')
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(['1', '2'])
-  const [programmeFilter, setProgrammeFilter] = useState('All Programmes')
-  const [semesterFilter, setSemesterFilter] = useState('All Semesters')
+  const [subjects, setSubjects] = useState<Awaited<ReturnType<typeof adminService.getSubjects>>>([])
+  const [studentList, setStudentList] = useState<Awaited<ReturnType<typeof adminService.getStudents>>>([])
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('')
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
+  const [enrollSuccess, setEnrollSuccess] = useState(false)
+  const [enrollError, setEnrollError] = useState<string | null>(null)
+  const [enrollLoading, setEnrollLoading] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    Promise.all([adminService.getSubjects(), adminService.getStudents()]).then(([subjList, studList]) => {
+      if (!active) return
+      setSubjects(subjList)
+      setStudentList(studList)
+      if (subjList.length > 0 && !selectedSubjectId) setSelectedSubjectId(subjList[0].id)
+    }).catch(() => { if (active) setEnrollError('Failed to load subjects or students') })
+    return () => { active = false }
+  }, [])
+
+  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId)
 
   const toggleStudent = (id: string) => {
     setSelectedStudentIds((current) =>
@@ -5687,24 +6190,31 @@ function AdminEnrollStudentsScreen({
   }
 
   const toggleAllStudents = () => {
-    if (selectedStudentIds.length === 3) {
+    if (selectedStudentIds.length === studentList.length) {
       setSelectedStudentIds([])
     } else {
-      setSelectedStudentIds(['1', '2', '3'])
+      setSelectedStudentIds(studentList.map((s) => s.id))
     }
   }
 
-  const subjects = [
-    { code: 'CS-401', name: 'Advanced Algorithms', programme: 'B.Tech CSE', semester: 'Sem IV' },
-    { code: 'CS-405', name: 'Machine Learning Fundamentals', programme: 'B.Tech CSE', semester: 'Sem IV' },
-    { code: 'CS-402', name: 'Distributed Systems', programme: 'B.Tech CSE', semester: 'Sem IV' },
-  ]
-
-  const students = [
-    { id: '1', name: 'Aditi Sharma', usn: '1RV21CS001', programme: 'Computer Science', semester: '6th Sem', email: 'aditi.s@univ.edu.in' },
-    { id: '2', name: 'Rahul Jayaram', usn: '1RV21IS045', programme: 'Info. Science', semester: '4th Sem', email: 'rahul.j@univ.edu.in' },
-    { id: '3', name: 'Nikhil Kumar', usn: '1RV22ME088', programme: 'Mechanical', semester: '2nd Sem', email: 'nikhil.k@univ.edu.in' },
-  ]
+  const handleEnroll = async () => {
+    if (!selectedSubjectId || selectedStudentIds.length === 0) {
+      setEnrollError('Select a subject and at least one student.')
+      return
+    }
+    setEnrollError(null)
+    setEnrollLoading(true)
+    try {
+      await adminService.enrollStudentsInSubject(selectedSubjectId, selectedStudentIds)
+      setEnrollSuccess(true)
+      setSelectedStudentIds([])
+      setTimeout(() => setEnrollSuccess(false), 3000)
+    } catch (err) {
+      setEnrollError(err instanceof Error ? err.message : 'Enroll failed')
+    } finally {
+      setEnrollLoading(false)
+    }
+  }
 
   return (
     <div className="admin-page" aria-label="Enroll students in subjects">
@@ -5733,66 +6243,45 @@ function AdminEnrollStudentsScreen({
           <p>Select a subject and enroll students to grant them access to assignments and resources.</p>
         </section>
 
+        {enrollError ? (
+          <div style={{ padding: '1rem', background: '#fef2f2', color: '#991b1b', borderRadius: '8px', marginBottom: '1rem' }}>
+            {enrollError}
+          </div>
+        ) : null}
         <section className="admin-assign-layout">
           <article className="admin-assign-faculty-card">
             <label htmlFor="enroll-subject-select">Select Subject</label>
             <select
               id="enroll-subject-select"
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              value={selectedSubjectId}
+              onChange={(e) => setSelectedSubjectId(e.target.value)}
               className="admin-assign-search"
             >
-              {subjects.map((subject) => (
-                <option key={subject.code} value={subject.code}>
-                  {subject.code} - {subject.name}
-                </option>
+              <option value="">Select subject…</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>{s.code} - {s.name}</option>
               ))}
             </select>
 
-            <div className="admin-assign-profile">
-              <div>
-                <span className="material-symbols-outlined">book</span>
+            {selectedSubject ? (
+              <div className="admin-assign-profile">
+                <div>
+                  <span className="material-symbols-outlined">book</span>
+                </div>
+                <div>
+                  <h3>{selectedSubject.name}</h3>
+                  <p>{selectedSubject.programme} • Sem {selectedSubject.semester}</p>
+                </div>
               </div>
-              <div>
-                <h3>{subjects.find((s) => s.code === selectedSubject)?.name}</h3>
-                <p>{subjects.find((s) => s.code === selectedSubject)?.programme} • {subjects.find((s) => s.code === selectedSubject)?.semester}</p>
-              </div>
-            </div>
-
-            <div className="admin-assign-meta">
-              <div>
-                <span>Currently Enrolled</span>
-                <strong>24 Students</strong>
-              </div>
-              <div>
-                <span>Capacity</span>
-                <strong>60 Students</strong>
-              </div>
-            </div>
+            ) : (
+              <p style={{ padding: '1rem', color: 'var(--muted, #666)' }}>Select a subject to enroll students.</p>
+            )}
           </article>
 
           <article className="admin-assign-subjects-card">
             <div className="admin-assign-toolbar">
-              <div>
-                <select value={programmeFilter} onChange={(e) => setProgrammeFilter(e.target.value)}>
-                  <option>All Programmes</option>
-                  <option>Computer Science &amp; Engineering</option>
-                  <option>Information Science</option>
-                  <option>Electronics &amp; Communication</option>
-                  <option>Mechanical Engineering</option>
-                </select>
-                <select value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)}>
-                  <option>All Semesters</option>
-                  <option>1st Semester</option>
-                  <option>2nd Semester</option>
-                  <option>3rd Semester</option>
-                  <option>4th Semester</option>
-                  <option>5th Semester</option>
-                  <option>6th Semester</option>
-                </select>
-              </div>
               <p>
-                Showing <span>{students.length}</span> students
+                Showing <span>{studentList.length}</span> students
               </p>
             </div>
 
@@ -5803,7 +6292,7 @@ function AdminEnrollStudentsScreen({
                     <th>
                       <input
                         type="checkbox"
-                        checked={selectedStudentIds.length === students.length}
+                        checked={studentList.length > 0 && selectedStudentIds.length === studentList.length}
                         onChange={toggleAllStudents}
                         aria-label="Select all students"
                       />
@@ -5816,44 +6305,61 @@ function AdminEnrollStudentsScreen({
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => {
-                    const isSelected = selectedStudentIds.includes(student.id)
-                    return (
-                      <tr key={student.id} className={isSelected ? 'admin-assign-row-selected' : ''}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleStudent(student.id)}
-                            aria-label={`Select ${student.name}`}
-                          />
-                        </td>
-                        <td>
-                          <div className="admin-student-person">
-                            <span className="gray">{student.name.split(' ').map(n => n[0]).join('')}</span>
-                            <p>{student.name}</p>
-                          </div>
-                        </td>
-                        <td className="mono">{student.usn}</td>
-                        <td>{student.programme}</td>
-                        <td>{student.semester}</td>
-                        <td className="muted">{student.email}</td>
-                      </tr>
-                    )
-                  })}
+                  {studentList.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted, #666)' }}>
+                        Loading students…
+                      </td>
+                    </tr>
+                  ) : (
+                    studentList.map((student) => {
+                      const isSelected = selectedStudentIds.includes(student.id)
+                      return (
+                        <tr key={student.id} className={isSelected ? 'admin-assign-row-selected' : ''}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleStudent(student.id)}
+                              aria-label={`Select ${student.fullName}`}
+                            />
+                          </td>
+                          <td>
+                            <div className="admin-student-person">
+                              <span className="gray">{initials(student.fullName)}</span>
+                              <p>{student.fullName}</p>
+                            </div>
+                          </td>
+                          <td className="mono">{student.usn}</td>
+                          <td>{student.programme}</td>
+                          <td>{student.semester}</td>
+                          <td className="muted">{student.email}</td>
+                        </tr>
+                      )
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
 
             <div className="admin-assign-actions">
-              <button type="button">
-                <span className="material-symbols-outlined">person_add</span>
-                Enroll Selected Students ({selectedStudentIds.length})
-              </button>
-              <p>
-                <span className="material-symbols-outlined">info</span>
-                Enrolled students will have access to assignments, notes, and resources for this subject.
-              </p>
+              {enrollSuccess ? (
+                <div style={{ padding: '0.75rem', textAlign: 'center', color: '#059669', width: '100%' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '2rem', display: 'block', marginBottom: '0.5rem' }}>check_circle</span>
+                  <p style={{ margin: 0, fontWeight: '600' }}>Students Enrolled Successfully!</p>
+                </div>
+              ) : (
+                <>
+                  <button type="button" onClick={handleEnroll} disabled={enrollLoading || !selectedSubjectId || selectedStudentIds.length === 0}>
+                    <span className="material-symbols-outlined">person_add</span>
+                    {enrollLoading ? 'Enrolling…' : `Enroll Selected Students (${selectedStudentIds.length})`}
+                  </button>
+                  <p>
+                    <span className="material-symbols-outlined">info</span>
+                    Enrolled students will have access to assignments, notes, and resources for this subject.
+                  </p>
+                </>
+              )}
             </div>
           </article>
         </section>
@@ -6437,6 +6943,34 @@ function App() {
       return defaultDepartmentNotices
     }
   })
+  const [calendarEvents, setCalendarEvents] = useState<AcademicEvent[]>(() => {
+    const raw = localStorage.getItem('academic_events')
+    if (!raw) {
+      return defaultAcademicEvents
+    }
+    try {
+      const parsed = JSON.parse(raw) as AcademicEvent[]
+      if (!Array.isArray(parsed)) {
+        return defaultAcademicEvents
+      }
+      const normalizedEvents: AcademicEvent[] = parsed.map((event) => ({
+        id: event.id,
+        title: event.title,
+        date: event.date,
+        type: event.type,
+        details: event.details,
+        createdBy: event.createdBy,
+        createdByRole: event.createdByRole === 'admin' ? 'admin' : 'faculty',
+        targetAudience:
+          event.targetAudience === 'students' || event.targetAudience === 'faculty'
+            ? event.targetAudience
+            : 'both',
+      }))
+      return mergeCalendarEventsWithDefaults(normalizedEvents)
+    } catch {
+      return defaultAcademicEvents
+    }
+  })
 
   useEffect(() => {
     const normalized = normalizePath(window.location.pathname)
@@ -6452,6 +6986,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('department_notices', JSON.stringify(notices))
   }, [notices])
+
+  useEffect(() => {
+    localStorage.setItem('academic_events', JSON.stringify(calendarEvents))
+  }, [calendarEvents])
 
   useEffect(() => {
     if (!sessionNotice) {
@@ -6477,6 +7015,32 @@ function App() {
       urgent,
     }
     setNotices((current) => [newNotice, ...current])
+  }
+
+  const createCalendarEvent = ({
+    title,
+    date,
+    type,
+    details,
+    targetAudience,
+  }: {
+    title: string
+    date: string
+    type: AcademicEventType
+    details: string
+    targetAudience?: 'students' | 'faculty' | 'both'
+  }) => {
+    const event: AcademicEvent = {
+      id: `event-${Date.now()}`,
+      title,
+      date,
+      type,
+      details,
+      createdBy: user?.name || user?.fullName || 'Faculty User',
+      createdByRole: user?.role === 'admin' ? 'admin' : 'faculty',
+      targetAudience: targetAudience || (user?.role === 'admin' ? 'students' : 'both'),
+    }
+    setCalendarEvents((current) => [event, ...current])
   }
 
   const deleteNoticeAsAdmin = (id: string) => {
@@ -6634,7 +7198,9 @@ function App() {
       {path === '/admin_circulars' ? (
         <AdminCircularsScreen
           notices={notices}
+          calendarEvents={calendarEvents}
           onCreateNotice={createNotice}
+          onCreateCalendarEvent={createCalendarEvent}
           onDeleteNotice={deleteNoticeAsAdmin}
           onBackDashboard={() => navigate('/admin_dashboard')}
           onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
@@ -6686,6 +7252,8 @@ function App() {
           onUploadTextbook={() => navigate('/faculty_textbook_upload')}
           onCreateAssignment={() => navigate('/faculty_create_assignment')}
           onViewAssignment={() => navigate('/faculty_assignment_submissions')}
+          calendarEvents={calendarEvents.filter((event) => isEventVisibleToRole(event, 'faculty'))}
+          onCreateCalendarEvent={createCalendarEvent}
           notices={notices}
           onCreateNotice={createNotice}
           onDeleteOwnNotice={deleteNoticeAsFaculty}
@@ -6744,6 +7312,7 @@ function App() {
           onViewResult={() => navigate('/assignment_result')}
           onUnofficialNotes={() => navigate('/unofficial_notes')}
           onGoToRepository={() => navigate('/repository')}
+          calendarEvents={calendarEvents}
           notices={notices}
           currentPath={path}
           onNavigate={navigate}
@@ -6804,6 +7373,7 @@ function App() {
         <HomeScreen
           onStudentLogin={() => navigate('/student_login')}
           onFacultyLogin={() => navigate('/faculty_login')}
+          onAdminLogin={() => navigate('/admin_login')}
         />
       ) : null}
 
@@ -6812,8 +7382,4 @@ function App() {
 }
 
 export default App
-
-
-
-
 
