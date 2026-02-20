@@ -9,6 +9,7 @@ type RoutePath =
   | '/admin_login'
   | '/admin_dashboard'
   | '/admin_faculty_accounts'
+  | '/admin_assign_subjects'
   | '/faculty_dashboard'
   | '/faculty_verification'
   | '/faculty_textbook_upload'
@@ -105,6 +106,10 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/admin_faculty_accounts') {
     return '/admin_faculty_accounts'
+  }
+
+  if (pathname === '/admin_assign_subjects') {
+    return '/admin_assign_subjects'
   }
 
   if (pathname === '/faculty_dashboard') {
@@ -513,10 +518,12 @@ function AdminHeader({
   active,
   onNavigateDashboard,
   onNavigateFacultyAccounts,
+  onNavigateAssignSubjects,
 }: {
-  active: 'dashboard' | 'faculty'
+  active: 'dashboard' | 'faculty' | 'subjects'
   onNavigateDashboard: () => void
   onNavigateFacultyAccounts: () => void
+  onNavigateAssignSubjects: () => void
 }) {
   return (
     <header className="admin-header">
@@ -545,6 +552,10 @@ function AdminHeader({
           <span className="material-symbols-outlined">group</span>
           Faculty Accounts
         </button>
+        <button type="button" onClick={onNavigateAssignSubjects} className={active === 'subjects' ? 'active' : ''}>
+          <span className="material-symbols-outlined">assignment_ind</span>
+          Assign Subjects
+        </button>
         <button type="button">
           <span className="material-symbols-outlined">book</span>
           Departments
@@ -571,13 +582,20 @@ function AdminFooter() {
   )
 }
 
-function AdminDashboardScreen({ onAddFaculty }: { onAddFaculty: () => void }) {
+function AdminDashboardScreen({
+  onAddFaculty,
+  onAssignSubjects,
+}: {
+  onAddFaculty: () => void
+  onAssignSubjects: () => void
+}) {
   return (
     <div className="admin-page" aria-label="Global admin dashboard">
       <AdminHeader
         active="dashboard"
         onNavigateDashboard={() => {}}
         onNavigateFacultyAccounts={onAddFaculty}
+        onNavigateAssignSubjects={onAssignSubjects}
       />
 
       <main className="admin-container admin-main">
@@ -632,7 +650,7 @@ function AdminDashboardScreen({ onAddFaculty }: { onAddFaculty: () => void }) {
               <span className="material-symbols-outlined">person_add</span>
               Add Faculty
             </button>
-            <button type="button">
+            <button type="button" onClick={onAssignSubjects}>
               <span className="material-symbols-outlined">assignment_ind</span>
               Assign Subjects
             </button>
@@ -741,7 +759,13 @@ function AdminDashboardScreen({ onAddFaculty }: { onAddFaculty: () => void }) {
   )
 }
 
-function AdminFacultyAccountsScreen({ onBackDashboard }: { onBackDashboard: () => void }) {
+function AdminFacultyAccountsScreen({
+  onBackDashboard,
+  onAssignSubjects,
+}: {
+  onBackDashboard: () => void
+  onAssignSubjects: () => void
+}) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [tempPassword, setTempPassword] = useState('UNIV-8x2K-99LP')
 
@@ -756,6 +780,7 @@ function AdminFacultyAccountsScreen({ onBackDashboard }: { onBackDashboard: () =
         active="faculty"
         onNavigateDashboard={onBackDashboard}
         onNavigateFacultyAccounts={() => {}}
+        onNavigateAssignSubjects={onAssignSubjects}
       />
 
       <main className="admin-container admin-main">
@@ -952,6 +977,149 @@ function AdminFacultyAccountsScreen({ onBackDashboard }: { onBackDashboard: () =
           </div>
         </div>
       ) : null}
+
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminAssignSubjectsScreen({
+  onBackDashboard,
+  onFacultyAccounts,
+}: {
+  onBackDashboard: () => void
+  onFacultyAccounts: () => void
+}) {
+  const [selectedSubjectCodes, setSelectedSubjectCodes] = useState<string[]>(['CS-401', 'CS-405'])
+
+  const toggleSubject = (code: string) => {
+    setSelectedSubjectCodes((current) =>
+      current.includes(code) ? current.filter((item) => item !== code) : [...current, code],
+    )
+  }
+
+  const subjects = [
+    { code: 'CS-401', name: 'Advanced Algorithms', programme: 'B.Tech CSE', semester: 'Sem IV' },
+    { code: 'CS-405', name: 'Machine Learning Fundamentals', programme: 'B.Tech CSE', semester: 'Sem IV' },
+    { code: 'CS-402', name: 'Distributed Systems', programme: 'B.Tech CSE', semester: 'Sem IV' },
+    { code: 'AI-101', name: 'Introduction to AI', programme: 'M.Tech AI', semester: 'Sem I' },
+    { code: 'CS-202', name: 'Operating Systems', programme: 'B.Tech CSE', semester: 'Sem II' },
+  ]
+
+  return (
+    <div className="admin-page" aria-label="Assign subjects to faculty">
+      <AdminHeader
+        active="subjects"
+        onNavigateDashboard={onBackDashboard}
+        onNavigateFacultyAccounts={onFacultyAccounts}
+        onNavigateAssignSubjects={() => {}}
+      />
+
+      <main className="admin-container admin-main">
+        <section className="admin-assign-head">
+          <h2>Assign Subjects to Faculty</h2>
+          <p>Select a faculty member and map their academic responsibilities.</p>
+        </section>
+
+        <section className="admin-assign-layout">
+          <article className="admin-assign-faculty-card">
+            <label htmlFor="assign-faculty-search">Select Faculty Member</label>
+            <div className="admin-assign-search">
+              <span className="material-symbols-outlined">search</span>
+              <input id="assign-faculty-search" type="text" defaultValue="Dr. Robert Henderson" />
+            </div>
+
+            <div className="admin-assign-profile">
+              <div>
+                <span className="material-symbols-outlined">badge</span>
+              </div>
+              <div>
+                <h3>Dr. Robert Henderson</h3>
+                <p>Senior Professor • Computer Science</p>
+              </div>
+            </div>
+
+            <div className="admin-assign-meta">
+              <div>
+                <span>Currently Assigned</span>
+                <strong>04 Subjects</strong>
+              </div>
+              <div>
+                <span>Workload Status</span>
+                <strong>Optimal</strong>
+              </div>
+            </div>
+          </article>
+
+          <article className="admin-assign-subjects-card">
+            <div className="admin-assign-toolbar">
+              <div>
+                <select defaultValue="All Programmes">
+                  <option>All Programmes</option>
+                  <option>B.Tech CSE</option>
+                  <option>M.Tech AI</option>
+                  <option>B.Sc Physics</option>
+                </select>
+                <select defaultValue="Semester 1">
+                  <option>Semester 1</option>
+                  <option>Semester 2</option>
+                  <option>Semester 3</option>
+                  <option>Semester 4</option>
+                </select>
+              </div>
+              <p>
+                Showing <span>12</span> subjects
+              </p>
+            </div>
+
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th />
+                    <th>Code</th>
+                    <th>Subject Name</th>
+                    <th>Programme</th>
+                    <th>Semester</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subjects.map((subject) => {
+                    const isSelected = selectedSubjectCodes.includes(subject.code)
+                    return (
+                      <tr key={subject.code} className={isSelected ? 'admin-assign-row-selected' : ''}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSubject(subject.code)}
+                            aria-label={`Select ${subject.name}`}
+                          />
+                        </td>
+                        <td>{subject.code}</td>
+                        <td>{subject.name}</td>
+                        <td>{subject.programme}</td>
+                        <td>{subject.semester}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="admin-assign-actions">
+              <button type="button">
+                <span className="material-symbols-outlined">assignment_turned_in</span>
+                Assign Selected Subjects
+              </button>
+              <p>
+                <span className="material-symbols-outlined">info</span>
+                Faculty can manage only assigned subjects.
+              </p>
+            </div>
+          </article>
+        </section>
+      </main>
 
       <AdminFooter />
     </div>
@@ -3072,11 +3240,24 @@ function App() {
       {path === '/admin_login' ? <AdminLoginScreen onLogin={() => navigate('/admin_dashboard')} /> : null}
 
       {path === '/admin_dashboard' ? (
-        <AdminDashboardScreen onAddFaculty={() => navigate('/admin_faculty_accounts')} />
+        <AdminDashboardScreen
+          onAddFaculty={() => navigate('/admin_faculty_accounts')}
+          onAssignSubjects={() => navigate('/admin_assign_subjects')}
+        />
       ) : null}
 
       {path === '/admin_faculty_accounts' ? (
-        <AdminFacultyAccountsScreen onBackDashboard={() => navigate('/admin_dashboard')} />
+        <AdminFacultyAccountsScreen
+          onBackDashboard={() => navigate('/admin_dashboard')}
+          onAssignSubjects={() => navigate('/admin_assign_subjects')}
+        />
+      ) : null}
+
+      {path === '/admin_assign_subjects' ? (
+        <AdminAssignSubjectsScreen
+          onBackDashboard={() => navigate('/admin_dashboard')}
+          onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
+        />
       ) : null}
 
       {path === '/faculty_dashboard' ? (

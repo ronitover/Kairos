@@ -2,9 +2,9 @@
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Subject Assignment Control</title>
+<title>Student Accounts Management</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
         tailwind.config = {
@@ -14,15 +14,14 @@
                     colors: {
                         "primary": "#1E3A8A",
                         "accent-yellow": "#FACC15",
+                        "background-light": "#F8FAFC",
                         "text-main": "#1E293B",
                         "text-muted": "#64748B",
-                        "background-light": "#F8FAFC",
-                        "selection-bg": "#EEF2FF",
-                        "selection-border": "#C7D2FE",
+                        "border-color": "#E2E8F0"
                     },
                     fontFamily: {
                         "sans": ["Poppins", "sans-serif"]
-                    },
+                    }
                 },
             },
         }
@@ -30,165 +29,260 @@
 <style type="text/tailwindcss">
         @layer base {
             body {
-                @apply bg-background-light text-text-main;
+                @apply bg-background-light text-text-main antialiased;
             }
         }
-        .subject-row-selected {
-            @apply bg-selection-bg border-blue-500 ring-1 ring-blue-500;
+        .table-checkbox {
+            @apply rounded border-slate-300 text-primary focus:ring-primary;
         }
     </style>
 </head>
-<body class="min-h-screen">
-<header class="bg-white border-b border-slate-200 px-8 h-16 flex items-center justify-between sticky top-0 z-30">
-<div class="flex items-center gap-3">
-<div class="bg-primary p-1.5 rounded text-white">
-<span class="material-symbols-outlined text-2xl block">school</span>
+<body class="min-h-screen flex flex-col">
+<header class="bg-white border-b border-border-color h-16 flex items-center justify-between px-8 sticky top-0 z-10">
+<div class="flex items-center gap-4">
+<div class="bg-primary p-1.5 rounded-lg">
+<span class="material-symbols-outlined text-white text-2xl">school</span>
 </div>
-<span class="font-semibold text-lg text-primary">University Admin Portal</span>
+<div>
+<h1 class="text-lg font-semibold text-primary">University Admin Portal</h1>
+<p class="text-[10px] uppercase tracking-wider text-text-muted font-medium">Academic Records Division</p>
+</div>
 </div>
 <div class="flex items-center gap-4">
+<button class="p-2 text-text-muted hover:bg-slate-50 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-8 w-[1px] bg-border-color mx-2"></div>
+<div class="flex items-center gap-3">
 <div class="text-right">
-<p class="text-xs font-medium text-text-muted uppercase tracking-wider">System Administrator</p>
-<p class="text-sm font-semibold">Admin Panel</p>
+<p class="text-sm font-medium">Admin User</p>
+<p class="text-xs text-text-muted">Super Administrator</p>
 </div>
-<div class="size-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-500">
-<span class="material-symbols-outlined">person</span>
+<div class="w-10 h-10 rounded-full bg-slate-200 border border-border-color flex items-center justify-center overflow-hidden">
+<span class="material-symbols-outlined text-slate-500">account_circle</span>
+</div>
 </div>
 </div>
 </header>
-<main class="max-w-[1400px] mx-auto p-8">
+<main class="flex-1 p-8 max-w-[1440px] mx-auto w-full">
 <div class="mb-8">
-<h1 class="text-3xl font-semibold text-text-main tracking-tight">Assign Subjects to Faculty</h1>
-<p class="text-text-muted mt-1">Select a faculty member and map their academic responsibilities.</p>
+<nav class="flex text-sm text-text-muted mb-2 gap-2">
+<span>Dashboard</span>
+<span>/</span>
+<span class="text-primary font-medium">Student Accounts</span>
+</nav>
+<h2 class="text-2xl font-bold tracking-tight">Student Accounts Management</h2>
 </div>
-<div class="grid grid-cols-12 gap-8">
-<aside class="col-span-12 lg:col-span-4 space-y-6">
-<div class="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-<label class="block text-sm font-semibold mb-3">Select Faculty Member</label>
+<div class="bg-white rounded-xl shadow-sm border border-border-color p-6 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+<div class="space-y-1.5">
+<label class="text-xs font-semibold text-text-muted uppercase">Search Student</label>
 <div class="relative">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-xl">search</span>
-<input class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-sm" placeholder="Search by name or ID..." type="text" value="Dr. Robert Henderson"/>
-</div>
-<div class="mt-6 p-4 rounded-lg bg-slate-50 border border-slate-100 flex items-center gap-4">
-<div class="size-14 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-<span class="material-symbols-outlined text-3xl">badge</span>
-</div>
-<div>
-<h3 class="font-semibold text-base">Dr. Robert Henderson</h3>
-<p class="text-xs text-text-muted uppercase font-medium tracking-wide">Senior Professor • Computer Science</p>
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-50 border-slate-200 rounded-lg focus:ring-primary focus:border-primary text-sm" placeholder="USN or Name..." type="text"/>
 </div>
 </div>
-<div class="mt-8 space-y-4">
-<div class="flex items-center justify-between text-sm">
-<span class="text-text-muted">Currently Assigned</span>
-<span class="font-semibold">04 Subjects</span>
-</div>
-<div class="flex items-center justify-between text-sm">
-<span class="text-text-muted">Workload Status</span>
-<span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider">Optimal</span>
-</div>
-</div>
-</div>
-</aside>
-<section class="col-span-12 lg:col-span-8">
-<div class="bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
-<div class="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-wrap gap-4 items-center justify-between">
-<div class="flex flex-wrap gap-3">
-<select class="text-sm border-slate-200 rounded-md focus:ring-primary py-1.5 pl-3 pr-8">
+<div class="space-y-1.5">
+<label class="text-xs font-semibold text-text-muted uppercase">Programme</label>
+<select class="w-full py-2 bg-slate-50 border-slate-200 rounded-lg focus:ring-primary focus:border-primary text-sm">
 <option>All Programmes</option>
-<option>B.Tech CSE</option>
-<option>M.Tech AI</option>
-<option>B.Sc Physics</option>
+<option>Computer Science &amp; Engineering</option>
+<option>Information Science</option>
+<option>Electronics &amp; Communication</option>
+<option>Mechanical Engineering</option>
 </select>
-<select class="text-sm border-slate-200 rounded-md focus:ring-primary py-1.5 pl-3 pr-8">
-<option>Semester 1</option>
-<option>Semester 2</option>
-<option>Semester 3</option>
-<option>Semester 4</option>
+</div>
+<div class="space-y-1.5">
+<label class="text-xs font-semibold text-text-muted uppercase">Semester</label>
+<select class="w-full py-2 bg-slate-50 border-slate-200 rounded-lg focus:ring-primary focus:border-primary text-sm">
+<option>All Semesters</option>
+<option>1st Semester</option>
+<option>2nd Semester</option>
+<option>3rd Semester</option>
+<option>4th Semester</option>
+<option>5th Semester</option>
+<option>6th Semester</option>
+<option>7th Semester</option>
+<option>8th Semester</option>
 </select>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-primary text-white py-2 px-4 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-900 transition-colors">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+                        Apply Filters
+                    </button>
+<button class="px-3 py-2 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-lg">restart_alt</span>
+</button>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 bg-red-50 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors">
+<span class="material-symbols-outlined text-lg">no_accounts</span>
+                    Deactivate Selected
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 text-text-main bg-white rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-lg">file_download</span>
+                    Export CSV
+                </button>
 </div>
 <div class="text-sm text-text-muted">
-                            Showing <span class="font-semibold text-text-main">12</span> subjects
-                        </div>
+                Showing <span class="font-semibold text-text-main">150</span> student accounts
+            </div>
 </div>
-<div class="overflow-y-auto max-h-[500px]">
+<div class="bg-white rounded-xl shadow-sm border border-border-color overflow-hidden">
+<div class="overflow-x-auto">
 <table class="w-full text-left border-collapse">
-<thead class="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
-<tr>
-<th class="p-4 w-12"></th>
-<th class="p-4 text-xs font-bold uppercase tracking-wider text-text-muted">Code</th>
-<th class="p-4 text-xs font-bold uppercase tracking-wider text-text-muted">Subject Name</th>
-<th class="p-4 text-xs font-bold uppercase tracking-wider text-text-muted">Programme</th>
-<th class="p-4 text-xs font-bold uppercase tracking-wider text-text-muted">Semester</th>
+<thead>
+<tr class="bg-slate-50 border-b border-border-color">
+<th class="p-4 w-12 text-center">
+<input class="table-checkbox" type="checkbox"/>
+</th>
+<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Student Name</th>
+<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">USN</th>
+<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Programme</th>
+<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Semester</th>
+<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Email</th>
+<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
+<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider text-right">Actions</th>
 </tr>
 </thead>
-<tbody class="divide-y divide-slate-100">
-<tr class="bg-selection-bg border-l-4 border-l-primary transition-colors">
+<tbody class="divide-y divide-border-color">
+<tr class="hover:bg-slate-50/50 transition-colors">
 <td class="p-4 text-center">
-<input checked="" class="rounded border-slate-300 text-primary focus:ring-primary size-4" type="checkbox"/>
+<input class="table-checkbox" type="checkbox"/>
 </td>
-<td class="p-4 font-mono text-sm">CS-401</td>
-<td class="p-4 font-medium">Advanced Algorithms</td>
-<td class="p-4 text-sm">B.Tech CSE</td>
-<td class="p-4 text-sm">Sem IV</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-blue-100 text-primary flex items-center justify-center font-semibold text-xs">AS</div>
+<span class="font-medium text-sm">Aditi Sharma</span>
+</div>
+</td>
+<td class="p-4 text-sm font-mono text-slate-600">1RV21CS001</td>
+<td class="p-4 text-sm">Computer Science</td>
+<td class="p-4 text-sm">6th Sem</td>
+<td class="p-4 text-sm text-slate-500">aditi.s@univ.edu.in</td>
+<td class="p-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-100 text-green-700">Active</span>
+</td>
+<td class="p-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-primary hover:bg-blue-50 rounded transition-colors" title="View Details">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors" title="Disable Account">
+<span class="material-symbols-outlined text-xl">block</span>
+</button>
+</div>
+</td>
 </tr>
-<tr class="bg-selection-bg border-l-4 border-l-primary transition-colors">
+<tr class="hover:bg-slate-50/50 transition-colors">
 <td class="p-4 text-center">
-<input checked="" class="rounded border-slate-300 text-primary focus:ring-primary size-4" type="checkbox"/>
+<input class="table-checkbox" type="checkbox"/>
 </td>
-<td class="p-4 font-mono text-sm">CS-405</td>
-<td class="p-4 font-medium">Machine Learning Fundamentals</td>
-<td class="p-4 text-sm">B.Tech CSE</td>
-<td class="p-4 text-sm">Sem IV</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-semibold text-xs">RJ</div>
+<span class="font-medium text-sm">Rahul Jayaram</span>
+</div>
+</td>
+<td class="p-4 text-sm font-mono text-slate-600">1RV21IS045</td>
+<td class="p-4 text-sm">Info. Science</td>
+<td class="p-4 text-sm">4th Sem</td>
+<td class="p-4 text-sm text-slate-500">rahul.j@univ.edu.in</td>
+<td class="p-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-100 text-green-700">Active</span>
+</td>
+<td class="p-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-primary hover:bg-blue-50 rounded transition-colors">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors">
+<span class="material-symbols-outlined text-xl">block</span>
+</button>
+</div>
+</td>
 </tr>
-<tr class="hover:bg-slate-50 transition-colors border-l-4 border-l-transparent">
+<tr class="hover:bg-slate-50/50 transition-colors">
 <td class="p-4 text-center">
-<input class="rounded border-slate-300 text-primary focus:ring-primary size-4" type="checkbox"/>
+<input class="table-checkbox" type="checkbox"/>
 </td>
-<td class="p-4 font-mono text-sm">CS-402</td>
-<td class="p-4 font-medium">Distributed Systems</td>
-<td class="p-4 text-sm">B.Tech CSE</td>
-<td class="p-4 text-sm">Sem IV</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-semibold text-xs">PK</div>
+<span class="font-medium text-sm">Priya Kapoor</span>
+</div>
+</td>
+<td class="p-4 text-sm font-mono text-slate-600">1RV20EC112</td>
+<td class="p-4 text-sm">Electronics</td>
+<td class="p-4 text-sm">8th Sem</td>
+<td class="p-4 text-sm text-slate-500">priya.k@univ.edu.in</td>
+<td class="p-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-slate-100 text-slate-600">Disabled</span>
+</td>
+<td class="p-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-primary hover:bg-blue-50 rounded transition-colors">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" title="Enable Account">
+<span class="material-symbols-outlined text-xl">check_circle</span>
+</button>
+</div>
+</td>
 </tr>
-<tr class="hover:bg-slate-50 transition-colors border-l-4 border-l-transparent">
+<tr class="hover:bg-slate-50/50 transition-colors">
 <td class="p-4 text-center">
-<input class="rounded border-slate-300 text-primary focus:ring-primary size-4" type="checkbox"/>
+<input class="table-checkbox" type="checkbox"/>
 </td>
-<td class="p-4 font-mono text-sm">AI-101</td>
-<td class="p-4 font-medium">Introduction to AI</td>
-<td class="p-4 text-sm">M.Tech AI</td>
-<td class="p-4 text-sm">Sem I</td>
-</tr>
-<tr class="hover:bg-slate-50 transition-colors border-l-4 border-l-transparent">
-<td class="p-4 text-center">
-<input class="rounded border-slate-300 text-primary focus:ring-primary size-4" type="checkbox"/>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-semibold text-xs">NK</div>
+<span class="font-medium text-sm">Nikhil Kumar</span>
+</div>
 </td>
-<td class="p-4 font-mono text-sm">CS-202</td>
-<td class="p-4 font-medium">Operating Systems</td>
-<td class="p-4 text-sm">B.Tech CSE</td>
-<td class="p-4 text-sm">Sem II</td>
+<td class="p-4 text-sm font-mono text-slate-600">1RV22ME088</td>
+<td class="p-4 text-sm">Mechanical</td>
+<td class="p-4 text-sm">2nd Sem</td>
+<td class="p-4 text-sm text-slate-500">nikhil.k@univ.edu.in</td>
+<td class="p-4">
+<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-100 text-green-700">Active</span>
+</td>
+<td class="p-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-primary hover:bg-blue-50 rounded transition-colors">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors">
+<span class="material-symbols-outlined text-xl">block</span>
+</button>
+</div>
+</td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="p-6 border-t border-slate-200 bg-white flex flex-col items-center gap-3">
-<button class="w-full max-w-md bg-primary hover:bg-blue-900 text-white font-semibold py-3 px-6 rounded-lg shadow-lg shadow-blue-900/10 transition-all flex items-center justify-center gap-2">
-<span class="material-symbols-outlined text-xl">assignment_turned_in</span>
-                            Assign Selected Subjects
-                        </button>
-<p class="text-xs text-text-muted flex items-center gap-1.5">
-<span class="material-symbols-outlined text-sm">info</span>
-                            Faculty can manage only assigned subjects.
-                        </p>
+<div class="bg-slate-50 border-t border-border-color p-4 flex items-center justify-between">
+<p class="text-sm text-text-muted">Showing 1 to 10 of 150 entries</p>
+<div class="flex items-center gap-1">
+<button class="p-2 border border-slate-200 rounded hover:bg-white disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined text-lg leading-none">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-primary text-white text-sm font-medium">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-white text-sm text-text-muted">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-white text-sm text-text-muted">3</button>
+<span class="px-1 text-slate-400">...</span>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-white text-sm text-text-muted">15</button>
+<button class="p-2 border border-slate-200 rounded hover:bg-white">
+<span class="material-symbols-outlined text-lg leading-none">chevron_right</span>
+</button>
 </div>
 </div>
-</section>
 </div>
 </main>
-<footer class="mt-auto py-8 text-center px-4">
-<p class="text-text-muted text-xs uppercase tracking-wider font-medium">
-            © 2024 University Academic Repository • Admin Control Center
-        </p>
-</footer>
+<div class="fixed top-0 left-0 w-full h-1 bg-accent-yellow z-20"></div>
 
 </body></html>
