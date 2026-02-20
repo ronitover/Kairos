@@ -1519,6 +1519,119 @@
   color: #64748b;
 }
 
+.pdf-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgb(15 23 42 / 0.74);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.pdf-preview-modal {
+  width: min(100%, 980px);
+  height: min(90vh, 760px);
+  background: #fff;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.pdf-preview-head {
+  min-height: 3.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pdf-preview-head > div:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.pdf-preview-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pdf-preview-head > div:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pdf-preview-download {
+  border: 0;
+  border-radius: 0.5rem;
+  background: #1e3a8a;
+  color: #fff;
+  height: 2.15rem;
+  padding: 0 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pdf-preview-close {
+  border: 0;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #475569;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.pdf-preview-body {
+  flex: 1;
+  overflow: auto;
+  background: #e2e8f0;
+  padding: 1.5rem;
+}
+
+.pdf-preview-page {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  min-height: 100%;
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 6px 20px rgb(15 23 42 / 0.12);
+}
+
+.pdf-preview-page p,
+.pdf-preview-page h4 {
+  margin: 0;
+}
+
+.pdf-preview-page h4 {
+  margin-top: 0.5rem;
+  color: #0f172a;
+}
+
+.pdf-preview-page p {
+  margin-top: 0.5rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
 .search-results-card {
   min-width: 0;
 }

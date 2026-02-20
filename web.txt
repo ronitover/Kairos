@@ -2,9 +2,9 @@
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Student Accounts Management</title>
+<title>Document Preview - University Repository</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
         tailwind.config = {
@@ -12,16 +12,19 @@
             theme: {
                 extend: {
                     colors: {
-                        "primary": "#1E3A8A",
-                        "accent-yellow": "#FACC15",
-                        "background-light": "#F8FAFC",
-                        "text-main": "#1E293B",
-                        "text-muted": "#64748B",
-                        "border-color": "#E2E8F0"
+                        "primary": "#1e3a8a",
+                        "accent-yellow": "#facc15",
+                        "text-main": "#1e293b",
+                        "text-muted": "#64748b",
+                        "background-light": "#f8fafc",
+                        "modal-overlay": "rgba(15, 23, 42, 0.75)",
                     },
                     fontFamily: {
                         "sans": ["Poppins", "sans-serif"]
-                    }
+                    },
+                    borderRadius: {
+                        "lg": "8px",
+                    },
                 },
             },
         }
@@ -29,260 +32,147 @@
 <style type="text/tailwindcss">
         @layer base {
             body {
-                @apply bg-background-light text-text-main antialiased;
+                font-family: 'Poppins', sans-serif;
             }
         }
-        .table-checkbox {
-            @apply rounded border-slate-300 text-primary focus:ring-primary;
+        .pdf-page-shadow {
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
-<header class="bg-white border-b border-border-color h-16 flex items-center justify-between px-8 sticky top-0 z-10">
-<div class="flex items-center gap-4">
-<div class="bg-primary p-1.5 rounded-lg">
-<span class="material-symbols-outlined text-white text-2xl">school</span>
-</div>
-<div>
-<h1 class="text-lg font-semibold text-primary">University Admin Portal</h1>
-<p class="text-[10px] uppercase tracking-wider text-text-muted font-medium">Academic Records Division</p>
-</div>
-</div>
-<div class="flex items-center gap-4">
-<button class="p-2 text-text-muted hover:bg-slate-50 rounded-full transition-colors">
-<span class="material-symbols-outlined">notifications</span>
-</button>
-<div class="h-8 w-[1px] bg-border-color mx-2"></div>
+<body class="bg-slate-100 min-h-screen">
+<div class="p-8 opacity-40 select-none pointer-events-none">
+<div class="max-w-7xl mx-auto">
+<header class="flex justify-between items-center mb-8">
 <div class="flex items-center gap-3">
-<div class="text-right">
-<p class="text-sm font-medium">Admin User</p>
-<p class="text-xs text-text-muted">Super Administrator</p>
+<div class="h-10 w-10 bg-primary rounded flex items-center justify-center text-white">
+<span class="material-symbols-outlined">school</span>
 </div>
-<div class="w-10 h-10 rounded-full bg-slate-200 border border-border-color flex items-center justify-center overflow-hidden">
-<span class="material-symbols-outlined text-slate-500">account_circle</span>
-</div>
-</div>
+<h1 class="text-xl font-semibold text-text-main uppercase tracking-tight">University Repository</h1>
 </div>
 </header>
-<main class="flex-1 p-8 max-w-[1440px] mx-auto w-full">
-<div class="mb-8">
-<nav class="flex text-sm text-text-muted mb-2 gap-2">
-<span>Dashboard</span>
-<span>/</span>
-<span class="text-primary font-medium">Student Accounts</span>
-</nav>
-<h2 class="text-2xl font-bold tracking-tight">Student Accounts Management</h2>
-</div>
-<div class="bg-white rounded-xl shadow-sm border border-border-color p-6 mb-6">
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-<div class="space-y-1.5">
-<label class="text-xs font-semibold text-text-muted uppercase">Search Student</label>
-<div class="relative">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
-<input class="w-full pl-10 pr-4 py-2 bg-slate-50 border-slate-200 rounded-lg focus:ring-primary focus:border-primary text-sm" placeholder="USN or Name..." type="text"/>
-</div>
-</div>
-<div class="space-y-1.5">
-<label class="text-xs font-semibold text-text-muted uppercase">Programme</label>
-<select class="w-full py-2 bg-slate-50 border-slate-200 rounded-lg focus:ring-primary focus:border-primary text-sm">
-<option>All Programmes</option>
-<option>Computer Science &amp; Engineering</option>
-<option>Information Science</option>
-<option>Electronics &amp; Communication</option>
-<option>Mechanical Engineering</option>
-</select>
-</div>
-<div class="space-y-1.5">
-<label class="text-xs font-semibold text-text-muted uppercase">Semester</label>
-<select class="w-full py-2 bg-slate-50 border-slate-200 rounded-lg focus:ring-primary focus:border-primary text-sm">
-<option>All Semesters</option>
-<option>1st Semester</option>
-<option>2nd Semester</option>
-<option>3rd Semester</option>
-<option>4th Semester</option>
-<option>5th Semester</option>
-<option>6th Semester</option>
-<option>7th Semester</option>
-<option>8th Semester</option>
-</select>
-</div>
-<div class="flex gap-2">
-<button class="flex-1 bg-primary text-white py-2 px-4 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-900 transition-colors">
-<span class="material-symbols-outlined text-lg">filter_list</span>
-                        Apply Filters
-                    </button>
-<button class="px-3 py-2 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors">
-<span class="material-symbols-outlined text-lg">restart_alt</span>
-</button>
+<div class="grid grid-cols-4 gap-6">
+<div class="h-48 bg-white rounded-lg"></div>
+<div class="h-48 bg-white rounded-lg"></div>
+<div class="h-48 bg-white rounded-lg"></div>
+<div class="h-48 bg-white rounded-lg"></div>
 </div>
 </div>
 </div>
-<div class="flex items-center justify-between mb-4">
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-modal-overlay p-6 md:p-10">
+<div class="bg-white w-full h-full max-w-6xl rounded-lg overflow-hidden flex flex-col relative shadow-2xl">
+<header class="h-16 flex items-center justify-between px-6 border-b border-slate-200 shrink-0">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary text-2xl">description</span>
+<h2 class="text-text-main font-semibold text-lg truncate max-w-md">Unit 1 - Data Structures.pdf</h2>
+</div>
 <div class="flex items-center gap-3">
-<button class="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 bg-red-50 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors">
-<span class="material-symbols-outlined text-lg">no_accounts</span>
-                    Deactivate Selected
-                </button>
-<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 text-text-main bg-white rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
-<span class="material-symbols-outlined text-lg">file_download</span>
-                    Export CSV
-                </button>
-</div>
-<div class="text-sm text-text-muted">
-                Showing <span class="font-semibold text-text-main">150</span> student accounts
-            </div>
-</div>
-<div class="bg-white rounded-xl shadow-sm border border-border-color overflow-hidden">
-<div class="overflow-x-auto">
-<table class="w-full text-left border-collapse">
-<thead>
-<tr class="bg-slate-50 border-b border-border-color">
-<th class="p-4 w-12 text-center">
-<input class="table-checkbox" type="checkbox"/>
-</th>
-<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Student Name</th>
-<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">USN</th>
-<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Programme</th>
-<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Semester</th>
-<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Email</th>
-<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
-<th class="p-4 text-xs font-semibold text-text-muted uppercase tracking-wider text-right">Actions</th>
-</tr>
-</thead>
-<tbody class="divide-y divide-border-color">
-<tr class="hover:bg-slate-50/50 transition-colors">
-<td class="p-4 text-center">
-<input class="table-checkbox" type="checkbox"/>
-</td>
-<td class="p-4">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-full bg-blue-100 text-primary flex items-center justify-center font-semibold text-xs">AS</div>
-<span class="font-medium text-sm">Aditi Sharma</span>
-</div>
-</td>
-<td class="p-4 text-sm font-mono text-slate-600">1RV21CS001</td>
-<td class="p-4 text-sm">Computer Science</td>
-<td class="p-4 text-sm">6th Sem</td>
-<td class="p-4 text-sm text-slate-500">aditi.s@univ.edu.in</td>
-<td class="p-4">
-<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-100 text-green-700">Active</span>
-</td>
-<td class="p-4 text-right">
-<div class="flex items-center justify-end gap-2">
-<button class="p-1.5 text-primary hover:bg-blue-50 rounded transition-colors" title="View Details">
-<span class="material-symbols-outlined text-xl">visibility</span>
+<button class="flex items-center gap-2 bg-primary hover:bg-[#1e3a8a]/90 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+<span>Download</span>
 </button>
-<button class="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors" title="Disable Account">
-<span class="material-symbols-outlined text-xl">block</span>
+<div class="w-px h-6 bg-slate-200 mx-2"></div>
+<button class="text-text-muted hover:text-red-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined">close</span>
 </button>
 </div>
-</td>
-</tr>
-<tr class="hover:bg-slate-50/50 transition-colors">
-<td class="p-4 text-center">
-<input class="table-checkbox" type="checkbox"/>
-</td>
-<td class="p-4">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-semibold text-xs">RJ</div>
-<span class="font-medium text-sm">Rahul Jayaram</span>
-</div>
-</td>
-<td class="p-4 text-sm font-mono text-slate-600">1RV21IS045</td>
-<td class="p-4 text-sm">Info. Science</td>
-<td class="p-4 text-sm">4th Sem</td>
-<td class="p-4 text-sm text-slate-500">rahul.j@univ.edu.in</td>
-<td class="p-4">
-<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-100 text-green-700">Active</span>
-</td>
-<td class="p-4 text-right">
-<div class="flex items-center justify-end gap-2">
-<button class="p-1.5 text-primary hover:bg-blue-50 rounded transition-colors">
-<span class="material-symbols-outlined text-xl">visibility</span>
+</header>
+<div class="flex flex-1 overflow-hidden relative">
+<aside class="absolute left-6 top-6 z-10 flex flex-col gap-2 bg-white/90 backdrop-blur shadow-sm border border-slate-200 p-2 rounded-lg">
+<button class="w-10 h-10 flex items-center justify-center text-text-main hover:bg-slate-100 rounded transition-colors" title="Zoom In">
+<span class="material-symbols-outlined">zoom_in</span>
 </button>
-<button class="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors">
-<span class="material-symbols-outlined text-xl">block</span>
+<button class="w-10 h-10 flex items-center justify-center text-text-main hover:bg-slate-100 rounded transition-colors" title="Zoom Out">
+<span class="material-symbols-outlined">zoom_out</span>
 </button>
-</div>
-</td>
-</tr>
-<tr class="hover:bg-slate-50/50 transition-colors">
-<td class="p-4 text-center">
-<input class="table-checkbox" type="checkbox"/>
-</td>
-<td class="p-4">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-semibold text-xs">PK</div>
-<span class="font-medium text-sm">Priya Kapoor</span>
-</div>
-</td>
-<td class="p-4 text-sm font-mono text-slate-600">1RV20EC112</td>
-<td class="p-4 text-sm">Electronics</td>
-<td class="p-4 text-sm">8th Sem</td>
-<td class="p-4 text-sm text-slate-500">priya.k@univ.edu.in</td>
-<td class="p-4">
-<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-slate-100 text-slate-600">Disabled</span>
-</td>
-<td class="p-4 text-right">
-<div class="flex items-center justify-end gap-2">
-<button class="p-1.5 text-primary hover:bg-blue-50 rounded transition-colors">
-<span class="material-symbols-outlined text-xl">visibility</span>
+<div class="h-px w-6 bg-slate-200 mx-auto my-1"></div>
+<button class="w-10 h-10 flex items-center justify-center text-text-main hover:bg-slate-100 rounded transition-colors" title="Print">
+<span class="material-symbols-outlined">print</span>
 </button>
-<button class="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors" title="Enable Account">
-<span class="material-symbols-outlined text-xl">check_circle</span>
-</button>
+</aside>
+<main class="flex-1 bg-slate-200 p-8 overflow-y-auto custom-scrollbar flex flex-col items-center gap-8">
+<div class="bg-white w-full max-w-[800px] aspect-[1/1.4] pdf-page-shadow p-16 flex flex-col">
+<div class="border-b-2 border-primary pb-4 mb-8 flex justify-between items-end">
+<div>
+<p class="text-[10px] text-primary font-bold uppercase tracking-widest">CS301: Advanced Algorithms</p>
+<h3 class="text-2xl font-bold text-text-main mt-1">Data Structures Overview</h3>
 </div>
-</td>
-</tr>
-<tr class="hover:bg-slate-50/50 transition-colors">
-<td class="p-4 text-center">
-<input class="table-checkbox" type="checkbox"/>
-</td>
-<td class="p-4">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-semibold text-xs">NK</div>
-<span class="font-medium text-sm">Nikhil Kumar</span>
+<div class="w-12 h-1 bg-accent-yellow"></div>
 </div>
-</td>
-<td class="p-4 text-sm font-mono text-slate-600">1RV22ME088</td>
-<td class="p-4 text-sm">Mechanical</td>
-<td class="p-4 text-sm">2nd Sem</td>
-<td class="p-4 text-sm text-slate-500">nikhil.k@univ.edu.in</td>
-<td class="p-4">
-<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-100 text-green-700">Active</span>
-</td>
-<td class="p-4 text-right">
-<div class="flex items-center justify-end gap-2">
-<button class="p-1.5 text-primary hover:bg-blue-50 rounded transition-colors">
-<span class="material-symbols-outlined text-xl">visibility</span>
-</button>
-<button class="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors">
-<span class="material-symbols-outlined text-xl">block</span>
-</button>
+<div class="space-y-6">
+<section>
+<h4 class="text-primary font-semibold mb-2">1. Introduction to Abstract Data Types</h4>
+<p class="text-slate-600 text-sm leading-relaxed">
+                                An Abstract Data Type (ADT) is a mathematical model for data types where a data type is defined by its behavior (semantics) from the point of view of a user of the data, specifically in terms of possible values, possible operations on data of this type, and the behavior of these operations.
+                            </p>
+</section>
+<div class="my-8 py-10 bg-slate-50 border border-dashed border-slate-300 rounded flex flex-col items-center justify-center">
+<div class="flex gap-4 items-center">
+<div class="w-16 h-16 bg-primary/10 rounded flex items-center justify-center border-2 border-primary">
+<span class="text-primary font-bold">Node</span>
 </div>
-</td>
-</tr>
-</tbody>
-</table>
+<span class="material-symbols-outlined text-primary">arrow_forward</span>
+<div class="w-16 h-16 bg-primary/10 rounded flex items-center justify-center border-2 border-primary">
+<span class="text-primary font-bold">Node</span>
 </div>
-<div class="bg-slate-50 border-t border-border-color p-4 flex items-center justify-between">
-<p class="text-sm text-text-muted">Showing 1 to 10 of 150 entries</p>
-<div class="flex items-center gap-1">
-<button class="p-2 border border-slate-200 rounded hover:bg-white disabled:opacity-50" disabled="">
-<span class="material-symbols-outlined text-lg leading-none">chevron_left</span>
-</button>
-<button class="w-8 h-8 flex items-center justify-center rounded bg-primary text-white text-sm font-medium">1</button>
-<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-white text-sm text-text-muted">2</button>
-<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-white text-sm text-text-muted">3</button>
-<span class="px-1 text-slate-400">...</span>
-<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-white text-sm text-text-muted">15</button>
-<button class="p-2 border border-slate-200 rounded hover:bg-white">
-<span class="material-symbols-outlined text-lg leading-none">chevron_right</span>
-</button>
+<span class="material-symbols-outlined text-primary">arrow_forward</span>
+<div class="w-16 h-16 bg-slate-100 rounded flex items-center justify-center border-2 border-slate-300">
+<span class="text-slate-400 font-bold">NULL</span>
+</div>
+</div>
+<p class="mt-4 text-[10px] text-text-muted font-medium italic">Figure 1.1: Visual representation of a Singly Linked List</p>
+</div>
+<section>
+<h4 class="text-primary font-semibold mb-2">2. Linear vs. Non-Linear Structures</h4>
+<p class="text-slate-600 text-sm leading-relaxed">
+                                Elements are accessed in a sequential order but it is not necessary to store all the elements sequentially. Example: Linked List, Stack, Queue. Non-linear structures have no specific sequence.
+                            </p>
+</section>
+<div class="mt-auto pt-10 border-t border-slate-100 flex justify-between items-center text-[10px] text-text-muted">
+<p>Department of Computer Science &amp; Engineering</p>
+<p>Page 1 of 24</p>
 </div>
 </div>
 </div>
+<div class="bg-white w-full max-w-[800px] aspect-[1/1.4] pdf-page-shadow opacity-50 select-none mb-8"></div>
 </main>
-<div class="fixed top-0 left-0 w-full h-1 bg-accent-yellow z-20"></div>
+</div>
+<footer class="h-12 bg-slate-50 border-t border-slate-200 px-6 flex items-center justify-center gap-8 shrink-0">
+<div class="flex items-center gap-1">
+<button class="p-1 text-text-main hover:bg-slate-200 rounded transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">first_page</span>
+</button>
+<button class="p-1 text-text-main hover:bg-slate-200 rounded transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+</div>
+<div class="flex items-center gap-3">
+<input class="w-10 h-7 text-center text-sm border-slate-300 rounded focus:ring-primary focus:border-primary p-0" type="text" value="1"/>
+<span class="text-text-muted text-sm font-medium">of 24</span>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-1 text-text-main hover:bg-slate-200 rounded transition-colors">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+<button class="p-1 text-text-main hover:bg-slate-200 rounded transition-colors">
+<span class="material-symbols-outlined">last_page</span>
+</button>
+</div>
+</footer>
+</div>
+</div>
 
 </body></html>

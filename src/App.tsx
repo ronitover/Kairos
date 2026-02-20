@@ -243,6 +243,49 @@ function CommonDashboardFooter({
   )
 }
 
+function PdfPreviewModal({
+  isOpen,
+  title,
+  onClose,
+}: {
+  isOpen: boolean
+  title: string
+  onClose: () => void
+}) {
+  if (!isOpen) {
+    return null
+  }
+
+  return (
+    <div className="pdf-preview-overlay" role="dialog" aria-modal="true" aria-label="PDF preview">
+      <div className="pdf-preview-modal">
+        <header className="pdf-preview-head">
+          <div>
+            <span className="material-symbols-outlined">description</span>
+            <h3>{title}</h3>
+          </div>
+          <div>
+            <button type="button" className="pdf-preview-download">
+              <span className="material-symbols-outlined">download</span>
+              Download
+            </button>
+            <button type="button" className="pdf-preview-close" onClick={onClose} aria-label="Close preview">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </header>
+        <div className="pdf-preview-body">
+          <div className="pdf-preview-page">
+            <p>PDF preview placeholder</p>
+            <h4>{title}</h4>
+            <p>Preview content will render here when backend file streaming is connected.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function getRequiredRole(route: RoutePath): 'student' | 'faculty' | 'admin' | null {
   if (
     route === '/student_dashboard' ||
@@ -2623,6 +2666,8 @@ function StudentDashboardScreen({
   const { user } = useAuth()
   const semester = user?.semester ? `Semester ${user.semester}` : 'Semester'
   const programme = user?.programme || 'Programme'
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewTitle, setPreviewTitle] = useState('Document.pdf')
 
   return (
     <div className="dashboard-page" aria-label="Student dashboard">
@@ -2712,7 +2757,15 @@ function StudentDashboardScreen({
                   <td className="muted">Oct 12, 2023</td>
                   <td className="notes-action-col">
                     <div className="dashboard-action-icons">
-                      <button type="button" className="dashboard-table-icon-btn" aria-label="View note">
+                      <button
+                        type="button"
+                        className="dashboard-table-icon-btn"
+                        aria-label="View note"
+                        onClick={() => {
+                          setPreviewTitle('Memory Management Overview.pdf')
+                          setIsPreviewOpen(true)
+                        }}
+                      >
                         <span className="material-symbols-outlined">visibility</span>
                       </button>
                       <button type="button" className="dashboard-table-icon-btn" aria-label="Download note">
@@ -2728,7 +2781,15 @@ function StudentDashboardScreen({
                   <td className="muted">Oct 05, 2023</td>
                   <td className="notes-action-col">
                     <div className="dashboard-action-icons">
-                      <button type="button" className="dashboard-table-icon-btn" aria-label="View note">
+                      <button
+                        type="button"
+                        className="dashboard-table-icon-btn"
+                        aria-label="View note"
+                        onClick={() => {
+                          setPreviewTitle('Process Synchronization.pdf')
+                          setIsPreviewOpen(true)
+                        }}
+                      >
                         <span className="material-symbols-outlined">visibility</span>
                       </button>
                       <button type="button" className="dashboard-table-icon-btn" aria-label="Download note">
@@ -2848,6 +2909,11 @@ function StudentDashboardScreen({
         containerClassName="dashboard-container"
         caption="© 2024 University Academic Digital Repository"
       />
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        title={previewTitle}
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>
   )
 }
@@ -2860,6 +2926,8 @@ function FacultyVerificationScreen({
   const [verifiedNotes, setVerifiedNotes] = useState<Set<string>>(new Set())
   const [rejectedNotes, setRejectedNotes] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewTitle, setPreviewTitle] = useState('Document.pdf')
 
   const handleApprove = async (noteId: string) => {
     setIsLoading((prev) => ({ ...prev, [noteId]: true }))
@@ -3007,7 +3075,15 @@ function FacultyVerificationScreen({
                   </td>
                   <td className="align-right">
                     <div className={`faculty-row-actions ${getStatus('note-1') !== 'pending' ? 'disabled' : ''}`}>
-                      <button type="button" className="faculty-preview-btn" disabled={getStatus('note-1') !== 'pending'}>
+                      <button
+                        type="button"
+                        className="faculty-preview-btn"
+                        disabled={getStatus('note-1') !== 'pending'}
+                        onClick={() => {
+                          setPreviewTitle('Virtual Memory Deep Dive.pdf')
+                          setIsPreviewOpen(true)
+                        }}
+                      >
                         Preview
                       </button>
                       <button
@@ -3047,7 +3123,15 @@ function FacultyVerificationScreen({
                   </td>
                   <td className="align-right">
                     <div className={`faculty-row-actions ${getStatus('note-2') !== 'pending' ? 'disabled' : ''}`}>
-                      <button type="button" className="faculty-preview-btn" disabled={getStatus('note-2') !== 'pending'}>
+                      <button
+                        type="button"
+                        className="faculty-preview-btn"
+                        disabled={getStatus('note-2') !== 'pending'}
+                        onClick={() => {
+                          setPreviewTitle('Process Scheduling Algos.pdf')
+                          setIsPreviewOpen(true)
+                        }}
+                      >
                         Preview
                       </button>
                       <button
@@ -3147,6 +3231,11 @@ function FacultyVerificationScreen({
           <a href="#">System Status</a>
         </nav>
       </footer>
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        title={previewTitle}
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>
   )
 }
@@ -4491,6 +4580,8 @@ function SearchResultsScreen({ onBackDashboard }: { onBackDashboard: () => void 
   const [professor, setProfessor] = useState('All Professors')
   const [query, setQuery] = useState('')
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewTitle, setPreviewTitle] = useState('Document.pdf')
 
   const results = searchResourceData.filter((resource) => {
     const isVisible = resource.status === 'approved'
@@ -4627,7 +4718,14 @@ function SearchResultsScreen({ onBackDashboard }: { onBackDashboard: () => void 
                     <span>{resource.uploadedAt}</span>
                   </div>
                   <div className="search-result-actions">
-                    <button type="button" className="dashboard-btn-secondary dashboard-btn-small">
+                    <button
+                      type="button"
+                      className="dashboard-btn-secondary dashboard-btn-small"
+                      onClick={() => {
+                        setPreviewTitle(`${resource.title}.${resource.format.toLowerCase()}`)
+                        setIsPreviewOpen(true)
+                      }}
+                    >
                       <span className="material-symbols-outlined">visibility</span>
                       View
                     </button>
@@ -4653,6 +4751,11 @@ function SearchResultsScreen({ onBackDashboard }: { onBackDashboard: () => void 
           <a href="#">Support</a>
         </nav>
       </footer>
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        title={previewTitle}
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>
   )
 }
@@ -4662,6 +4765,8 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
   const [subjectCode, setSubjectCode] = useState('All Subjects')
   const [unit, setUnit] = useState('All Units')
   const [professor, setProfessor] = useState('All Professors')
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewTitle, setPreviewTitle] = useState('Document.pdf')
 
   const resources = searchResourceData.filter((resource) => {
     const semesterMatch = semester === 'All Semesters' || resource.semester === semester
@@ -4770,7 +4875,14 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
                   <span>Status: <strong>Approved</strong> • {resource.uploadedAt}</span>
                 </div>
                 <div className="search-result-actions">
-                  <button type="button" className="dashboard-btn-secondary dashboard-btn-small">
+                  <button
+                    type="button"
+                    className="dashboard-btn-secondary dashboard-btn-small"
+                    onClick={() => {
+                      setPreviewTitle(`${resource.title}.${resource.format.toLowerCase()}`)
+                      setIsPreviewOpen(true)
+                    }}
+                  >
                     <span className="material-symbols-outlined">visibility</span>
                     View
                   </button>
@@ -4784,6 +4896,11 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
           </div>
         </section>
       </main>
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        title={previewTitle}
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>
   )
 }
