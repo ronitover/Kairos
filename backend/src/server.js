@@ -3,7 +3,6 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import multer from 'multer'
 import { PassThrough } from 'node:stream'
-import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { google } from 'googleapis'
 
@@ -14,6 +13,7 @@ const {
   CORS_ORIGIN = 'http://localhost:5173',
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY,
   MAX_UPLOAD_SIZE_MB = '10',
   GOOGLE_OAUTH_CLIENT_ID,
   GOOGLE_OAUTH_CLIENT_SECRET,
@@ -39,6 +39,13 @@ app.use(
 app.use(express.json())
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+})
+
+const adminSupabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,
@@ -95,6 +102,14 @@ function normalizeString(value) {
   }
 
   return trimmed
+}
+
+function normalizeSemester(value, fallback = 1) {
+  const raw = normalizeString(value)
+  const numeric = raw ? Number(String(raw).match(/\d+/)?.[0] ?? fallback) : fallback
+  if (Number.isNaN(numeric) || numeric < 1) return 1
+  if (numeric > 8) return 8
+  return numeric
 }
 
 function extractBearerToken(authorizationHeader) {
@@ -188,9 +203,15 @@ function escapeDriveQueryValue(value) {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
-const notesStore = new Map()
-const assignmentsStore = new Map()
-const submissionsStore = new Map()
+function ensureDatabaseConfigured(res) {
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    res.status(500).json({
+      message: 'Database integration requires SUPABASE_SERVICE_ROLE_KEY in backend/.env.',
+    })
+    return false
+  }
+  return true
+}
 
 async function getOrCreateSubjectFolder(subjectName, parentFolderId) {
   if (!subjectName) {
@@ -290,6 +311,150 @@ async function uploadToDrive({ file, userId, role, subjectName, folderId, fileNa
   }
 }
 
+async function syncStudentProfileFromUser(user) {
+  const fullName = normalizeString(user?.user_metadata?.fullName || user?.user_metadata?.full_name) || 'Student'
+  const usn = normalizeString(user?.user_metadata?.usn) || `TEMP-${user.id.slice(0, 8)}`
+  const programme = normalizeString(user?.user_metadata?.programme) || 'Unknown Programme'
+  const semester = normalizeSemester(user?.user_metadata?.semester, 1)
+
+  const { data, error } = await adminSupabase
+    .from('students')
+    .upsert(
+      {
+        id: user.id,
+        full_name: fullName,
+        usn,
+        programme,
+        semester,
+        status: 'active',
+      },
+      { onConflict: 'id' },
+    )
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+async function syncFacultyProfileFromUser(user) {
+  const name = normalizeString(user?.user_metadata?.name || user?.user_metadata?.fullName) || 'Faculty'
+  const department = normalizeString(user?.user_metadata?.department) || 'Department'
+  const designation = normalizeString(user?.user_metadata?.designation) || null
+
+  const { data, error } = await adminSupabase
+    .from('faculty')
+    .upsert(
+      {
+        id: user.id,
+        name,
+        department,
+        designation,
+        status: 'active',
+      },
+      { onConflict: 'id' },
+    )
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+async function syncAdminProfileFromUser(user) {
+  const name = normalizeString(user?.user_metadata?.name || user?.user_metadata?.fullName) || 'Admin'
+  const role = normalizeString(user?.user_metadata?.adminRole) || 'admin'
+
+  const { data, error } = await adminSupabase
+    .from('admins')
+    .upsert(
+      {
+        id: user.id,
+        name,
+        role: role === 'super_admin' ? 'super_admin' : 'admin',
+      },
+      { onConflict: 'id' },
+    )
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+async function syncRoleProfile(user, role) {
+  if (role === 'student') return syncStudentProfileFromUser(user)
+  if (role === 'faculty') return syncFacultyProfileFromUser(user)
+  if (role === 'admin') return syncAdminProfileFromUser(user)
+  return null
+}
+
+async function getRoleProfile(userId, role) {
+  if (role === 'student') {
+    const { data } = await adminSupabase
+      .from('students')
+      .select('id,full_name,usn,programme,semester,status,registered_at')
+      .eq('id', userId)
+      .maybeSingle()
+    return data
+  }
+  if (role === 'faculty') {
+    const { data } = await adminSupabase
+      .from('faculty')
+      .select('id,name,department,designation,status,join_date')
+      .eq('id', userId)
+      .maybeSingle()
+    return data
+  }
+  if (role === 'admin') {
+    const { data } = await adminSupabase
+      .from('admins')
+      .select('id,name,role,created_at')
+      .eq('id', userId)
+      .maybeSingle()
+    return data
+  }
+  return null
+}
+
+async function getOrCreateSubjectByName(subjectName, extra = {}) {
+  const normalized = normalizeString(subjectName)
+  if (!normalized) {
+    throw new Error('subjectName is required.')
+  }
+
+  const { data: existingByName, error: findErr } = await adminSupabase
+    .from('subjects')
+    .select('*')
+    .eq('name', normalized)
+    .limit(1)
+    .maybeSingle()
+  if (findErr) throw findErr
+  if (existingByName) return existingByName
+
+  const sanitizedCode = normalized
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase()
+    .slice(0, 20)
+  const uniqueCode = `${sanitizedCode || 'SUBJECT'}_${Date.now().toString().slice(-6)}`
+
+  const { data, error } = await adminSupabase
+    .from('subjects')
+    .insert({
+      code: extra.code || uniqueCode,
+      name: normalized,
+      programme: extra.programme || 'General',
+      semester: normalizeSemester(extra.semester, 1),
+      description: extra.description || null,
+    })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 function createRoleLoginHandler(expectedRole) {
   return async (req, res) => {
     const rawEmail = req.body?.email
@@ -314,6 +479,8 @@ function createRoleLoginHandler(expectedRole) {
       })
     }
 
+    await syncRoleProfile(data.user, actualRole)
+
     return res.json({
       message: `${expectedRole.toUpperCase()} login successful.`,
       user: {
@@ -334,8 +501,11 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true })
 })
 
-app.get('/api/me', requireAuth, (req, res) => {
+app.get('/api/me', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
   const { user, role } = req.auth
+  await syncRoleProfile(user, role)
+  const profile = await getRoleProfile(user.id, role)
 
   return res.json({
     user: {
@@ -347,6 +517,7 @@ app.get('/api/me', requireAuth, (req, res) => {
       createdAt: user.created_at,
       lastSignInAt: user.last_sign_in_at,
     },
+    profile,
   })
 })
 
@@ -513,21 +684,78 @@ app.delete('/api/files/:fileId', requireAuth, async (req, res) => {
   return res.json({ message: 'File deleted successfully.' })
 })
 
+app.get('/api/subjects', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const programme = normalizeString(req.query?.programme)
+  const semester = normalizeString(req.query?.semester)
+
+  let query = adminSupabase.from('subjects').select('*').order('name', { ascending: true })
+  if (programme) query = query.eq('programme', programme)
+  if (semester) query = query.eq('semester', semester)
+
+  const { data, error } = await query
+  if (error) throw error
+  return res.json({ subjects: data ?? [] })
+})
+
+app.post('/api/faculty/:facultyId/subjects', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const facultyId = normalizeString(req.params.facultyId)
+  const subjectIds = Array.isArray(req.body?.subjectIds) ? req.body.subjectIds : []
+  if (!facultyId || subjectIds.length === 0) {
+    return res.status(400).json({ message: 'facultyId and subjectIds are required.' })
+  }
+
+  const rows = subjectIds.map((subjectId) => ({ faculty_id: facultyId, subject_id: subjectId }))
+  const { error } = await adminSupabase.from('faculty_subjects').upsert(rows, { onConflict: 'faculty_id,subject_id' })
+  if (error) throw error
+  return res.json({ message: 'Subjects assigned successfully.', assignedCount: rows.length })
+})
+
+app.post('/api/subjects/:subjectId/enroll', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const subjectId = normalizeString(req.params.subjectId)
+  const studentIds = Array.isArray(req.body?.studentIds) ? req.body.studentIds : []
+  if (!subjectId || studentIds.length === 0) {
+    return res.status(400).json({ message: 'subjectId and studentIds are required.' })
+  }
+
+  const rows = studentIds.map((studentId) => ({ student_id: studentId, subject_id: subjectId, status: 'active' }))
+  const { error } = await adminSupabase.from('student_subjects').upsert(rows, { onConflict: 'student_id,subject_id' })
+  if (error) throw error
+  return res.json({ message: 'Students enrolled successfully.', enrolledCount: rows.length })
+})
+
+app.get('/api/subjects/:subjectId/students', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const subjectId = normalizeString(req.params.subjectId)
+  const { data, error } = await adminSupabase
+    .from('student_subjects')
+    .select('student_id,status,enrolled_at,students(id,full_name,usn,programme,semester)')
+    .eq('subject_id', subjectId)
+    .eq('status', 'active')
+    .order('enrolled_at', { ascending: false })
+
+  if (error) throw error
+  return res.json({ students: data ?? [] })
+})
+
 app.post('/api/notes/unofficial', requireAuth, requireRoles('student'), upload.single('file'), async (req, res) => {
-  if (!ensureDriveConfigured(res)) {
-    return
-  }
-  if (!req.file) {
-    return res.status(400).json({ message: 'File is required.' })
-  }
+  if (!ensureDatabaseConfigured(res) || !ensureDriveConfigured(res)) return
+  if (!req.file) return res.status(400).json({ message: 'File is required.' })
 
   const title = normalizeString(req.body?.title) || req.file.originalname
   const subjectName = normalizeString(req.body?.subjectName)
-  if (!subjectName) {
-    return res.status(400).json({ message: 'subjectName is required.' })
-  }
+  if (!subjectName) return res.status(400).json({ message: 'subjectName is required.' })
 
   const { user, role } = req.auth
+  const subject = await getOrCreateSubjectByName(subjectName)
+  await syncStudentProfileFromUser(user)
+
   const uploaded = await uploadToDrive({
     file: req.file,
     userId: user.id,
@@ -539,43 +767,46 @@ app.post('/api/notes/unofficial', requireAuth, requireRoles('student'), upload.s
     metadata: { contentType: 'note', noteType: 'unofficial' },
   })
 
-  const note = {
-    id: randomUUID(),
-    title,
-    subjectName,
-    type: 'unofficial',
-    status: 'pending',
-    uploadedBy: user.id,
-    uploadedByEmail: user.email,
-    createdAt: new Date().toISOString(),
-    file: uploaded.file,
-    reviewerId: null,
-    reviewerComment: null,
-  }
-  notesStore.set(note.id, note)
+  const { data: note, error: noteErr } = await adminSupabase
+    .from('notes')
+    .insert({
+      title,
+      chapter: normalizeString(req.body?.chapter) || null,
+      subject_id: subject.id,
+      uploaded_by: user.id,
+      uploader_role: 'student',
+      note_type: 'unofficial',
+      status: 'pending',
+    })
+    .select('*')
+    .single()
+  if (noteErr) throw noteErr
 
-  return res.status(201).json({
-    message: 'Unofficial note uploaded and sent for verification.',
-    note,
-    folder: uploaded.folder,
+  const { error: noteFileErr } = await adminSupabase.from('note_files').insert({
+    note_id: note.id,
+    file_name: uploaded.file.name,
+    file_url: uploaded.file.webViewLink || uploaded.file.webContentLink || '',
+    file_size: Number(uploaded.file.size || 0),
+    file_type: uploaded.file.mimeType || null,
   })
+  if (noteFileErr) throw noteFileErr
+
+  return res.status(201).json({ message: 'Unofficial note uploaded and sent for verification.', note, folder: uploaded.folder })
 })
 
 app.post('/api/notes/official', requireAuth, requireRoles('faculty', 'admin'), upload.single('file'), async (req, res) => {
-  if (!ensureDriveConfigured(res)) {
-    return
-  }
-  if (!req.file) {
-    return res.status(400).json({ message: 'File is required.' })
-  }
+  if (!ensureDatabaseConfigured(res) || !ensureDriveConfigured(res)) return
+  if (!req.file) return res.status(400).json({ message: 'File is required.' })
 
   const title = normalizeString(req.body?.title) || req.file.originalname
   const subjectName = normalizeString(req.body?.subjectName)
-  if (!subjectName) {
-    return res.status(400).json({ message: 'subjectName is required.' })
-  }
+  if (!subjectName) return res.status(400).json({ message: 'subjectName is required.' })
 
   const { user, role } = req.auth
+  const subject = await getOrCreateSubjectByName(subjectName)
+  if (role === 'faculty') await syncFacultyProfileFromUser(user)
+  if (role === 'admin') await syncAdminProfileFromUser(user)
+
   const uploaded = await uploadToDrive({
     file: req.file,
     userId: user.id,
@@ -587,201 +818,267 @@ app.post('/api/notes/official', requireAuth, requireRoles('faculty', 'admin'), u
     metadata: { contentType: 'note', noteType: 'official' },
   })
 
-  const note = {
-    id: randomUUID(),
-    title,
-    subjectName,
-    type: 'official',
-    status: 'approved',
-    uploadedBy: user.id,
-    uploadedByEmail: user.email,
-    createdAt: new Date().toISOString(),
-    file: uploaded.file,
-    reviewerId: user.id,
-    reviewerComment: 'Auto-approved official upload',
-  }
-  notesStore.set(note.id, note)
+  const { data: note, error: noteErr } = await adminSupabase
+    .from('notes')
+    .insert({
+      title,
+      chapter: normalizeString(req.body?.chapter) || null,
+      subject_id: subject.id,
+      uploaded_by: user.id,
+      uploader_role: 'faculty',
+      note_type: 'official',
+      status: 'verified',
+      verified_by: role === 'faculty' ? user.id : null,
+      verified_at: role === 'faculty' ? new Date().toISOString() : null,
+    })
+    .select('*')
+    .single()
+  if (noteErr) throw noteErr
 
-  return res.status(201).json({
-    message: 'Official note uploaded successfully.',
-    note,
-    folder: uploaded.folder,
+  const { error: noteFileErr } = await adminSupabase.from('note_files').insert({
+    note_id: note.id,
+    file_name: uploaded.file.name,
+    file_url: uploaded.file.webViewLink || uploaded.file.webContentLink || '',
+    file_size: Number(uploaded.file.size || 0),
+    file_type: uploaded.file.mimeType || null,
   })
+  if (noteFileErr) throw noteFileErr
+
+  return res.status(201).json({ message: 'Official note uploaded successfully.', note, folder: uploaded.folder })
 })
 
 app.get('/api/notes', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
   const { user, role } = req.auth
   const type = normalizeString(req.query?.type)
   const status = normalizeString(req.query?.status)
   const subjectName = normalizeString(req.query?.subjectName)
 
-  let notes = Array.from(notesStore.values())
-  if (type) notes = notes.filter((note) => note.type === type)
-  if (status) notes = notes.filter((note) => note.status === status)
-  if (subjectName) notes = notes.filter((note) => note.subjectName === subjectName)
+  let query = adminSupabase
+    .from('notes')
+    .select('*, subjects(id,name,code), note_files(id,file_name,file_url,file_size,file_type,uploaded_at)')
+    .order('uploaded_at', { ascending: false })
+  if (type) query = query.eq('note_type', type)
+  if (status) query = query.eq('status', status)
+  if (subjectName) query = query.eq('subjects.name', subjectName)
+  if (role === 'student') query = query.or(`note_type.eq.official,uploaded_by.eq.${user.id}`)
 
-  if (role === 'student') {
-    notes = notes.filter((note) => note.type === 'official' || note.uploadedBy === user.id)
-  }
-
-  notes.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-  return res.json({ notes })
+  const { data, error } = await query
+  if (error) throw error
+  return res.json({ notes: data ?? [] })
 })
 
-app.patch('/api/notes/:noteId/verify', requireAuth, requireRoles('faculty', 'admin'), (req, res) => {
-  const { noteId } = req.params
+app.patch('/api/notes/:noteId/verify', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
   const status = normalizeString(req.body?.status)?.toLowerCase()
-  const reviewerComment = normalizeString(req.body?.reviewerComment) || null
   if (status !== 'approved' && status !== 'rejected') {
     return res.status(400).json({ message: 'status must be either approved or rejected.' })
   }
 
-  const existing = notesStore.get(noteId)
-  if (!existing) {
-    return res.status(404).json({ message: 'Note not found.' })
-  }
-  if (existing.type !== 'unofficial') {
+  const noteId = normalizeString(req.params.noteId)
+  const { data: note, error: findErr } = await adminSupabase.from('notes').select('*').eq('id', noteId).single()
+  if (findErr) throw findErr
+  if (!note) return res.status(404).json({ message: 'Note not found.' })
+  if (note.note_type !== 'unofficial') {
     return res.status(400).json({ message: 'Only unofficial notes require verification.' })
   }
 
-  const updated = {
-    ...existing,
-    status,
-    reviewerId: req.auth.user.id,
-    reviewerComment,
-    reviewedAt: new Date().toISOString(),
-  }
-  notesStore.set(noteId, updated)
+  const nextStatus = status === 'approved' ? 'verified' : 'rejected'
+  const { data: updated, error } = await adminSupabase
+    .from('notes')
+    .update({
+      status: nextStatus,
+      verified_by: req.auth.role === 'faculty' ? req.auth.user.id : null,
+      verified_at: new Date().toISOString(),
+      rejection_reason: status === 'rejected' ? normalizeString(req.body?.reviewerComment) || null : null,
+    })
+    .eq('id', noteId)
+    .select('*')
+    .single()
+  if (error) throw error
   return res.json({ message: 'Note verification updated.', note: updated })
 })
 
-app.post('/api/assignments', requireAuth, requireRoles('faculty', 'admin'), (req, res) => {
+app.post('/api/assignments', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
   const title = normalizeString(req.body?.title)
   const subjectName = normalizeString(req.body?.subjectName)
-  const description = normalizeString(req.body?.description) || ''
-  const dueAt = normalizeString(req.body?.dueAt)
-  const maxMarks = Number(req.body?.maxMarks)
+  const instructions = normalizeString(req.body?.description || req.body?.instructions) || ''
+  const dueAt = normalizeString(req.body?.dueAt || req.body?.dueDate)
+  const maxMarks = Number(req.body?.maxMarks || req.body?.totalMarks)
 
   if (!title || !subjectName || !dueAt || Number.isNaN(maxMarks)) {
-    return res.status(400).json({
-      message: 'title, subjectName, dueAt and numeric maxMarks are required.',
-    })
+    return res.status(400).json({ message: 'title, subjectName, dueAt and numeric maxMarks are required.' })
   }
 
-  const assignment = {
-    id: randomUUID(),
-    title,
-    subjectName,
-    description,
-    dueAt,
-    maxMarks,
-    createdBy: req.auth.user.id,
-    createdByEmail: req.auth.user.email,
-    createdAt: new Date().toISOString(),
-  }
-  assignmentsStore.set(assignment.id, assignment)
+  const subject = await getOrCreateSubjectByName(subjectName)
+  const facultyId = req.auth.user.id
+  if (req.auth.role === 'faculty') await syncFacultyProfileFromUser(req.auth.user)
+
+  const { data: assignment, error } = await adminSupabase
+    .from('assignments')
+    .insert({
+      title,
+      subject_id: subject.id,
+      faculty_id: facultyId,
+      instructions,
+      total_marks: maxMarks,
+      due_date: dueAt,
+      allow_late_submission: Boolean(req.body?.allowLateSubmission),
+    })
+    .select('*, subjects(id,name,code)')
+    .single()
+  if (error) throw error
+
   return res.status(201).json({ message: 'Assignment created.', assignment })
 })
 
-app.get('/api/assignments', requireAuth, (req, res) => {
+app.get('/api/assignments', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
   const subjectName = normalizeString(req.query?.subjectName)
-  let assignments = Array.from(assignmentsStore.values())
-  if (subjectName) assignments = assignments.filter((item) => item.subjectName === subjectName)
-  assignments.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-  return res.json({ assignments })
+  let query = adminSupabase
+    .from('assignments')
+    .select('*, subjects(id,name,code)')
+    .order('created_at', { ascending: false })
+  if (subjectName) query = query.eq('subjects.name', subjectName)
+
+  const { data, error } = await query
+  if (error) throw error
+  return res.json({ assignments: data ?? [] })
 })
 
 app.post('/api/assignments/:assignmentId/submit', requireAuth, requireRoles('student'), upload.single('file'), async (req, res) => {
-  if (!ensureDriveConfigured(res)) {
-    return
-  }
-  if (!req.file) {
-    return res.status(400).json({ message: 'File is required.' })
-  }
+  if (!ensureDatabaseConfigured(res) || !ensureDriveConfigured(res)) return
+  if (!req.file) return res.status(400).json({ message: 'File is required.' })
 
-  const assignment = assignmentsStore.get(req.params.assignmentId)
-  if (!assignment) {
-    return res.status(404).json({ message: 'Assignment not found.' })
-  }
+  const assignmentId = normalizeString(req.params.assignmentId)
+  const { data: assignment, error: assignmentErr } = await adminSupabase
+    .from('assignments')
+    .select('*, subjects(id,name,code)')
+    .eq('id', assignmentId)
+    .single()
+  if (assignmentErr) throw assignmentErr
+  if (!assignment) return res.status(404).json({ message: 'Assignment not found.' })
 
-  const { user, role } = req.auth
+  const studentId = req.auth.user.id
+  await syncStudentProfileFromUser(req.auth.user)
+
   const uploaded = await uploadToDrive({
     file: req.file,
-    userId: user.id,
-    role,
-    subjectName: assignment.subjectName,
+    userId: studentId,
+    role: req.auth.role,
+    subjectName: assignment.subjects?.name || null,
     folderId: req.body?.folderId,
     fileName: req.body?.fileName,
     category: 'assignment-submission',
-    metadata: {
-      contentType: 'submission',
-      assignmentId: assignment.id,
-      studentId: user.id,
-    },
+    metadata: { contentType: 'submission', assignmentId, studentId },
   })
 
-  const submission = {
-    id: randomUUID(),
-    assignmentId: assignment.id,
-    assignmentTitle: assignment.title,
-    subjectName: assignment.subjectName,
-    studentId: user.id,
-    studentEmail: user.email,
-    submittedAt: new Date().toISOString(),
-    file: uploaded.file,
-    grade: null,
-    feedback: null,
-    gradedBy: null,
-    gradedAt: null,
+  const dueDate = new Date(assignment.due_date)
+  const now = new Date()
+  const isLate = now > dueDate
+  if (isLate && !assignment.allow_late_submission) {
+    return res.status(400).json({ message: 'Deadline passed and late submission is not allowed.' })
   }
-  submissionsStore.set(submission.id, submission)
+
+  const { data: submission, error: submissionErr } = await adminSupabase
+    .from('submissions')
+    .upsert(
+      {
+        assignment_id: assignmentId,
+        student_id: studentId,
+        status: isLate ? 'late' : 'submitted',
+        submitted_at: now.toISOString(),
+        is_late: isLate,
+        comment: normalizeString(req.body?.comment) || null,
+      },
+      { onConflict: 'assignment_id,student_id' },
+    )
+    .select('*')
+    .single()
+  if (submissionErr) throw submissionErr
+
+  const { error: fileErr } = await adminSupabase.from('submission_files').insert({
+    submission_id: submission.id,
+    file_name: uploaded.file.name,
+    file_url: uploaded.file.webViewLink || uploaded.file.webContentLink || '',
+    file_size: Number(uploaded.file.size || 0),
+    file_type: uploaded.file.mimeType || null,
+  })
+  if (fileErr) throw fileErr
+
   return res.status(201).json({ message: 'Assignment submitted.', submission, folder: uploaded.folder })
 })
 
-app.get('/api/assignments/:assignmentId/submissions', requireAuth, requireRoles('faculty', 'admin'), (req, res) => {
-  const assignment = assignmentsStore.get(req.params.assignmentId)
-  if (!assignment) {
-    return res.status(404).json({ message: 'Assignment not found.' })
-  }
+app.get('/api/assignments/:assignmentId/submissions', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
 
-  const submissions = Array.from(submissionsStore.values())
-    .filter((item) => item.assignmentId === assignment.id)
-    .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1))
+  const assignmentId = normalizeString(req.params.assignmentId)
+  const { data: assignment, error: assignmentErr } = await adminSupabase
+    .from('assignments')
+    .select('*, subjects(id,name,code)')
+    .eq('id', assignmentId)
+    .single()
+  if (assignmentErr) throw assignmentErr
+  if (!assignment) return res.status(404).json({ message: 'Assignment not found.' })
 
-  return res.json({ assignment, submissions })
+  const { data: submissions, error } = await adminSupabase
+    .from('submissions')
+    .select(
+      '*, students(id,full_name,usn,programme,semester), submission_files(id,file_name,file_url,file_size,file_type,uploaded_at), grades(id,marks,grade,feedback,graded_by,graded_at,is_released)',
+    )
+    .eq('assignment_id', assignmentId)
+    .order('submitted_at', { ascending: false })
+  if (error) throw error
+
+  return res.json({ assignment, submissions: submissions ?? [] })
 })
 
-app.patch('/api/submissions/:submissionId/grade', requireAuth, requireRoles('faculty', 'admin'), (req, res) => {
-  const submission = submissionsStore.get(req.params.submissionId)
-  if (!submission) {
-    return res.status(404).json({ message: 'Submission not found.' })
-  }
+app.patch('/api/submissions/:submissionId/grade', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
 
-  const assignment = assignmentsStore.get(submission.assignmentId)
-  if (!assignment) {
-    return res.status(404).json({ message: 'Parent assignment not found.' })
-  }
+  const submissionId = normalizeString(req.params.submissionId)
+  const { data: submission, error: submissionErr } = await adminSupabase
+    .from('submissions')
+    .select('*, assignments(id,total_marks)')
+    .eq('id', submissionId)
+    .single()
+  if (submissionErr) throw submissionErr
+  if (!submission) return res.status(404).json({ message: 'Submission not found.' })
 
+  const maxMarks = Number(submission.assignments?.total_marks || 0)
   const marks = Number(req.body?.marks)
-  const feedback = normalizeString(req.body?.feedback) || ''
-  const grade = normalizeString(req.body?.grade) || null
-  if (Number.isNaN(marks)) {
-    return res.status(400).json({ message: 'marks must be numeric.' })
-  }
-  if (marks < 0 || marks > assignment.maxMarks) {
-    return res.status(400).json({ message: `marks must be between 0 and ${assignment.maxMarks}.` })
+  if (Number.isNaN(marks)) return res.status(400).json({ message: 'marks must be numeric.' })
+  if (marks < 0 || marks > maxMarks) {
+    return res.status(400).json({ message: `marks must be between 0 and ${maxMarks}.` })
   }
 
-  const updated = {
-    ...submission,
-    grade: grade ?? String(marks),
-    marks,
-    feedback,
-    gradedBy: req.auth.user.id,
-    gradedAt: new Date().toISOString(),
-  }
-  submissionsStore.set(updated.id, updated)
-  return res.json({ message: 'Submission graded.', submission: updated })
+  if (req.auth.role === 'faculty') await syncFacultyProfileFromUser(req.auth.user)
+
+  const { data: grade, error } = await adminSupabase
+    .from('grades')
+    .upsert(
+      {
+        submission_id: submissionId,
+        marks,
+        grade: normalizeString(req.body?.grade) || String(marks),
+        feedback: normalizeString(req.body?.feedback) || null,
+        graded_by: req.auth.user.id,
+        graded_at: new Date().toISOString(),
+        is_released: req.body?.isReleased === true,
+        released_at: req.body?.isReleased === true ? new Date().toISOString() : null,
+      },
+      { onConflict: 'submission_id' },
+    )
+    .select('*')
+    .single()
+  if (error) throw error
+
+  return res.json({ message: 'Submission graded.', grade })
 })
 
 app.post('/api/auth/student/register', async (req, res) => {
@@ -830,6 +1127,8 @@ app.post('/api/auth/student/register', async (req, res) => {
   if (!data.user) {
     return res.status(500).json({ message: 'Unable to create account.' })
   }
+
+  await syncStudentProfileFromUser(data.user)
 
   return res.status(201).json({
     message:

@@ -8,21 +8,24 @@
 ## Configure
 1. Copy `backend/.env.example` to `backend/.env`.
 2. Fill `SUPABASE_URL` and `SUPABASE_ANON_KEY` from your Supabase project.
-3. Keep `CORS_ORIGIN` as `http://localhost:5173` for local Vite frontend.
-4. Never commit `backend/.env` with real keys.
-5. Configure Google Drive using OAuth2 (recommended for personal Google accounts):
+3. Fill `SUPABASE_SERVICE_ROLE_KEY` (required for DB table writes from backend).
+4. Keep `CORS_ORIGIN` as `http://localhost:5173` for local Vite frontend.
+5. Never commit `backend/.env` with real keys.
+6. Configure Google Drive using OAuth2 (recommended for personal Google accounts):
    - `GOOGLE_OAUTH_CLIENT_ID`
    - `GOOGLE_OAUTH_CLIENT_SECRET`
    - `GOOGLE_OAUTH_REDIRECT_URI` (default: `http://localhost:4000/api/drive/oauth/callback`)
    - optional initial `GOOGLE_OAUTH_REFRESH_TOKEN`
-6. Set `GOOGLE_DRIVE_PARENT_FOLDER_ID` to the folder where uploads should be stored.
-7. One-time OAuth setup flow:
+7. Set `GOOGLE_DRIVE_PARENT_FOLDER_ID` to the folder where uploads should be stored.
+8. One-time OAuth setup flow:
    - Open `GET /api/drive/oauth/url` and copy the URL.
    - Complete Google consent in browser.
    - Copy the `code` query parameter from redirect URL.
    - Call `POST /api/drive/oauth/exchange-code` with `{ "code": "<your_code>" }`.
    - Save returned `refreshToken` into `GOOGLE_OAUTH_REFRESH_TOKEN` in `.env`.
    - Restart backend.
+9. Run DB schema once in Supabase SQL Editor:
+   - Execute `backend/sql/schema.sql`
 
 ## Run
 ```bash
@@ -30,6 +33,24 @@ cd backend
 npm install
 npm run dev
 ```
+
+## Seed Faculty/Admin Users (No hardcoding in app)
+1. Copy template and edit users:
+```bash
+cd backend
+copy scripts\\seed-users.template.json scripts\\seed-users.json
+```
+2. Fill entries (faculty/admin records with email/password/name).
+3. Run:
+```bash
+npm run seed:users
+```
+4. Optional custom input file:
+```bash
+node scripts/seed-users.js scripts/your-users.json
+```
+
+This creates Auth users and upserts profile rows into `faculty` / `admins`.
 
 ## API
 - `POST /api/auth/student/register`
@@ -44,6 +65,10 @@ npm run dev
 - `GET /api/files` (Bearer token)
 - `GET /api/files/:fileId` (Bearer token)
 - `DELETE /api/files/:fileId` (Bearer token)
+- `GET /api/subjects`
+- `POST /api/faculty/:facultyId/subjects` (admin only)
+- `POST /api/subjects/:subjectId/enroll` (admin only)
+- `GET /api/subjects/:subjectId/students` (faculty/admin only)
 - `POST /api/notes/unofficial` (student only, file required)
 - `POST /api/notes/official` (faculty/admin only, file required)
 - `GET /api/notes` (role-aware list, supports `type`, `status`, `subjectName`)
