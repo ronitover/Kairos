@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 
 web.txt
+
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
