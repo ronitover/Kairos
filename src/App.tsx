@@ -7,6 +7,8 @@ type RoutePath =
   | '/student_register'
   | '/faculty_login'
   | '/faculty_dashboard'
+  | '/faculty_verification'
+  | '/faculty_textbook_upload'
   | '/student_dashboard'
   | '/assignment_review'
   | '/assignment_result'
@@ -87,6 +89,14 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/faculty_dashboard') {
     return '/faculty_dashboard'
+  }
+
+  if (pathname === '/faculty_verification') {
+    return '/faculty_verification'
+  }
+
+  if (pathname === '/faculty_textbook_upload') {
+    return '/faculty_textbook_upload'
   }
 
   if (pathname === '/student_dashboard' || pathname === '/dashboard') {
@@ -403,7 +413,13 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
   )
 }
 
-function FacultyDashboardScreen() {
+function FacultyDashboardScreen({
+  onViewAllVerification,
+  onUploadTextbook,
+}: {
+  onViewAllVerification: () => void
+  onUploadTextbook: () => void
+}) {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
 
   return (
@@ -513,9 +529,14 @@ function FacultyDashboardScreen() {
           </section>
 
           <section className="dashboard-card">
-            <div className="dashboard-section-title">
-              <span className="material-symbols-outlined">verified_user</span>
-              <h2>Verification Panel</h2>
+            <div className="faculty-section-head">
+              <div className="dashboard-section-title">
+                <span className="material-symbols-outlined">verified_user</span>
+                <h2>Verification Panel</h2>
+              </div>
+              <button type="button" className="faculty-outline-btn" onClick={onViewAllVerification}>
+                View All
+              </button>
             </div>
             <p className="faculty-subtitle">Pending Student Notes</p>
             <div className="faculty-verify-list">
@@ -566,7 +587,7 @@ function FacultyDashboardScreen() {
                 <span className="material-symbols-outlined">library_books</span>
                 <h2>Textbook Management</h2>
               </div>
-              <button type="button" className="faculty-outline-btn">
+              <button type="button" className="faculty-outline-btn" onClick={onUploadTextbook}>
                 <span className="material-symbols-outlined">add</span>
                 Upload
               </button>
@@ -964,6 +985,394 @@ function StudentDashboardScreen({
           <a href="#">Help Center</a>
           <a href="#">Privacy Policy</a>
           <a href="#">Support</a>
+        </nav>
+      </footer>
+    </div>
+  )
+}
+
+function FacultyVerificationScreen() {
+  return (
+    <div className="faculty-page" aria-label="Student notes verification panel">
+      <header className="faculty-header">
+        <div className="faculty-container faculty-header-row">
+          <div className="faculty-brand">
+            <div className="faculty-brand-icon">
+              <span className="material-symbols-outlined">account_balance</span>
+            </div>
+            <div>
+              <h1 className="faculty-portal-title">University Portal</h1>
+              <p className="faculty-portal-subtitle">Faculty Administration</p>
+            </div>
+          </div>
+          <div className="dashboard-user">
+            <div className="dashboard-user-info">
+              <p>Dr. Sarah Jenkins</p>
+              <p>Senior Professor • CS Dept</p>
+            </div>
+            <div className="dashboard-avatar">
+              <span className="material-symbols-outlined">account_circle</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="faculty-container faculty-main">
+        <div className="faculty-verify-page-title">
+          <h2>Student Notes Verification</h2>
+          <div />
+        </div>
+
+        <section className="faculty-verify-filters">
+          <div className="faculty-verify-search">
+            <span className="material-symbols-outlined">search</span>
+            <input type="text" placeholder="Search Student Name or USN..." />
+          </div>
+          <select defaultValue="">
+            <option value="">All Chapters</option>
+            <option>Unit 1: Introduction</option>
+            <option>Unit 2: Process Mgmt</option>
+            <option>Unit 3: Memory Mgmt</option>
+          </select>
+          <select defaultValue="">
+            <option value="">All Status</option>
+            <option>Pending</option>
+            <option>Verified</option>
+            <option>Rejected</option>
+          </select>
+          <button type="button" className="faculty-filter-btn">
+            <span className="material-symbols-outlined">filter_list</span>
+          </button>
+        </section>
+
+        <section className="dashboard-card faculty-verify-table-card">
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Student Name</th>
+                  <th>USN</th>
+                  <th>Note Title</th>
+                  <th>Chapter</th>
+                  <th>Upload Date</th>
+                  <th>Status</th>
+                  <th className="align-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Aditya Kulkarni</td>
+                  <td className="muted">1MS21CS004</td>
+                  <td>
+                    <div className="faculty-note-cell">
+                      <span>Virtual Memory Deep Dive</span>
+                      <span className="faculty-new-tag">NEW</span>
+                    </div>
+                  </td>
+                  <td className="muted">Unit 3</td>
+                  <td className="muted">Oct 24, 2023</td>
+                  <td>
+                    <span className="faculty-status-badge pending">Pending</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-row-actions">
+                      <button type="button" className="faculty-preview-btn">
+                        Preview
+                      </button>
+                      <button type="button" className="faculty-approve-btn">
+                        Approve
+                      </button>
+                      <button type="button" className="faculty-reject-btn">
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Rohan Sharma</td>
+                  <td className="muted">1MS21CS142</td>
+                  <td>
+                    <div className="faculty-note-cell">
+                      <span>Process Scheduling Algos</span>
+                      <span className="faculty-new-tag">NEW</span>
+                    </div>
+                  </td>
+                  <td className="muted">Unit 2</td>
+                  <td className="muted">Oct 23, 2023</td>
+                  <td>
+                    <span className="faculty-status-badge pending">Pending</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-row-actions">
+                      <button type="button" className="faculty-preview-btn">
+                        Preview
+                      </button>
+                      <button type="button" className="faculty-approve-btn">
+                        Approve
+                      </button>
+                      <button type="button" className="faculty-reject-btn">
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Ananya Iyer</td>
+                  <td className="muted">1MS21CS028</td>
+                  <td>Deadlock Prevention Strategies</td>
+                  <td className="muted">Unit 2</td>
+                  <td className="muted">Oct 20, 2023</td>
+                  <td>
+                    <span className="faculty-status-badge verified">Verified</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-row-actions disabled">
+                      <button type="button" className="faculty-preview-btn" disabled>
+                        Preview
+                      </button>
+                      <button type="button" className="faculty-approve-btn" disabled>
+                        Approve
+                      </button>
+                      <button type="button" className="faculty-reject-btn" disabled>
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Vikram Rao</td>
+                  <td className="muted">1MS21CS189</td>
+                  <td>History of Computing Systems</td>
+                  <td className="muted">Unit 1</td>
+                  <td className="muted">Oct 18, 2023</td>
+                  <td>
+                    <span className="faculty-status-badge rejected">Rejected</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-row-actions disabled">
+                      <button type="button" className="faculty-preview-btn" disabled>
+                        Preview
+                      </button>
+                      <button type="button" className="faculty-approve-btn" disabled>
+                        Approve
+                      </button>
+                      <button type="button" className="faculty-reject-btn" disabled>
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="faculty-pagination">
+            <p>Showing 1 to 4 of 24 submissions</p>
+            <div>
+              <button type="button" disabled>
+                <span className="material-symbols-outlined">chevron_left</span>
+              </button>
+              <button type="button" className="active">
+                1
+              </button>
+              <button type="button">2</button>
+              <button type="button">3</button>
+              <button type="button">
+                <span className="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="dashboard-footer faculty-container">
+        <div>
+          <p>University Digital Repository • Faculty Portal</p>
+        </div>
+        <nav aria-label="Footer links">
+          <a href="#">Internal Guidelines</a>
+          <a href="#">Faculty Support</a>
+          <a href="#">System Status</a>
+        </nav>
+      </footer>
+    </div>
+  )
+}
+
+function FacultyTextbookUploadScreen() {
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  return (
+    <div className="textbook-page" aria-label="Textbook management panel">
+      {isModalOpen ? <div className="textbook-modal-overlay" /> : null}
+
+      <header className="faculty-header textbook-header">
+        <div className="faculty-container faculty-header-row">
+          <div className="faculty-brand">
+            <div className="faculty-brand-icon">
+              <span className="material-symbols-outlined">menu_book</span>
+            </div>
+            <div>
+              <h1 className="faculty-portal-title">University Portal</h1>
+              <p className="faculty-portal-subtitle">Faculty Administration</p>
+            </div>
+          </div>
+          <div className="dashboard-user">
+            <div className="dashboard-user-info">
+              <p>Dr. Sarah Jenkins</p>
+              <p>Senior Professor • CS Dept</p>
+            </div>
+            <div className="dashboard-avatar">
+              <span className="material-symbols-outlined">account_circle</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="faculty-container textbook-main">
+        <div className="textbook-title-row">
+          <div>
+            <h2>Textbook Management</h2>
+            <div />
+          </div>
+          <button type="button" className="textbook-upload-btn" onClick={() => setIsModalOpen(true)}>
+            <span className="material-symbols-outlined">upload_file</span>
+            Upload Textbook
+          </button>
+        </div>
+
+        <section className="textbook-list-card">
+          <div className="textbook-list-head">
+            <div>Book Details</div>
+            <div>Author &amp; Edition</div>
+            <div>Upload Date</div>
+            <div className="align-right">Action</div>
+          </div>
+          <div className="textbook-list-body">
+            <article className="textbook-list-row">
+              <div className="textbook-book-cell">
+                <div className="textbook-icon-cell">
+                  <span className="material-symbols-outlined">book_2</span>
+                </div>
+                <div>
+                  <h3>Modern Operating Systems</h3>
+                  <p>ISBN: 978-0133591620</p>
+                </div>
+              </div>
+              <div>
+                <p>Andrew S. Tanenbaum</p>
+                <p>4th Edition</p>
+              </div>
+              <div>
+                <p>Oct 24, 2023</p>
+              </div>
+              <div className="align-right">
+                <button type="button" className="faculty-icon-danger">
+                  <span className="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </article>
+
+            <article className="textbook-list-row">
+              <div className="textbook-book-cell">
+                <div className="textbook-icon-cell">
+                  <span className="material-symbols-outlined">book_2</span>
+                </div>
+                <div>
+                  <h3>Introduction to Algorithms</h3>
+                  <p>ISBN: 978-0262033848</p>
+                </div>
+              </div>
+              <div>
+                <p>Thomas H. Cormen</p>
+                <p>3rd Edition</p>
+              </div>
+              <div>
+                <p>Oct 15, 2023</p>
+              </div>
+              <div className="align-right">
+                <button type="button" className="faculty-icon-danger">
+                  <span className="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <div className="textbook-sync-note">
+          <span className="material-symbols-outlined">sync</span>
+          <p>All uploaded books are automatically synced to the student dashboard.</p>
+        </div>
+      </main>
+
+      {isModalOpen ? (
+        <div className="textbook-modal-wrap" role="dialog" aria-modal="true" aria-label="Upload new textbook">
+          <div className="textbook-modal-card">
+            <div className="textbook-modal-head">
+              <div>
+                <h3>Upload New Textbook</h3>
+                <p>Fill in the details to add a new resource to the repository.</p>
+              </div>
+              <button type="button" onClick={() => setIsModalOpen(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form className="textbook-modal-form" onSubmit={(event) => event.preventDefault()}>
+              <div>
+                <label htmlFor="book-title">Book Title</label>
+                <input id="book-title" type="text" placeholder="e.g. Modern Operating Systems" />
+              </div>
+              <div className="textbook-modal-grid">
+                <div>
+                  <label htmlFor="author">Author Name</label>
+                  <input id="author" type="text" placeholder="e.g. Andrew S. Tanenbaum" />
+                </div>
+                <div>
+                  <label htmlFor="edition">
+                    Edition <span className="field-optional">(Optional)</span>
+                  </label>
+                  <select id="edition" defaultValue="">
+                    <option value="">Select Edition</option>
+                    <option value="1st">1st Edition</option>
+                    <option value="2nd">2nd Edition</option>
+                    <option value="3rd">3rd Edition</option>
+                    <option value="4th">4th Edition</option>
+                    <option value="5th+">5th Edition or newer</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label>Book Document (PDF)</label>
+                <label className="textbook-file-dropzone">
+                  <input type="file" />
+                  <div>
+                    <span className="material-symbols-outlined">picture_as_pdf</span>
+                  </div>
+                  <p>Click or drag PDF to upload</p>
+                  <p>Files will be encrypted and stored securely</p>
+                </label>
+                <p className="textbook-file-help">Maximum file size: 50MB. Only PDF format supported.</p>
+              </div>
+              <div className="textbook-modal-actions">
+                <button type="submit" className="textbook-publish-btn">
+                  Upload &amp; Publish
+                </button>
+                <button type="button" className="textbook-cancel-btn" onClick={() => setIsModalOpen(false)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      <footer className="dashboard-footer faculty-container">
+        <div>
+          <p>University Digital Repository • Faculty Portal</p>
+        </div>
+        <nav aria-label="Footer links">
+          <a href="#">Internal Guidelines</a>
+          <a href="#">Faculty Support</a>
+          <a href="#">System Status</a>
         </nav>
       </footer>
     </div>
@@ -1542,7 +1951,16 @@ function App() {
 
       {path === '/faculty_login' ? <FacultyLoginScreen onLogin={() => navigate('/faculty_dashboard')} /> : null}
 
-      {path === '/faculty_dashboard' ? <FacultyDashboardScreen /> : null}
+      {path === '/faculty_dashboard' ? (
+        <FacultyDashboardScreen
+          onViewAllVerification={() => navigate('/faculty_verification')}
+          onUploadTextbook={() => navigate('/faculty_textbook_upload')}
+        />
+      ) : null}
+
+      {path === '/faculty_verification' ? <FacultyVerificationScreen /> : null}
+
+      {path === '/faculty_textbook_upload' ? <FacultyTextbookUploadScreen /> : null}
 
       {path === '/student_dashboard' ? (
         <StudentDashboardScreen
