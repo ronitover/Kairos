@@ -1604,6 +1604,35 @@ app.get('/api/assignments', requireAuth, async (req, res) => {
   return res.json({ assignments: data ?? [] })
 })
 
+app.get('/api/assignments/:assignmentId', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const assignmentId = normalizeString(req.params.assignmentId)
+  if (!assignmentId) return res.status(400).json({ message: 'assignmentId is required.' })
+
+  const { data: assignment, error: assignmentError } = await adminSupabase
+    .from('assignments')
+    .select('*, subjects(id,name,code), assignment_resources(id,file_name,file_url,file_size,file_type,uploaded_at)')
+    .eq('id', assignmentId)
+    .maybeSingle()
+  if (assignmentError) throw assignmentError
+  if (!assignment) return res.status(404).json({ message: 'Assignment not found.' })
+
+  let submission = null
+  if (req.auth.role === 'student') {
+    const { data: ownSubmission, error: ownSubmissionError } = await adminSupabase
+      .from('submissions')
+      .select('*, submission_files(id,file_name,file_url,file_size,file_type,uploaded_at), grades(id,marks,grade,feedback,graded_at,is_released)')
+      .eq('assignment_id', assignmentId)
+      .eq('student_id', req.auth.user.id)
+      .maybeSingle()
+    if (ownSubmissionError) throw ownSubmissionError
+    submission = ownSubmission ?? null
+  }
+
+  return res.json({ assignment, submission })
+})
+
 app.post('/api/assignments/:assignmentId/submit', requireAuth, requireRoles('student'), upload.single('file'), async (req, res) => {
   if (!ensureDatabaseConfigured(res) || !ensureDriveConfigured(res)) return
   if (!req.file) return res.status(400).json({ message: 'File is required.' })

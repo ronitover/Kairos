@@ -70,6 +70,11 @@ export interface DiscoverUnofficialItem {
 }
 
 class StudentService {
+  private normalizeProgramme(value: string | null | undefined): string {
+    if (!value) return ''
+    return value.toLowerCase().replace(/\(honours\)|honours|\s+/g, '').trim()
+  }
+
   async getDashboard(): Promise<StudentDashboard> {
     const meResponse = await apiClient.get<{
       user: { id: string; email: string }
@@ -127,6 +132,38 @@ class StudentService {
       throw new Error(assignmentsResponse.error?.message || 'Failed to load assignments')
     }
 
+    const textbooksResponse = await apiClient.get<{
+      textbooks: Array<{
+        id: string
+        title: string
+        author: string
+        edition: string | null
+        subjectName: string | null
+        programme: string | null
+        semester: number | null
+        file: {
+          url: string
+        } | null
+      }>
+    }>('/textbooks')
+    if (textbooksResponse.error || !textbooksResponse.data) {
+      throw new Error(textbooksResponse.error?.message || 'Failed to load textbooks')
+    }
+
+    const studentSemester = Number(student.semester || 0)
+    const normalizedStudentProgramme = this.normalizeProgramme(student.programme)
+    const filteredTextbooks = textbooksResponse.data.textbooks.filter((book) => {
+      const normalizedBookProgramme = this.normalizeProgramme(book.programme)
+      const programmeMatches =
+        !normalizedBookProgramme ||
+        !normalizedStudentProgramme ||
+        normalizedBookProgramme.includes(normalizedStudentProgramme) ||
+        normalizedStudentProgramme.includes(normalizedBookProgramme)
+      const semesterMatches = !book.semester || !studentSemester || Number(book.semester) === studentSemester
+      return programmeMatches && semesterMatches
+    })
+    const visibleTextbooks = filteredTextbooks.length > 0 ? filteredTextbooks : textbooksResponse.data.textbooks
+
     return {
       student,
       enrolledSubjects: subjectsResponse.data.subjects.map((subject) => ({
@@ -153,7 +190,13 @@ class StudentService {
         uploadedAt: note.uploaded_at,
         downloadUrl: note.note_files?.[0]?.file_url || '#',
       })),
-      textbooks: [],
+      textbooks: visibleTextbooks.map((book) => ({
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        edition: book.edition || 'Edition not specified',
+        downloadUrl: book.file?.url || '#',
+      })),
     }
   }
 

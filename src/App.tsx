@@ -5605,11 +5605,51 @@ function AssignmentReviewScreen({
   const [files, setFiles] = useState<File[]>([])
   const [comment, setComment] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [assignment, setAssignment] = useState<Awaited<ReturnType<typeof assignmentService.getAssignment>> | null>(null)
+  const [assignmentLoading, setAssignmentLoading] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const subtitle = user?.semester ? `Semester ${user.semester}` : ''
   const programme = user?.programme || ''
+
+  useEffect(() => {
+    let active = true
+    setAssignmentLoading(true)
+    setError(null)
+
+    assignmentService
+      .getStudentAssignments()
+      .then(async (list) => {
+        if (!active) return
+        if (list.length === 0) {
+          setAssignment(null)
+          setAssignmentLoading(false)
+          return
+        }
+        const now = Date.now()
+        const preferred =
+          list.find((item) => new Date(item.dueDate).getTime() >= now) ||
+          list[0]
+        const details = await assignmentService.getAssignment(preferred.id)
+        if (!active) return
+        setAssignment(details)
+        if (details.submission?.status === 'submitted' || details.submission?.status === 'late') {
+          setIsSubmitted(true)
+        }
+      })
+      .catch((err) => {
+        if (!active) return
+        setError(err instanceof Error ? err.message : 'Failed to load assignment')
+      })
+      .finally(() => {
+        if (active) setAssignmentLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -5635,12 +5675,16 @@ function AssignmentReviewScreen({
       setError('Please upload at least one file')
       return
     }
+    if (!assignment?.id) {
+      setError('No assignment selected.')
+      return
+    }
 
     setIsLoading(true)
     setError(null)
 
     try {
-      await assignmentService.submitAssignment('assign-1', files, comment)
+      await assignmentService.submitAssignment(assignment.id, files, comment)
       setIsSubmitted(true)
       setTimeout(() => {
         if (onBackToDashboard) {
@@ -5669,20 +5713,31 @@ function AssignmentReviewScreen({
       <main className="dashboard-container assignment-main">
         <div className="assignment-layout">
           <section className="assignment-card assignment-details">
+            {!assignment && !assignmentLoading ? (
+              <div style={{ marginBottom: '1rem', color: '#6b7280', fontWeight: 600 }}>No assignments available.</div>
+            ) : null}
             <div className="assignment-badges">
-              <span className="assignment-badge blue">Subject: CS501</span>
-              <span className="assignment-badge neutral">Unit 3</span>
-              <span className="assignment-badge green">Marks: 50</span>
+              <span className="assignment-badge blue">Subject: {assignment?.subjectCode || '-'}</span>
+              <span className="assignment-badge neutral">{assignment?.title || 'Assignment'}</span>
+              <span className="assignment-badge green">Marks: {assignment?.totalMarks ?? '-'}</span>
             </div>
 
             <div className="assignment-due-box">
               <div>
                 <p>Due Date</p>
-                <h2>November 24, 2023 at 11:59 PM</h2>
+                <h2>
+                  {assignment?.dueDate
+                    ? new Date(assignment.dueDate).toLocaleString()
+                    : assignmentLoading
+                      ? 'Loading...'
+                      : 'No due date'}
+                </h2>
               </div>
               <span className="assignment-badge warning">
                 <span className="material-symbols-outlined">timer</span>
-                Due soon
+                {assignment?.dueDate && new Date(assignment.dueDate).getTime() < Date.now()
+                  ? 'Deadline passed'
+                  : 'Due soon'}
               </span>
             </div>
 
@@ -5691,18 +5746,7 @@ function AssignmentReviewScreen({
                 <span className="material-symbols-outlined">description</span>
                 Instructions
               </h3>
-              <p>
-                In this assignment, you are required to demonstrate your understanding of complex SQL Joins. You
-                will be working with a sample database of a library system. Please ensure your queries are optimized
-                and include comments explaining your logic.
-              </p>
-              <ul>
-                <li>Write queries for Inner, Left, Right, and Full Outer joins.</li>
-                <li>Include at least two queries with multiple join conditions.</li>
-                <li>Implement a self-join for the Staff Hierarchy table.</li>
-                <li>Export your results in a single .sql file.</li>
-                <li>Provide a brief PDF report explaining the execution plan for Query #4.</li>
-              </ul>
+              <p>{assignmentLoading ? 'Loading instructions...' : (assignment?.instructions || 'No instructions provided.')}</p>
             </div>
 
             <div className="assignment-resources">
@@ -5711,16 +5755,26 @@ function AssignmentReviewScreen({
                 Faculty Resources
               </h3>
               <div className="assignment-resource-list">
-                <button type="button" className="assignment-resource-btn">
-                  <span className="material-symbols-outlined">description</span>
-                  Database_Schema.pdf
-                  <span className="material-symbols-outlined">download</span>
-                </button>
-                <button type="button" className="assignment-resource-btn">
-                  <span className="material-symbols-outlined">table_chart</span>
-                  Sample_Data.docx
-                  <span className="material-symbols-outlined">download</span>
-                </button>
+                {(assignment?.resources ?? []).length === 0 ? (
+                  <button type="button" className="assignment-resource-btn" disabled>
+                    <span className="material-symbols-outlined">folder_off</span>
+                    No resources attached
+                    <span className="material-symbols-outlined">download</span>
+                  </button>
+                ) : null}
+                {(assignment?.resources ?? []).map((resource) => (
+                  <a
+                    key={resource.id}
+                    href={resource.fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="assignment-resource-btn"
+                  >
+                    <span className="material-symbols-outlined">description</span>
+                    {resource.fileName}
+                    <span className="material-symbols-outlined">download</span>
+                  </a>
+                ))}
               </div>
             </div>
           </section>
@@ -5787,7 +5841,7 @@ function AssignmentReviewScreen({
                     type="button"
                     className="assignment-submit-btn"
                     onClick={handleSubmit}
-                    disabled={isLoading || files.length === 0}
+                    disabled={isLoading || files.length === 0 || !assignment}
                   >
                     {isLoading ? 'Submitting...' : 'Submit Assignment'}
                   </button>
