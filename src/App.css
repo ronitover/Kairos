@@ -1841,6 +1841,58 @@
   align-content: start;
 }
 
+.pdf-preview-text-pages {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 860px);
+  margin: 0 auto;
+}
+
+.pdf-preview-text-page {
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 6px 20px rgb(15 23 42 / 0.12);
+}
+
+.pdf-preview-text-page h4 {
+  margin: 0 0 0.6rem;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.pdf-preview-text-page p {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.pdf-preview-text-content {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.pdf-preview-text-content p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.pdf-preview-text-content p.heading {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #111827;
+  margin-top: 0.5rem;
+}
+
+.pdf-preview-text-content p.body {
+  font-weight: 400;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #1f2937;
+}
+
 .pdf-preview-page p,
 .pdf-preview-page h4 {
   margin: 0;
@@ -7343,6 +7395,84 @@
 .assistant-input-wrap button:disabled {
   background: #cbd5e1;
   cursor: not-allowed;
+}
+
+.word-meaning-popup {
+  position: fixed;
+  transform: translate(-50%, 0);
+  z-index: 10000;
+  width: min(340px, calc(100vw - 1.5rem));
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 12px;
+  box-shadow: 0 14px 28px rgba(16, 24, 40, 0.18);
+  padding: 0.7rem 0.8rem;
+}
+
+.word-meaning-popup::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-left: 1px solid #d8dee8;
+  border-top: 1px solid #d8dee8;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.word-meaning-popup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.word-meaning-popup-head strong {
+  color: #0f172a;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.word-meaning-popup-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: #f3f6fb;
+  color: #4f5d75;
+  cursor: pointer;
+}
+
+.word-meaning-popup-head button .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.word-meaning-popup p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.word-meaning-hint {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 10000;
+  max-width: min(420px, calc(100vw - 2rem));
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  background: #fff8e1;
+  border: 1px solid #f0d792;
+  color: #7a5d00;
+  font-size: 0.8rem;
+  line-height: 1.3;
 }
 
 .calendar-widget-card {

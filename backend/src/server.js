@@ -881,6 +881,57 @@ app.get('/api/files/:fileId', requireAuth, async (req, res) => {
   return res.json({ file: mapDriveFile(found.data) })
 })
 
+app.get('/api/files/:fileId/content', requireAuth, async (req, res) => {
+  if (!ensureDriveConfigured(res)) {
+    return
+  }
+
+  const { fileId } = req.params
+  const { user, role } = req.auth
+  const canReadAll = role === 'admin' || role === 'faculty'
+
+  const found = await driveClient.files.get({
+    fileId,
+    supportsAllDrives: true,
+    fields:
+      'id,name,mimeType,size,createdTime,webViewLink,webContentLink,parents,appProperties',
+  })
+
+  const uploadedBy = found.data.appProperties?.uploadedBy
+  if (!canReadAll && uploadedBy && uploadedBy !== user.id) {
+    return res.status(403).json({ message: 'You are not allowed to access this file.' })
+  }
+
+  const media = await driveClient.files.get(
+    {
+      fileId,
+      supportsAllDrives: true,
+      alt: 'media',
+    },
+    { responseType: 'stream' },
+  )
+
+  const mimeType = found.data.mimeType || 'application/octet-stream'
+  const fileName = normalizeString(found.data.name) || `file-${fileId}`
+  const safeFileName = fileName.replace(/[\r\n"]/g, '_')
+
+  res.setHeader('Content-Type', mimeType)
+  res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"`)
+  if (found.data.size) {
+    res.setHeader('Content-Length', String(found.data.size))
+  }
+
+  media.data.on('error', (error) => {
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Failed to stream file from Drive.', details: error.message })
+    } else {
+      res.end()
+    }
+  })
+
+  media.data.pipe(res)
+})
+
 app.delete('/api/files/:fileId', requireAuth, async (req, res) => {
   if (!ensureDriveConfigured(res)) {
     return
@@ -1009,7 +1060,7 @@ app.post('/api/notes/unofficial', requireAuth, requireRoles('student'), upload.s
   const { error: noteFileErr } = await adminSupabase.from('note_files').insert({
     note_id: note.id,
     file_name: uploaded.file.name,
-    file_url: uploaded.file.webViewLink || uploaded.file.webContentLink || '',
+    file_url: uploaded.file.webContentLink || uploaded.file.webViewLink || '',
     file_size: Number(uploaded.file.size || 0),
     file_type: uploaded.file.mimeType || null,
   })
@@ -1065,7 +1116,7 @@ app.post('/api/notes/official', requireAuth, requireRoles('faculty', 'admin'), u
   const { error: noteFileErr } = await adminSupabase.from('note_files').insert({
     note_id: note.id,
     file_name: uploaded.file.name,
-    file_url: uploaded.file.webViewLink || uploaded.file.webContentLink || '',
+    file_url: uploaded.file.webContentLink || uploaded.file.webViewLink || '',
     file_size: Number(uploaded.file.size || 0),
     file_type: uploaded.file.mimeType || null,
   })
@@ -1296,7 +1347,7 @@ app.post('/api/assignments/:assignmentId/submit', requireAuth, requireRoles('stu
   const { error: fileErr } = await adminSupabase.from('submission_files').insert({
     submission_id: submission.id,
     file_name: uploaded.file.name,
-    file_url: uploaded.file.webViewLink || uploaded.file.webContentLink || '',
+    file_url: uploaded.file.webContentLink || uploaded.file.webViewLink || '',
     file_size: Number(uploaded.file.size || 0),
     file_type: uploaded.file.mimeType || null,
   })
@@ -1474,3 +1525,4 @@ app.use((error, _req, res, _next) => {
 app.listen(Number(PORT), () => {
   console.log(`Backend listening on http://localhost:${PORT}`)
 })
+

@@ -64,6 +64,7 @@ const SUPPORTED_UPLOAD_MIME_TYPES = [
 
 const SUPPORTED_UPLOAD_ACCEPT = '.pdf,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png'
 const SUPPORTED_UPLOAD_LABEL = 'PDF, PPT/PPTX, DOC/DOCX, JPG/PNG'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
 function enforceSupportedUploadFile(file: File, maxSizeInBytes: number): void {
   validateFile(file, {
@@ -93,6 +94,25 @@ type AcademicEvent = {
   createdBy: string
   createdByRole: 'faculty' | 'admin'
   targetAudience: 'students' | 'faculty' | 'both'
+}
+
+type PdfPreviewLine = {
+  text: string
+  isHeading: boolean
+}
+
+type PdfPreviewPage = {
+  lines: PdfPreviewLine[]
+}
+
+type DictionaryPopupState = {
+  open: boolean
+  loading: boolean
+  word: string
+  meaning: string
+  error: string | null
+  top: number
+  left: number
 }
 
 const defaultDepartmentNotices: DepartmentNotice[] = [
@@ -345,6 +365,57 @@ function PdfPreviewModal({
   downloadUrl?: string | null
   onClose: () => void
 }) {
+  const [pdfPages, setPdfPages] = useState<PdfPreviewPage[]>([])
+  const [isPdfLoading, setIsPdfLoading] = useState(false)
+  const [pdfError, setPdfError] = useState<string | null>(null)
+
+  const sourceUrl = downloadUrl || previewUrl || null
+  const readableUrl = getAiReadableFileUrl(sourceUrl)
+  const isPdfFile = Boolean(sourceUrl && readableUrl && isPdfSource(title, sourceUrl))
+  const extractedPreviewText = pdfPages
+    .flatMap((page) => page.lines.map((line) => line.text))
+    .filter(Boolean)
+    .join('\n')
+
+  useEffect(() => {
+    if (!isOpen || !isPdfFile || !readableUrl) {
+      setPdfPages([])
+      setIsPdfLoading(false)
+      setPdfError(null)
+      return
+    }
+
+    let active = true
+    const authToken = localStorage.getItem('auth_token')
+    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+
+    setIsPdfLoading(true)
+    setPdfError(null)
+    setPdfPages([])
+
+    extractPdfPagesTextFromUrl(readableUrl, headers, 40)
+      .then((pages) => {
+        if (!active) return
+        const nonEmptyPages = pages.filter((page) => page.lines.some((line) => line.text.trim().length > 0))
+        setPdfPages(nonEmptyPages)
+        if (nonEmptyPages.length === 0) {
+          setPdfError('No selectable text found in this PDF.')
+        }
+      })
+      .catch(() => {
+        if (!active) return
+        setPdfError('Could not render PDF text preview.')
+      })
+      .finally(() => {
+        if (!active) return
+        setIsPdfLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [isOpen, isPdfFile, readableUrl])
+
   if (!isOpen) {
     return null
   }
@@ -375,7 +446,36 @@ function PdfPreviewModal({
           </div>
         </header>
         <div className="pdf-preview-body">
-          {previewUrl ? (
+          {isPdfFile ? (
+            isPdfLoading ? (
+              <div className="pdf-preview-page pdf-preview-empty">
+                <p>Loading PDF text preview...</p>
+                <h4>{title}</h4>
+                <p>Preparing selectable text for dictionary and AI assistance.</p>
+              </div>
+            ) : pdfError ? (
+              <div className="pdf-preview-page pdf-preview-empty">
+                <p>Preview unavailable</p>
+                <h4>{title}</h4>
+                <p>{pdfError} Use Download to open original file.</p>
+              </div>
+            ) : (
+              <div className="pdf-preview-text-pages">
+                {pdfPages.map((page, index) => (
+                  <article key={`page-${index + 1}`} className="pdf-preview-text-page">
+                    <h4>Page {index + 1}</h4>
+                    <div className="pdf-preview-text-content">
+                      {page.lines.map((line, lineIndex) => (
+                        <p key={`page-${index + 1}-line-${lineIndex}`} className={line.isHeading ? 'heading' : 'body'}>
+                          {line.text}
+                        </p>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )
+          ) : previewUrl ? (
             <div className="pdf-preview-page embed">
               <iframe src={previewUrl} title={title} className="pdf-preview-embed" allow="autoplay" />
             </div>
@@ -393,6 +493,7 @@ function PdfPreviewModal({
         sourceDocument={{
           title,
           fileUrl: downloadUrl || previewUrl || null,
+          extractedText: extractedPreviewText || undefined,
         }}
       />
     </div>
@@ -410,6 +511,7 @@ type AssistantMessage = {
 type AssistantSourceDocument = {
   title: string
   fileUrl?: string | null
+  extractedText?: string
 }
 
 function StudyAssistantOverlay({
@@ -423,8 +525,10 @@ function StudyAssistantOverlay({
   const [isPreviewVisible, setIsPreviewVisible] = useState(true)
   const [mode, setMode] = useState<AssistantMode>('summarize')
   const [input, setInput] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
   const [attachedDocument, setAttachedDocument] = useState<AssistantSourceDocument | null>(null)
   const lastAutoAttachKeyRef = useRef<string | null>(null)
+  const extractedTextCacheRef = useRef<Record<string, string>>({})
   const [messages, setMessages] = useState<AssistantMessage[]>([
     {
       id: 'assistant-welcome',
@@ -448,7 +552,7 @@ function StudyAssistantOverlay({
       return
     }
 
-    const key = `${sourceDocument.title}|${sourceDocument.fileUrl || ''}`
+    const key = `${sourceDocument.title}|${sourceDocument.fileUrl || ''}|${sourceDocument.extractedText ? 'with-text' : 'no-text'}`
     setAttachedDocument(sourceDocument)
     if (lastAutoAttachKeyRef.current !== key) {
       lastAutoAttachKeyRef.current = key
@@ -461,11 +565,65 @@ function StudyAssistantOverlay({
         },
       ])
     }
-  }, [sourceDocument?.title, sourceDocument?.fileUrl])
+  }, [sourceDocument?.title, sourceDocument?.fileUrl, sourceDocument?.extractedText])
 
-  const sendMessage = () => {
+  const buildModeInstruction = (selectedMode: AssistantMode): string => {
+    switch (selectedMode) {
+      case 'summarize':
+        return 'Summarize in concise bullet points with key definitions and exam-focused takeaways.'
+      case 'explain':
+        return 'Explain clearly in simple language with one short example.'
+      case 'quiz':
+        return 'Create a short 5-question quiz with answers.'
+      default:
+        return 'Respond helpfully and clearly.'
+    }
+  }
+
+  const loadDocumentTextForAi = async (document: AssistantSourceDocument): Promise<string> => {
+    if (document.extractedText?.trim()) {
+      return document.extractedText.trim().slice(0, 20000)
+    }
+
+    const sourceUrl = document.fileUrl
+    if (!sourceUrl) {
+      return ''
+    }
+
+    const cacheKey = `${document.title}|${sourceUrl}`
+    if (extractedTextCacheRef.current[cacheKey]) {
+      return extractedTextCacheRef.current[cacheKey]
+    }
+
+    const readableUrl = getAiReadableFileUrl(sourceUrl)
+    if (!readableUrl) {
+      return ''
+    }
+
+    try {
+      let extractedText = ''
+      const authToken = localStorage.getItem('auth_token')
+      const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      if (isPdfSource(document.title, readableUrl)) {
+        extractedText = await extractPdfTextFromUrl(readableUrl, headers)
+      } else {
+        const response = await fetch(readableUrl, { headers })
+        if (response.ok) {
+          extractedText = (await response.text()).trim()
+        }
+      }
+
+      const normalized = extractedText.replace(/\s+/g, ' ').trim().slice(0, 14000)
+      extractedTextCacheRef.current[cacheKey] = normalized
+      return normalized
+    } catch {
+      return ''
+    }
+  }
+
+  const sendMessage = async () => {
     const trimmed = input.trim()
-    if (!trimmed) {
+    if (!trimmed || isGenerating) {
       return
     }
 
@@ -477,26 +635,63 @@ function StudyAssistantOverlay({
       text: `${contextPrefix}${trimmed}`,
     }
 
-    const cannedResponseByMode: Record<AssistantMode, string> = {
-      summarize: attachedDocument
-        ? `Using "${attachedDocument.title}", I can summarize this into key points, definitions, and likely exam questions.`
-        : 'I can summarize this into key points, definitions, and likely exam questions.',
-      explain: attachedDocument
-        ? `Using "${attachedDocument.title}", I can break this topic into simple steps with examples and memory aids.`
-        : 'I can break this topic into simple steps with examples and memory aids.',
-      quiz: attachedDocument
-        ? `Using "${attachedDocument.title}", I can generate a quick 5-question quiz with answers and explanations.`
-        : 'I can generate a quick 5-question quiz with answers and explanations.',
-    }
-
-    const assistantMessage: AssistantMessage = {
-      id: `assistant-${Date.now() + 1}`,
-      role: 'assistant',
-      text: cannedResponseByMode[mode],
-    }
-
-    setMessages((current) => [...current, userMessage, assistantMessage])
+    setMessages((current) => [...current, userMessage])
     setInput('')
+    setIsGenerating(true)
+
+    try {
+      const puterClient = window.puter
+      if (!puterClient?.ai?.chat) {
+        throw new Error('Puter.js is not loaded in this page.')
+      }
+
+      const modeInstruction = buildModeInstruction(mode)
+      const extractedDocumentText = attachedDocument ? await loadDocumentTextForAi(attachedDocument) : ''
+      const docContext = attachedDocument
+        ? extractedDocumentText
+          ? `Attached document title: "${attachedDocument.title}". Extracted document content:\n${extractedDocumentText}`
+          : `Attached document title: "${attachedDocument.title}". The file content could not be fetched (access denied or unsupported file). Ask user to paste key excerpts.`
+        : 'No document is attached. Use only the provided user text.'
+
+      const response = await puterClient.ai.chat(
+        [
+          {
+            role: 'system',
+            content:
+              `You are a study assistant for uploaded notes and PDFs. ${modeInstruction} If user asks for document-specific details without content, ask for a pasted excerpt.`,
+          },
+          {
+            role: 'user',
+            content: `${docContext}\n\nUser request: ${trimmed}`,
+          },
+        ],
+        { model: 'gpt-5-nano' },
+      )
+
+      const content =
+        (typeof response === 'string' ? response : response?.message?.content)?.trim() ||
+        'No response generated. Try again.'
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-${Date.now() + 1}`,
+          role: 'assistant',
+          text: content,
+        },
+      ])
+    } catch (error) {
+      const errorText = error instanceof Error ? error.message : 'Unknown error'
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-${Date.now() + 1}`,
+          role: 'assistant',
+          text: `Unable to reach AI right now. ${errorText}`,
+        },
+      ])
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   if (!visible) {
@@ -595,13 +790,14 @@ function StudyAssistantOverlay({
               rows={2}
               value={input}
               onChange={(event) => setInput(event.target.value)}
+              disabled={isGenerating}
               placeholder={
                 attachedDocument
                   ? `Ask about ${attachedDocument.title}...`
                   : 'Paste notes or ask a question...'
               }
             />
-            <button type="button" onClick={sendMessage} disabled={!input.trim()}>
+            <button type="button" onClick={sendMessage} disabled={!input.trim() || isGenerating}>
               <span className="material-symbols-outlined">north_east</span>
             </button>
           </div>
@@ -836,6 +1032,139 @@ function getPreviewUrl(fileUrl?: string): string | null {
   }
 
   return fileUrl
+}
+
+function getAiReadableFileUrl(fileUrl?: string | null): string | null {
+  if (!fileUrl || fileUrl === '#') {
+    return null
+  }
+
+  const driveFileId = getDriveFileId(fileUrl)
+  if (driveFileId) {
+    return `${API_BASE_URL}/files/${driveFileId}/content`
+  }
+
+  return fileUrl
+}
+
+function isPdfSource(title: string, fileUrl: string): boolean {
+  const loweredTitle = title.toLowerCase()
+  const loweredUrl = fileUrl.toLowerCase()
+  return loweredTitle.endsWith('.pdf') || loweredUrl.includes('.pdf') || loweredUrl.includes('application/pdf')
+}
+
+async function extractPdfPagesTextFromUrl(
+  fileUrl: string,
+  headers?: Record<string, string>,
+  maxPages = 20,
+): Promise<PdfPreviewPage[]> {
+  const [pdfjsLib, workerSrc] = await Promise.all([
+    import('pdfjs-dist'),
+    import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+  ])
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc.default
+
+  const loadingTask = pdfjsLib.getDocument({ url: fileUrl, httpHeaders: headers })
+  const pdf = await loadingTask.promise
+
+  const pageLimit = Math.min(pdf.numPages, maxPages)
+  const pageTexts: PdfPreviewPage[] = []
+
+  for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber)
+    const textContent = await page.getTextContent()
+    type RowItem = { x: number; width: number; text: string; fontSize: number; fontName: string }
+    const rows = new Map<number, RowItem[]>()
+    const rowKeys: number[] = []
+
+    for (const item of textContent.items) {
+      if (!('str' in item) || !Array.isArray(item.transform)) {
+        continue
+      }
+      const text = String(item.str ?? '').replace(/\s+/g, ' ').trim()
+      if (!text) {
+        continue
+      }
+
+      const x = Number(item.transform[4] ?? 0)
+      const y = Number(item.transform[5] ?? 0)
+      const rowKey = Math.round(y)
+      const fontSize = Number((item as { height?: number }).height ?? Math.abs(Number(item.transform[3] ?? 10)))
+      const width = Number((item as { width?: number }).width ?? text.length * (fontSize * 0.5))
+      const fontName = String((item as { fontName?: string }).fontName ?? '')
+
+      if (!rows.has(rowKey)) {
+        rows.set(rowKey, [])
+        rowKeys.push(rowKey)
+      }
+      rows.get(rowKey)?.push({ x, width, text, fontSize, fontName })
+    }
+
+    const sortedRows = rowKeys
+      .sort((a, b) => b - a)
+      .map((key) => {
+        const tokens = (rows.get(key) || []).sort((a, b) => a.x - b.x)
+        let lineText = ''
+        let previousEndX: number | null = null
+        let totalFontSize = 0
+        let hasBoldToken = false
+
+        for (const token of tokens) {
+          const gap = previousEndX === null ? 0 : token.x - previousEndX
+          const needsSpace = lineText.length > 0 && gap > Math.max(6, token.fontSize * 0.35)
+          if (needsSpace && !lineText.endsWith(' ')) {
+            lineText += ' '
+          }
+          lineText += token.text
+          previousEndX = token.x + token.width
+          totalFontSize += token.fontSize
+          if (/bold|black|semi/i.test(token.fontName)) {
+            hasBoldToken = true
+          }
+        }
+
+        return {
+          text: lineText.trim(),
+          avgFontSize: tokens.length > 0 ? totalFontSize / tokens.length : 0,
+          hasBoldToken,
+        }
+      })
+      .filter((row) => row.text.length > 0)
+
+    const fontSizes = sortedRows.map((row) => row.avgFontSize).sort((a, b) => a - b)
+    const medianFontSize =
+      fontSizes.length === 0
+        ? 0
+        : fontSizes[Math.floor(fontSizes.length / 2)]
+
+    const lines: PdfPreviewLine[] = sortedRows.map((row) => {
+      const wordCount = row.text.split(/\s+/).length
+      const isLikelyHeading =
+        wordCount <= 14 &&
+        row.text.length <= 100 &&
+        (row.avgFontSize >= medianFontSize * 1.2 || row.hasBoldToken)
+
+      return {
+        text: row.text,
+        isHeading: isLikelyHeading,
+      }
+    })
+
+    pageTexts.push({ lines })
+  }
+
+  return pageTexts
+}
+
+async function extractPdfTextFromUrl(
+  fileUrl: string,
+  headers?: Record<string, string>,
+): Promise<string> {
+  const pages = await extractPdfPagesTextFromUrl(fileUrl, headers, 20)
+  return pages
+    .flatMap((page) => page.lines.map((line) => line.text))
+    .filter(Boolean)
+    .join('\n')
 }
 
 function normalizePath(pathname: string): RoutePath {
@@ -7518,6 +7847,258 @@ function ResetPasswordScreen({
   )
 }
 
+function isEditableSelectionNode(node: Node | null): boolean {
+  if (!node) {
+    return false
+  }
+
+  const element = node instanceof Element ? node : node.parentElement
+  if (!element) {
+    return false
+  }
+
+  if (element.closest('input, textarea, [contenteditable="true"]')) {
+    return true
+  }
+
+  return false
+}
+
+function extractMeaningFromDictionaryResponse(payload: unknown): string | null {
+  if (!Array.isArray(payload) || payload.length === 0) {
+    return null
+  }
+
+  const firstEntry = payload[0] as {
+    meanings?: Array<{
+      partOfSpeech?: string
+      definitions?: Array<{ definition?: string }>
+    }>
+  }
+
+  const firstMeaning = firstEntry.meanings?.[0]
+  const firstDefinition = firstMeaning?.definitions?.[0]?.definition?.trim()
+  if (!firstDefinition) {
+    return null
+  }
+
+  return firstMeaning?.partOfSpeech
+    ? `${firstMeaning.partOfSpeech}: ${firstDefinition}`
+    : firstDefinition
+}
+
+function WordMeaningPopup() {
+  const [popup, setPopup] = useState<DictionaryPopupState>({
+    open: false,
+    loading: false,
+    word: '',
+    meaning: '',
+    error: null,
+    top: 0,
+    left: 0,
+  })
+  const cacheRef = useRef<Record<string, string>>({})
+  const requestIdRef = useRef(0)
+  const [showIframeHint, setShowIframeHint] = useState(false)
+
+  useEffect(() => {
+    const getSelectionCandidate = (): { text: string; top: number; left: number; anchorNode: Node | null } | null => {
+      const pageSelection = window.getSelection()
+      if (pageSelection && pageSelection.rangeCount > 0 && !pageSelection.isCollapsed) {
+        const rect = pageSelection.getRangeAt(0).getBoundingClientRect()
+        if (rect.width > 0 || rect.height > 0) {
+          return {
+            text: pageSelection.toString().trim(),
+            top: Math.min(rect.bottom + 12, window.innerHeight - 20),
+            left: Math.min(Math.max(rect.left + rect.width / 2, 160), window.innerWidth - 160),
+            anchorNode: pageSelection.anchorNode,
+          }
+        }
+      }
+
+      const iframes = Array.from(document.querySelectorAll('iframe'))
+      for (const iframe of iframes) {
+        try {
+          const iframeWindow = iframe.contentWindow
+          if (!iframeWindow) continue
+          const iframeSelection = iframeWindow.getSelection()
+          if (!iframeSelection || iframeSelection.rangeCount === 0 || iframeSelection.isCollapsed) continue
+
+          const iframeRect = iframe.getBoundingClientRect()
+          const selectionRect = iframeSelection.getRangeAt(0).getBoundingClientRect()
+          if (selectionRect.width === 0 && selectionRect.height === 0) continue
+
+          return {
+            text: iframeSelection.toString().trim(),
+            top: Math.min(iframeRect.top + selectionRect.bottom + 12, window.innerHeight - 20),
+            left: Math.min(
+              Math.max(iframeRect.left + selectionRect.left + selectionRect.width / 2, 160),
+              window.innerWidth - 160,
+            ),
+            anchorNode: iframeSelection.anchorNode,
+          }
+        } catch {
+          continue
+        }
+      }
+      return null
+    }
+
+    const showMeaningForSelection = async () => {
+      const candidate = getSelectionCandidate()
+      if (!candidate) {
+        setPopup((current) => ({ ...current, open: false }))
+        return
+      }
+
+      const selectedWord = candidate.text
+        .trim()
+        .replace(/^[^A-Za-z]+|[^A-Za-z'-]+$/g, '')
+      if (!/^[A-Za-z][A-Za-z'-]{0,48}$/.test(selectedWord)) {
+        setPopup((current) => ({ ...current, open: false }))
+        return
+      }
+
+      if (isEditableSelectionNode(candidate.anchorNode)) {
+        setPopup((current) => ({ ...current, open: false }))
+        return
+      }
+      const normalizedWord = selectedWord.toLowerCase()
+
+      const cachedMeaning = cacheRef.current[normalizedWord]
+      if (cachedMeaning) {
+        setPopup({
+          open: true,
+          loading: false,
+          word: selectedWord,
+          meaning: cachedMeaning,
+          error: null,
+          top: candidate.top,
+          left: candidate.left,
+        })
+        return
+      }
+
+      const requestId = requestIdRef.current + 1
+      requestIdRef.current = requestId
+      setPopup({
+        open: true,
+        loading: true,
+        word: selectedWord,
+        meaning: '',
+        error: null,
+        top: candidate.top,
+        left: candidate.left,
+      })
+
+      try {
+        const response = await fetch(
+          `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(normalizedWord)}`,
+        )
+        if (!response.ok) {
+          throw new Error('Meaning unavailable')
+        }
+        const payload = (await response.json()) as unknown
+        const meaning = extractMeaningFromDictionaryResponse(payload)
+        if (!meaning) {
+          throw new Error('Meaning unavailable')
+        }
+
+        cacheRef.current[normalizedWord] = meaning
+        if (requestIdRef.current === requestId) {
+          setPopup((current) => ({
+            ...current,
+            open: true,
+            loading: false,
+            meaning,
+            error: null,
+          }))
+        }
+      } catch {
+        if (requestIdRef.current === requestId) {
+          setPopup((current) => ({
+            ...current,
+            open: true,
+            loading: false,
+            meaning: '',
+            error: `No dictionary meaning found for "${selectedWord}".`,
+          }))
+        }
+      }
+    }
+
+    const clearPopup = () => {
+      setPopup((current) => ({ ...current, open: false }))
+    }
+
+    let selectionTimer: number | null = null
+    const scheduleSelectionLookup = () => {
+      if (selectionTimer) {
+        window.clearTimeout(selectionTimer)
+      }
+      selectionTimer = window.setTimeout(() => {
+        void showMeaningForSelection()
+      }, 120)
+    }
+
+    document.addEventListener('selectionchange', scheduleSelectionLookup)
+    document.addEventListener('mouseup', scheduleSelectionLookup)
+    document.addEventListener('keyup', scheduleSelectionLookup)
+    document.addEventListener('touchend', scheduleSelectionLookup)
+    document.addEventListener('scroll', clearPopup, true)
+    window.addEventListener('resize', clearPopup)
+    const iframeHintTimer = window.setTimeout(() => {
+      const hasCrossOriginDriveIframe = Array.from(document.querySelectorAll('iframe')).some((iframe) => {
+        const src = iframe.getAttribute('src') || ''
+        return src.includes('drive.google.com/file/d/') || src.includes('docs.google.com')
+      })
+      setShowIframeHint(hasCrossOriginDriveIframe)
+    }, 600)
+
+    return () => {
+      window.clearTimeout(iframeHintTimer)
+      if (selectionTimer) {
+        window.clearTimeout(selectionTimer)
+      }
+      document.removeEventListener('selectionchange', scheduleSelectionLookup)
+      document.removeEventListener('mouseup', scheduleSelectionLookup)
+      document.removeEventListener('keyup', scheduleSelectionLookup)
+      document.removeEventListener('touchend', scheduleSelectionLookup)
+      document.removeEventListener('scroll', clearPopup, true)
+      window.removeEventListener('resize', clearPopup)
+    }
+  }, [])
+
+  if (!popup.open && !showIframeHint) {
+    return null
+  }
+
+  return (
+    <>
+      {popup.open ? (
+        <div className="word-meaning-popup" style={{ top: popup.top, left: popup.left }} role="status" aria-live="polite">
+          <div className="word-meaning-popup-head">
+            <strong>{popup.word}</strong>
+            <button type="button" onClick={() => setPopup((current) => ({ ...current, open: false }))} aria-label="Close meaning popup">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <p>
+            {popup.loading
+              ? 'Looking up meaning...'
+              : popup.error || popup.meaning}
+          </p>
+        </div>
+      ) : null}
+      {showIframeHint ? (
+        <div className="word-meaning-hint">
+          Google Drive PDF preview blocks highlight capture. Use app text selection for dictionary popup.
+        </div>
+      ) : null}
+    </>
+  )
+}
+
 function App() {
   const { user, isAuthenticated, isLoading: isAuthLoading, logout } = useAuth()
   const [path, setPath] = useState<RoutePath>(() => normalizePath(window.location.pathname))
@@ -8035,6 +8616,7 @@ function App() {
         />
       ) : null}
 
+      <WordMeaningPopup />
     </div>
   )
 }
