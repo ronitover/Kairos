@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import './App.css'
 import { useAuth } from './contexts/AuthContext'
 import { authService } from './services/auth'
+import { studentService } from './services/students'
 import { assignmentService } from './services/assignments'
 import { adminService } from './services/admin'
 import { facultyService } from './services/faculty'
@@ -783,6 +784,7 @@ function StudentRegisterScreen({ onLogin }: { onLogin: () => void }) {
                 disabled={isLoading}
               >
                 <option value="">Select Programme</option>
+                <option value="BCA (Honours)">BCA (Honours)</option>
                 <option value="Computer Science & Engineering">B.E. / B.Tech</option>
                 <option value="M.Tech">M.Tech</option>
                 <option value="MCA">MCA</option>
@@ -2771,10 +2773,87 @@ function StudentDashboardScreen({
   onLogout: () => void
 }) {
   const { user } = useAuth()
-  const semester = user?.semester ? `Semester ${user.semester}` : 'Semester'
-  const programme = user?.programme || 'Programme'
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewTitle, setPreviewTitle] = useState('Document.pdf')
+  const [dashboardData, setDashboardData] = useState<Awaited<ReturnType<typeof studentService.getDashboard>> | null>(null)
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+
+    studentService
+      .getDashboard()
+      .then((data) => {
+        if (!active) return
+        setDashboardData(data)
+      })
+      .catch((error) => {
+        if (!active) return
+        setDashboardError(error instanceof Error ? error.message : 'Failed to load dashboard data.')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const subjectOptions = dashboardData?.enrolledSubjects ?? []
+  const notes = dashboardData?.recentNotes ?? []
+  const textbooks = dashboardData?.textbooks ?? []
+  const assignments = dashboardData?.assignments ?? []
+  const visibleAssignments = assignments.slice(0, 3)
+  const semester = dashboardData?.student.semester
+    ? `Semester ${dashboardData.student.semester}`
+    : user?.semester
+      ? `Semester ${user.semester}`
+      : 'Semester'
+  const programme = dashboardData?.student.programme || user?.programme || 'Programme'
+
+  const formatAssignmentDate = (date: string) =>
+    new Date(date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+
+  const assignmentUi = (status: 'pending' | 'submitted' | 'graded', dueDate: string) => {
+    if (status === 'graded') {
+      return {
+        icon: 'success',
+        iconSymbol: 'grade',
+        textClass: 'grade-text',
+        text: 'Graded',
+        pillClass: 'pill info',
+        pillText: 'Graded',
+        action: onViewResult,
+        actionLabel: 'Details',
+        buttonClass: 'dashboard-btn-secondary dashboard-btn-small dashboard-assignment-action',
+      }
+    }
+
+    if (status === 'submitted') {
+      return {
+        icon: 'info',
+        iconSymbol: 'check_circle',
+        textClass: 'status-success-text',
+        text: 'Completed',
+        pillClass: 'pill success',
+        pillText: 'Submitted',
+        action: onViewResult,
+        actionLabel: 'View Result',
+        buttonClass: 'dashboard-btn-secondary dashboard-btn-small dashboard-assignment-action',
+      }
+    }
+
+    const dueInDays = Math.ceil((new Date(dueDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+    return {
+      icon: 'warning',
+      iconSymbol: 'warning',
+      textClass: 'status-warning-text',
+      text: dueInDays > 0 ? `Due in ${dueInDays} Day${dueInDays > 1 ? 's' : ''}` : 'Due date passed',
+      pillClass: 'pill',
+      pillText: 'Not Submitted',
+      action: onViewBrief,
+      actionLabel: 'View Brief',
+      buttonClass: 'dashboard-btn-primary dashboard-btn-small dashboard-assignment-action',
+    }
+  }
 
   return (
     <div className="dashboard-page" aria-label="Student dashboard">
@@ -2794,6 +2873,11 @@ function StudentDashboardScreen({
       />
 
       <main className="dashboard-container dashboard-main">
+        {dashboardError ? (
+          <section className="dashboard-card">
+            <p style={{ color: '#b91c1c', fontWeight: 600 }}>{dashboardError}</p>
+          </section>
+        ) : null}
         <section className="dashboard-card">
           <div className="dashboard-section-title">
             <span className="material-symbols-outlined">notifications</span>
@@ -2829,20 +2913,23 @@ function StudentDashboardScreen({
           <div className="dashboard-filter-grid">
             <div className="field-group">
               <label>Course</label>
-              <div className="dashboard-static-field">B.Tech Computer Science</div>
+              <div className="dashboard-static-field">{dashboardData?.student.programme || 'B.Tech Computer Science'}</div>
             </div>
 
             <div className="field-group">
               <label>Semester</label>
-              <div className="dashboard-static-field">Semester 5</div>
+              <div className="dashboard-static-field">{dashboardData?.student.semester ? `Semester ${dashboardData.student.semester}` : 'Semester 5'}</div>
             </div>
 
             <div className="field-group">
               <label htmlFor="subject">Subject Code</label>
-              <select id="subject" defaultValue="CS501 - Operating Systems">
-                <option>CS501 - Operating Systems</option>
-                <option>CS502 - Database Management</option>
-                <option>CS503 - Computer Networks</option>
+              <select id="subject" defaultValue={subjectOptions[0] ? `${subjectOptions[0].code} - ${subjectOptions[0].name}` : ''}>
+                {subjectOptions.length === 0 ? <option>No subjects found</option> : null}
+                {subjectOptions.map((subject) => (
+                  <option key={subject.id}>
+                    {subject.code} - {subject.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -2883,54 +2970,37 @@ function StudentDashboardScreen({
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Memory Management Overview</td>
-                  <td>Chapter 4</td>
-                  <td className="muted">Dr. Robert Wilson</td>
-                  <td className="muted">Oct 12, 2023</td>
-                  <td className="notes-action-col">
-                    <div className="dashboard-action-icons">
-                      <button
-                        type="button"
-                        className="dashboard-table-icon-btn"
-                        aria-label="View note"
-                        onClick={() => {
-                          setPreviewTitle('Memory Management Overview.pdf')
-                          setIsPreviewOpen(true)
-                        }}
-                      >
-                        <span className="material-symbols-outlined">visibility</span>
-                      </button>
-                      <button type="button" className="dashboard-table-icon-btn" aria-label="Download note">
-                        <span className="material-symbols-outlined">download</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Process Synchronization</td>
-                  <td>Chapter 3</td>
-                  <td className="muted">Dr. Robert Wilson</td>
-                  <td className="muted">Oct 05, 2023</td>
-                  <td className="notes-action-col">
-                    <div className="dashboard-action-icons">
-                      <button
-                        type="button"
-                        className="dashboard-table-icon-btn"
-                        aria-label="View note"
-                        onClick={() => {
-                          setPreviewTitle('Process Synchronization.pdf')
-                          setIsPreviewOpen(true)
-                        }}
-                      >
-                        <span className="material-symbols-outlined">visibility</span>
-                      </button>
-                      <button type="button" className="dashboard-table-icon-btn" aria-label="Download note">
-                        <span className="material-symbols-outlined">download</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                {notes.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="muted">No official notes found.</td>
+                  </tr>
+                ) : null}
+                {notes.map((note) => (
+                  <tr key={note.id}>
+                    <td>{note.title}</td>
+                    <td>{note.chapter || '-'}</td>
+                    <td className="muted">{note.facultyName}</td>
+                    <td className="muted">{new Date(note.uploadedAt).toLocaleDateString()}</td>
+                    <td className="notes-action-col">
+                      <div className="dashboard-action-icons">
+                        <button
+                          type="button"
+                          className="dashboard-table-icon-btn"
+                          aria-label="View note"
+                          onClick={() => {
+                            setPreviewTitle(note.title)
+                            setIsPreviewOpen(true)
+                          }}
+                        >
+                          <span className="material-symbols-outlined">visibility</span>
+                        </button>
+                        <a href={note.downloadUrl} target="_blank" rel="noreferrer" className="dashboard-table-icon-btn" aria-label="Download note">
+                          <span className="material-symbols-outlined">download</span>
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -2943,27 +3013,26 @@ function StudentDashboardScreen({
           </div>
 
           <div className="dashboard-textbooks-grid">
-            <article className="dashboard-item-row">
-              <div>
-                <h3>Operating System Concepts</h3>
-                <p>Silberschatz, Galvin, Gagne • 10th Edition</p>
-              </div>
-              <button type="button" className="dashboard-icon-btn" aria-label="Download Operating System Concepts">
-                <span className="material-symbols-outlined">download</span>
-              </button>
-            </article>
-
-            <article className="dashboard-item-row">
-              <div>
-                <h3>Modern Operating Systems</h3>
-                <p>Andrew S. Tanenbaum • 4th Edition</p>
-              </div>
-              <button type="button" className="dashboard-icon-btn" aria-label="Download Modern Operating Systems">
-                <span className="material-symbols-outlined">download</span>
-              </button>
-            </article>
-          </div>
-        </section>
+            {textbooks.length === 0 ? (
+              <article className="dashboard-item-row">
+                <div>
+                  <h3>No textbooks available</h3>
+                  <p>Faculty-uploaded textbooks will appear here.</p>
+                </div>
+              </article>
+            ) : null}
+            {textbooks.map((book) => (
+              <article key={book.id} className="dashboard-item-row">
+                <div>
+                  <h3>{book.title}</h3>
+                  <p>{book.author} • {book.edition}</p>
+                </div>
+                <a href={book.downloadUrl} target="_blank" rel="noreferrer" className="dashboard-icon-btn" aria-label={`Download ${book.title}`}>
+                  <span className="material-symbols-outlined">download</span>
+                </a>
+              </article>
+            ))}
+          </div>        </section>
 
         <section className="dashboard-card">
           <div className="dashboard-section-title">
@@ -2972,70 +3041,42 @@ function StudentDashboardScreen({
           </div>
 
           <div className="dashboard-assignment-list">
-            <article className="dashboard-assignment-row">
-              <div className="dashboard-assignment-left">
-                <div className="dashboard-assignment-icon warning">
-                  <span className="material-symbols-outlined">warning</span>
+            {visibleAssignments.length === 0 ? (
+              <article className="dashboard-assignment-row">
+                <div className="dashboard-assignment-left">
+                  <div className="dashboard-assignment-content">
+                    <h3>No assignments available</h3>
+                    <p>New assignments will appear here.</p>
+                  </div>
                 </div>
-                <div className="dashboard-assignment-content">
-                  <h3>Implement Multi-threaded Scheduler</h3>
-                  <p>Subject: CS501 • 15th Nov 2023</p>
-                </div>
-              </div>
-              <div className="dashboard-assignment-right">
-                <div className="dashboard-assignment-meta">
-                  <p className="status-warning-text">Due in 2 Days</p>
-                  <span className="pill">Not Submitted</span>
-                </div>
-                <button type="button" className="dashboard-btn-primary dashboard-btn-small dashboard-assignment-action" onClick={onViewBrief}>
-                  View Brief
-                </button>
-              </div>
-            </article>
-
-            <article className="dashboard-assignment-row">
-              <div className="dashboard-assignment-left">
-                <div className="dashboard-assignment-icon info">
-                  <span className="material-symbols-outlined">check_circle</span>
-                </div>
-                <div className="dashboard-assignment-content">
-                  <h3>Memory Mapping Lab Report</h3>
-                  <p>Subject: CS501 • 01st Nov 2023</p>
-                </div>
-              </div>
-              <div className="dashboard-assignment-right">
-                <div className="dashboard-assignment-meta">
-                  <p className="status-success-text">Completed</p>
-                  <span className="pill success">Submitted</span>
-                </div>
-                <button type="button" className="dashboard-btn-secondary dashboard-btn-small dashboard-assignment-action" onClick={onViewResult}>
-                  View Result
-                </button>
-              </div>
-            </article>
-
-            <article className="dashboard-assignment-row">
-              <div className="dashboard-assignment-left">
-                <div className="dashboard-assignment-icon success">
-                  <span className="material-symbols-outlined">grade</span>
-                </div>
-                <div className="dashboard-assignment-content">
-                  <h3>CPU Scheduling Quiz</h3>
-                  <p>Subject: CS501 • 25th Oct 2023</p>
-                </div>
-              </div>
-              <div className="dashboard-assignment-right">
-                <div className="dashboard-assignment-meta">
-                  <p className="grade-text">Grade: A+</p>
-                  <span className="pill info">Graded</span>
-                </div>
-                <button type="button" className="dashboard-btn-secondary dashboard-btn-small dashboard-assignment-action" onClick={onViewResult}>
-                  Details
-                </button>
-              </div>
-            </article>
-          </div>
-        </section>
+              </article>
+            ) : null}
+            {visibleAssignments.map((assignment) => {
+              const ui = assignmentUi(assignment.status, assignment.dueDate)
+              return (
+                <article key={assignment.id} className="dashboard-assignment-row">
+                  <div className="dashboard-assignment-left">
+                    <div className={`dashboard-assignment-icon ${ui.icon}`}>
+                      <span className="material-symbols-outlined">{ui.iconSymbol}</span>
+                    </div>
+                    <div className="dashboard-assignment-content">
+                      <h3>{assignment.title}</h3>
+                      <p>Subject: {assignment.subjectCode} • {formatAssignmentDate(assignment.dueDate)}</p>
+                    </div>
+                  </div>
+                  <div className="dashboard-assignment-right">
+                    <div className="dashboard-assignment-meta">
+                      <p className={ui.textClass}>{assignment.grade ? `Grade: ${assignment.grade}` : ui.text}</p>
+                      <span className={ui.pillClass}>{ui.pillText}</span>
+                    </div>
+                    <button type="button" className={ui.buttonClass} onClick={ui.action}>
+                      {ui.actionLabel}
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>        </section>
       </main>
 
       <CommonDashboardFooter
@@ -6580,3 +6621,4 @@ function App() {
 }
 
 export default App
+

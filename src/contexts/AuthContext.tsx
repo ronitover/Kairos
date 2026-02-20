@@ -34,6 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (currentUser) {
             setUser(currentUser)
           }
+          try {
+            const hydratedUser = await authService.getCurrentUserProfile()
+            setUser(hydratedUser)
+          } catch (profileError) {
+            console.error('Profile hydration failed:', profileError)
+          }
         }
       } catch (error) {
         console.error('Auth check failed:', error)
@@ -60,7 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         response = await authService.adminLogin({ email, password })
       }
-      setUser(response.user)
+      try {
+        const hydratedUser = await authService.getCurrentUserProfile()
+        setUser(hydratedUser)
+      } catch {
+        setUser(response.user)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -77,7 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const response = await authService.studentRegister(data)
-      setUser(response.user)
+      try {
+        const hydratedUser = await authService.getCurrentUserProfile()
+        setUser(hydratedUser)
+      } catch {
+        setUser(response.user)
+      }
     } finally {
       setIsLoading(false)
     }

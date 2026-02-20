@@ -1,3 +1,5 @@
+import { apiClient } from './api'
+
 export interface StudentDashboard {
   student: {
     id: string
@@ -44,57 +46,90 @@ export interface StudentDashboard {
 
 class StudentService {
   async getDashboard(): Promise<StudentDashboard> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<StudentDashboard>('/students/dashboard')
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
+    const meResponse = await apiClient.get<{
+      user: { id: string; email: string }
+      profile?: { full_name?: string; usn?: string; programme?: string; semester?: number }
+    }>('/me')
+    if (meResponse.error || !meResponse.data) {
+      throw new Error(meResponse.error?.message || 'Failed to load student profile')
+    }
 
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          student: {
-            id: 'stud-1',
-            fullName: 'Alex Thompson',
-            usn: '1RV21CS001',
-            programme: 'Computer Science & Engineering',
-            semester: '5',
-            email: 'alex@univ.edu.in',
-          },
-          enrolledSubjects: [
-            {
-              id: 'subj-1',
-              code: 'CS501',
-              name: 'Operating Systems',
-              faculty: {
-                id: 'fac-1',
-                name: 'Dr. Robert Wilson',
-              },
-            },
-          ],
-          assignments: [],
-          recentNotes: [
-            {
-              id: 'note-1',
-              title: 'Memory Management Overview',
-              chapter: 'Chapter 4',
-              facultyName: 'Dr. Robert Wilson',
-              uploadedAt: new Date().toISOString(),
-              downloadUrl: '/mock/note1.pdf',
-            },
-          ],
-          textbooks: [
-            {
-              id: 'book-1',
-              title: 'Operating System Concepts',
-              author: 'Silberschatz, Galvin, Gagne',
-              edition: '10th Edition',
-              downloadUrl: '/mock/book1.pdf',
-            },
-          ],
-        })
-      }, 500)
+    const student = {
+      id: meResponse.data.user.id,
+      fullName: meResponse.data.profile?.full_name || 'Student',
+      usn: meResponse.data.profile?.usn || '',
+      programme: meResponse.data.profile?.programme || '',
+      semester: String(meResponse.data.profile?.semester || ''),
+      email: meResponse.data.user.email,
+    }
+
+    const subjectsResponse = await apiClient.get<{
+      subjects: Array<{
+        id: string
+        code: string
+        name: string
+      }>
+    }>('/subjects', {
+      programme: student.programme || undefined,
+      semester: student.semester || undefined,
     })
+    if (subjectsResponse.error || !subjectsResponse.data) {
+      throw new Error(subjectsResponse.error?.message || 'Failed to load subjects')
+    }
+
+    const notesResponse = await apiClient.get<{
+      notes: Array<{
+        id: string
+        title: string
+        chapter: string | null
+        uploaded_at: string
+        note_files?: Array<{ file_url: string }>
+      }>
+    }>('/notes', { type: 'official', status: 'verified' })
+    if (notesResponse.error || !notesResponse.data) {
+      throw new Error(notesResponse.error?.message || 'Failed to load notes')
+    }
+
+    const assignmentsResponse = await apiClient.get<{
+      assignments: Array<{
+        id: string
+        title: string
+        due_date: string
+        subjects?: { code?: string }
+      }>
+    }>('/assignments')
+    if (assignmentsResponse.error || !assignmentsResponse.data) {
+      throw new Error(assignmentsResponse.error?.message || 'Failed to load assignments')
+    }
+
+    return {
+      student,
+      enrolledSubjects: subjectsResponse.data.subjects.map((subject) => ({
+        id: subject.id,
+        code: subject.code,
+        name: subject.name,
+        faculty: {
+          id: '',
+          name: 'Faculty',
+        },
+      })),
+      assignments: assignmentsResponse.data.assignments.map((assignment) => ({
+        id: assignment.id,
+        title: assignment.title,
+        subjectCode: assignment.subjects?.code || 'SUBJECT',
+        dueDate: assignment.due_date,
+        status: 'pending',
+      })),
+      recentNotes: notesResponse.data.notes.slice(0, 10).map((note) => ({
+        id: note.id,
+        title: note.title,
+        chapter: note.chapter || '-',
+        facultyName: 'Faculty',
+        uploadedAt: note.uploaded_at,
+        downloadUrl: note.note_files?.[0]?.file_url || '#',
+      })),
+      textbooks: [],
+    }
   }
 
   async uploadUnofficialNote(data: {
@@ -118,4 +153,3 @@ class StudentService {
 }
 
 export const studentService = new StudentService()
-import { apiClient } from './api'
