@@ -404,6 +404,8 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
 }
 
 function FacultyDashboardScreen() {
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+
   return (
     <div className="faculty-page" aria-label="Faculty management dashboard">
       <header className="faculty-header">
@@ -469,7 +471,7 @@ function FacultyDashboardScreen() {
                 <span className="material-symbols-outlined">description</span>
                 <h2>Official Notes</h2>
               </div>
-              <button type="button" className="dashboard-upload-btn">
+              <button type="button" className="dashboard-upload-btn" onClick={() => setIsUploadModalOpen(true)}>
                 <span className="material-symbols-outlined">upload</span>
                 Upload New
               </button>
@@ -626,6 +628,97 @@ function FacultyDashboardScreen() {
           </section>
         </section>
       </main>
+
+      {isUploadModalOpen ? (
+        <div className="faculty-modal-overlay" role="dialog" aria-modal="true" aria-label="Upload official notes">
+          <div className="faculty-modal-card">
+            <div className="faculty-modal-head">
+              <div className="faculty-modal-title-wrap">
+                <div className="faculty-modal-icon">
+                  <span className="material-symbols-outlined">upload_file</span>
+                </div>
+                <h2>Upload Official Notes</h2>
+              </div>
+              <button
+                type="button"
+                className="faculty-modal-close"
+                aria-label="Close upload modal"
+                onClick={() => setIsUploadModalOpen(false)}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form className="faculty-modal-form" onSubmit={(event) => event.preventDefault()}>
+              <div className="faculty-modal-field">
+                <label>
+                  <span>1</span>
+                  Subject
+                </label>
+                <input type="text" value="CS501 - Operating Systems" disabled />
+              </div>
+
+              <div className="faculty-modal-field">
+                <label>
+                  <span>2</span>
+                  Unit / Chapter
+                </label>
+                <select defaultValue="">
+                  <option disabled value="">
+                    Select Unit/Chapter
+                  </option>
+                  <option>Unit 1: Introduction to OS</option>
+                  <option>Unit 2: Process Management</option>
+                  <option>Unit 3: Memory Management</option>
+                  <option>Unit 4: Storage Management</option>
+                  <option>Unit 5: Protection and Security</option>
+                </select>
+              </div>
+
+              <div className="faculty-modal-field">
+                <label>
+                  <span>3</span>
+                  Note Title
+                </label>
+                <input type="text" placeholder="e.g., Detailed Guide on Paging & Segmentation" />
+              </div>
+
+              <div className="faculty-modal-field">
+                <label>
+                  <span>4</span>
+                  Description <em>(Optional)</em>
+                </label>
+                <textarea rows={3} placeholder="Provide a brief overview of the contents..." />
+              </div>
+
+              <div className="faculty-modal-field">
+                <label>
+                  <span>5</span>
+                  Upload File
+                </label>
+                <label className="faculty-upload-dropzone">
+                  <input type="file" />
+                  <div>
+                    <span className="material-symbols-outlined">cloud_upload</span>
+                  </div>
+                  <p>Click to upload or drag and drop</p>
+                  <p>PDF, DOCX, PPTX, JPG or PNG (Max 25MB)</p>
+                </label>
+              </div>
+
+              <div className="faculty-modal-submit-wrap">
+                <button type="submit" className="faculty-modal-submit">
+                  Publish Notes
+                </button>
+                <div>
+                  <span className="material-symbols-outlined">info</span>
+                  <p>These notes will immediately appear under Official Notes for students.</p>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       <footer className="dashboard-footer faculty-container">
         <div>

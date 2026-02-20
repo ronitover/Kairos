@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Faculty Management Dashboard</title>
+<title>Faculty Management Dashboard - Upload Official Notes</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -18,6 +18,7 @@
                         "status-green": "#16A34A",
                         "status-yellow": "#D97706",
                         "status-red": "#DC2626",
+                        "secondary-text": "#64748B"
                     },
                     fontFamily: {
                         "poppins": ["Poppins", "sans-serif"]
@@ -46,6 +47,7 @@
             font-weight: 500;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             transition: all 0.2s;
         }
@@ -68,10 +70,17 @@
             border-top: 1px solid #E2E8F0;
             border-bottom: 1px solid #E2E8F0;
         }
+        .form-input-styled {
+            @apply w-full border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue;
+        }
+        .modal-overlay {
+            background-color: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(2px);
+        }
     </style>
 </head>
-<body class="min-h-screen text-slate-800">
-<header class="bg-white border-b border-card-border sticky top-0 z-50">
+<body class="min-h-screen text-slate-800 relative">
+<header class="bg-white border-b border-card-border sticky top-0 z-10 opacity-50 pointer-events-none">
 <div class="max-w-[1200px] mx-auto px-6 h-20 flex items-center justify-between">
 <div class="flex items-center gap-4">
 <div class="bg-primary-blue p-2 rounded-lg">
@@ -87,12 +96,11 @@
 <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border border-card-border overflow-hidden">
 <span class="material-symbols-outlined text-primary-blue text-3xl">account_circle</span>
 </div>
-<span class="material-symbols-outlined text-slate-400 group-hover:text-primary-blue transition-colors">expand_more</span>
 </div>
 </div>
 <div class="w-full h-[3px] bg-accent-yellow"></div>
 </header>
-<main class="max-w-[1200px] mx-auto px-6 py-8">
+<main class="max-w-[1200px] mx-auto px-6 py-8 opacity-50 pointer-events-none">
 <section class="card">
 <div class="flex items-center gap-2 mb-6">
 <span class="material-symbols-outlined text-primary-blue">subject</span>
@@ -101,201 +109,107 @@
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 <div class="flex flex-col gap-2">
 <label class="text-sm font-medium text-slate-600">Programme</label>
-<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue w-full">
-<option>B.Tech Computer Science</option>
-<option>M.Tech Software Engineering</option>
-<option>B.Sc Data Science</option>
-</select>
+<div class="form-input-styled p-2 bg-slate-50">B.Tech Computer Science</div>
 </div>
 <div class="flex flex-col gap-2">
 <label class="text-sm font-medium text-slate-600">Semester</label>
-<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue w-full">
-<option>Semester 5</option>
-<option>Semester 6</option>
-<option>Semester 7</option>
-</select>
+<div class="form-input-styled p-2 bg-slate-50">Semester 5</div>
 </div>
 <div class="flex flex-col gap-2">
 <label class="text-sm font-medium text-slate-600">Subject Code</label>
-<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue w-full">
-<option>CS501 - Operating Systems</option>
-<option>CS502 - DBMS</option>
-<option>CS503 - Computer Networks</option>
+<div class="form-input-styled p-2 bg-slate-50">CS501 - Operating Systems</div>
+</div>
+</div>
+</section>
+</main>
+<div class="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4">
+<div class="bg-white rounded-xl shadow-xl w-full max-w-[560px] overflow-hidden">
+<div class="px-8 pt-8 pb-4 flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="bg-primary-blue/10 p-2 rounded-lg">
+<span class="material-symbols-outlined text-primary-blue">upload_file</span>
+</div>
+<h2 class="text-xl font-bold text-slate-900">Upload Official Notes</h2>
+</div>
+<button class="text-slate-400 hover:text-slate-600 transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<form class="px-8 pb-8 space-y-6">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-primary-blue text-white text-[10px] flex items-center justify-center">1</span>
+                    Subject
+                </label>
+<input class="w-full bg-slate-100 border-slate-200 rounded-md text-sm text-slate-500 cursor-not-allowed h-11" disabled="" type="text" value="CS501 - Operating Systems"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-primary-blue text-white text-[10px] flex items-center justify-center">2</span>
+                    Unit / Chapter
+                </label>
+<select class="form-input-styled h-11">
+<option disabled="" selected="" value="">Select Unit/Chapter</option>
+<option>Unit 1: Introduction to OS</option>
+<option>Unit 2: Process Management</option>
+<option>Unit 3: Memory Management</option>
+<option>Unit 4: Storage Management</option>
+<option>Unit 5: Protection and Security</option>
 </select>
 </div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-primary-blue text-white text-[10px] flex items-center justify-center">3</span>
+                    Note Title
+                </label>
+<input class="form-input-styled h-11" placeholder="e.g., Detailed Guide on Paging &amp; Segmentation" type="text"/>
 </div>
-</section>
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-<div class="lg:col-span-2">
-<section class="card h-full">
-<div class="flex items-center justify-between mb-6">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary-blue">description</span>
-<h2 class="text-lg font-bold">Official Notes</h2>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-primary-blue text-white text-[10px] flex items-center justify-center">4</span>
+                    Description <span class="text-slate-400 font-normal ml-1">(Optional)</span>
+</label>
+<textarea class="form-input-styled py-2 resize-none" placeholder="Provide a brief overview of the contents..." rows="3"></textarea>
 </div>
-<button class="btn-primary">
-<span class="material-symbols-outlined text-sm">upload</span>
-                            Upload New
-                        </button>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-primary-blue text-white text-[10px] flex items-center justify-center">5</span>
+                    Upload File
+                </label>
+<div class="border-2 border-dashed border-slate-200 rounded-xl p-8 hover:border-primary-blue/50 hover:bg-slate-50 transition-all cursor-pointer group">
+<input class="hidden" id="file-upload" type="file"/>
+<label class="flex flex-col items-center justify-center gap-3 cursor-pointer" for="file-upload">
+<div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-primary-blue/10">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary-blue">cloud_upload</span>
 </div>
-<div class="overflow-x-auto border border-card-border rounded-lg">
-<table class="w-full text-left text-sm">
-<thead class="table-header">
-<tr>
-<th class="px-4 py-3 font-semibold text-slate-600">Title</th>
-<th class="px-4 py-3 font-semibold text-slate-600">Unit/Chapter</th>
-<th class="px-4 py-3 font-semibold text-slate-600">Date Uploaded</th>
-<th class="px-4 py-3 text-right">Action</th>
-</tr>
-</thead>
-<tbody class="divide-y divide-card-border">
-<tr>
-<td class="px-4 py-4 font-medium">Virtual Memory Architecture</td>
-<td class="px-4 py-4">Unit 4</td>
-<td class="px-4 py-4 text-slate-500">Oct 12, 2023</td>
-<td class="px-4 py-4 text-right">
-<button class="text-primary-blue hover:underline">Edit</button>
-</td>
-</tr>
-<tr>
-<td class="px-4 py-4 font-medium">Process Scheduling Algorithms</td>
-<td class="px-4 py-4">Unit 2</td>
-<td class="px-4 py-4 text-slate-500">Oct 05, 2023</td>
-<td class="px-4 py-4 text-right">
-<button class="text-primary-blue hover:underline">Edit</button>
-</td>
-</tr>
-</tbody>
-</table>
+<div class="text-center">
+<p class="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
+<p class="text-xs text-slate-400 mt-1">PDF, DOCX, PPTX, JPG or PNG (Max 25MB)</p>
 </div>
-</section>
-</div>
-<div class="lg:col-span-1">
-<section class="card h-full">
-<div class="flex items-center gap-2 mb-6">
-<span class="material-symbols-outlined text-primary-blue">verified_user</span>
-<h2 class="text-lg font-bold">Verification Panel</h2>
-</div>
-<p class="text-xs text-slate-500 mb-4 uppercase tracking-wider font-semibold">Pending Student Notes</p>
-<div class="space-y-4">
-<div class="p-4 border border-card-border rounded-lg bg-slate-50">
-<div class="flex justify-between items-start mb-2">
-<div>
-<p class="font-semibold text-sm">James Wilson</p>
-<p class="text-xs text-slate-500">2GI21CS045</p>
-</div>
-<span class="bg-accent-yellow text-status-yellow text-[10px] px-2 py-0.5 rounded font-bold">NEW</span>
-</div>
-<p class="text-xs text-slate-600 mb-3 italic">"Simplified Notes on Semaphores"</p>
-<div class="flex gap-2">
-<button class="flex-1 py-2 text-xs font-semibold bg-status-green text-white rounded hover:opacity-90">Approve</button>
-<button class="flex-1 py-2 text-xs font-semibold border border-status-red text-status-red rounded hover:bg-red-50">Reject</button>
+</label>
 </div>
 </div>
-<div class="p-4 border border-card-border rounded-lg bg-slate-50">
-<div class="flex justify-between items-start mb-2">
-<div>
-<p class="font-semibold text-sm">Amara Okafor</p>
-<p class="text-xs text-slate-500">2GI21CS012</p>
+<div class="pt-4">
+<button class="btn-primary w-full h-12 text-base" type="submit">
+                    Publish Notes
+                </button>
+<div class="mt-4 flex items-start gap-2 justify-center">
+<span class="material-symbols-outlined text-secondary-text text-sm mt-0.5">info</span>
+<p class="text-xs text-secondary-text text-center">
+                        These notes will immediately appear under Official Notes for students.
+                    </p>
 </div>
 </div>
-<p class="text-xs text-slate-600 mb-3 italic">"Shell Scripting Guide.pdf"</p>
-<div class="flex gap-2">
-<button class="flex-1 py-2 text-xs font-semibold bg-status-green text-white rounded hover:opacity-90">Approve</button>
-<button class="flex-1 py-2 text-xs font-semibold border border-status-red text-status-red rounded hover:bg-red-50">Reject</button>
+</form>
 </div>
 </div>
-</div>
-</section>
-</div>
-</div>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-<section class="card">
-<div class="flex items-center justify-between mb-6">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary-blue">library_books</span>
-<h2 class="text-lg font-bold">Textbook Management</h2>
-</div>
-<button class="btn-outline text-xs">
-<span class="material-symbols-outlined text-sm">add</span>
-                        Upload
-                    </button>
-</div>
-<div class="space-y-3">
-<div class="flex items-center justify-between p-3 border border-card-border rounded-lg">
-<div>
-<h3 class="text-sm font-semibold">Operating System Concepts</h3>
-<p class="text-xs text-slate-500">Silberschatz • 10th Ed</p>
-</div>
-<button class="text-slate-400 hover:text-status-red transition-colors">
-<span class="material-symbols-outlined text-xl">delete</span>
-</button>
-</div>
-<div class="flex items-center justify-between p-3 border border-card-border rounded-lg">
-<div>
-<h3 class="text-sm font-semibold">Modern Operating Systems</h3>
-<p class="text-xs text-slate-500">Andrew Tanenbaum • 4th Ed</p>
-</div>
-<button class="text-slate-400 hover:text-status-red transition-colors">
-<span class="material-symbols-outlined text-xl">delete</span>
-</button>
-</div>
-</div>
-</section>
-<section class="card">
-<div class="flex items-center justify-between mb-6">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary-blue">assignment_turned_in</span>
-<h2 class="text-lg font-bold">Active Assignments</h2>
-</div>
-<button class="btn-primary text-xs">
-                        Create New
-                    </button>
-</div>
-<div class="space-y-3">
-<div class="flex items-center justify-between p-4 border border-card-border rounded-lg bg-slate-50/50">
-<div>
-<h3 class="text-sm font-bold">Multi-threaded Scheduler</h3>
-<div class="flex gap-3 mt-1">
-<span class="text-xs text-slate-500 flex items-center gap-1">
-<span class="material-symbols-outlined text-xs">group</span>
-                                    42 Submissions
-                                </span>
-<span class="text-xs text-status-yellow font-medium">Due: 3 Days</span>
-</div>
-</div>
-<button class="text-xs font-semibold text-primary-blue flex items-center gap-1 bg-white px-3 py-1.5 rounded-md border border-card-border hover:bg-slate-50">
-                            View
-                            <span class="material-symbols-outlined text-xs">arrow_forward</span>
-</button>
-</div>
-<div class="flex items-center justify-between p-4 border border-card-border rounded-lg bg-slate-50/50">
-<div>
-<h3 class="text-sm font-bold">Disk Management Quiz</h3>
-<div class="flex gap-3 mt-1">
-<span class="text-xs text-slate-500 flex items-center gap-1">
-<span class="material-symbols-outlined text-xs">group</span>
-                                    128 Submissions
-                                </span>
-<span class="text-xs text-status-green font-medium">Closed</span>
-</div>
-</div>
-<button class="text-xs font-semibold text-primary-blue flex items-center gap-1 bg-white px-3 py-1.5 rounded-md border border-card-border hover:bg-slate-50">
-                            View
-                            <span class="material-symbols-outlined text-xs">arrow_forward</span>
-</button>
-</div>
-</div>
-</section>
-</div>
-</main>
-<footer class="max-w-[1200px] mx-auto px-6 pb-12">
+<footer class="max-w-[1200px] mx-auto px-6 pb-12 opacity-50 pointer-events-none">
 <div class="pt-8 border-t border-card-border flex flex-col md:flex-row justify-between items-center gap-4">
 <p class="text-xs text-slate-400 uppercase tracking-widest font-medium">University Digital Repository • Faculty Portal</p>
 <div class="flex gap-6">
-<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">Internal Guidelines</a>
-<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">Faculty Support</a>
-<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">System Status</a>
+<span class="text-xs text-slate-500">Internal Guidelines</span>
+<span class="text-xs text-slate-500">Faculty Support</span>
+<span class="text-xs text-slate-500">System Status</span>
 </div>
 </div>
 </footer>
