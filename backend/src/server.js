@@ -199,6 +199,19 @@ function mapDriveFile(file) {
   }
 }
 
+function extractDriveFileIdFromUrl(url) {
+  const normalizedUrl = normalizeString(url)
+  if (!normalizedUrl) return null
+
+  const fromPath = normalizedUrl.match(/\/file\/d\/([^/]+)/)
+  if (fromPath?.[1]) return fromPath[1]
+
+  const fromQuery = normalizedUrl.match(/[?&]id=([^&]+)/)
+  if (fromQuery?.[1]) return fromQuery[1]
+
+  return null
+}
+
 function escapeDriveQueryValue(value) {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
@@ -214,19 +227,23 @@ function ensureDatabaseConfigured(res) {
 }
 
 async function getOrCreateSubjectFolder(subjectName, parentFolderId) {
-  if (!subjectName) {
-    return parentFolderId ?? null
-  }
-
   const trimmedSubject = normalizeString(subjectName)
-  if (!trimmedSubject) {
-    return parentFolderId ?? null
-  }
+  if (!trimmedSubject) return parentFolderId ?? null
+
+  return getOrCreateDriveFolder(trimmedSubject, parentFolderId, {
+    folderType: 'subject',
+    subjectName: trimmedSubject,
+  })
+}
+
+async function getOrCreateDriveFolder(folderName, parentFolderId, appProperties = {}) {
+  const normalizedName = normalizeString(folderName)
+  if (!normalizedName) return parentFolderId ?? null
 
   const clauses = [
     "mimeType = 'application/vnd.google-apps.folder'",
     "trashed = false",
-    `name = '${escapeDriveQueryValue(trimmedSubject)}'`,
+    `name = '${escapeDriveQueryValue(normalizedName)}'`,
   ]
   if (parentFolderId) {
     clauses.push(`'${parentFolderId}' in parents`)
@@ -248,13 +265,10 @@ async function getOrCreateSubjectFolder(subjectName, parentFolderId) {
   const created = await driveClient.files.create({
     supportsAllDrives: true,
     requestBody: {
-      name: trimmedSubject,
+      name: normalizedName,
       mimeType: 'application/vnd.google-apps.folder',
       parents: parentFolderId ? [parentFolderId] : undefined,
-      appProperties: {
-        folderType: 'subject',
-        subjectName: trimmedSubject,
-      },
+      appProperties,
     },
     fields: 'id,name,parents',
   })
@@ -291,9 +305,23 @@ function normalizeAudience(value) {
 async function uploadToDrive({ file, userId, role, subjectName, folderId, fileName, category, metadata = {} }) {
   const effectiveParent = normalizeString(folderId) || GOOGLE_DRIVE_PARENT_FOLDER_ID
   const normalizedSubject = normalizeString(subjectName) || null
-  const targetParent = await getOrCreateSubjectFolder(normalizedSubject, effectiveParent)
   const uploadName = normalizeString(fileName) || file.originalname
   const uploadCategory = normalizeString(category) || 'general'
+  let targetParent = await getOrCreateSubjectFolder(normalizedSubject, effectiveParent)
+
+  if (uploadCategory === 'textbook') {
+    const textbookRoot = await getOrCreateDriveFolder('TEXTBOOK', effectiveParent, {
+      folderType: 'category-root',
+      category: 'textbook',
+    })
+    const textbookSubject = normalizedSubject || 'General'
+    targetParent = await getOrCreateDriveFolder(textbookSubject, textbookRoot, {
+      folderType: 'category-subject',
+      category: 'textbook',
+      subjectName: textbookSubject,
+    })
+  }
+
   const mediaStream = new PassThrough()
   mediaStream.end(file.buffer)
 
@@ -697,6 +725,175 @@ app.get('/api/files', requireAuth, async (req, res) => {
   })
 })
 
+app.get('/api/textbooks', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const role = req.auth.role
+  const mine = normalizeString(req.query?.mine)?.toLowerCase() === 'true'
+  const subjectId = normalizeString(req.query?.subjectId)
+
+  let query = adminSupabase
+    .from('textbooks')
+    .select(`
+      id,title,author,edition,subject_id,uploaded_by,uploaded_at,
+      subjects(code,name,programme,semester),
+      faculty(name),
+      textbook_files(file_name,file_url,file_size,file_type,uploaded_at)
+    `)
+    .order('uploaded_at', { ascending: false })
+
+  if (subjectId) query = query.eq('subject_id', subjectId)
+  if (mine || role === 'faculty') query = query.eq('uploaded_by', req.auth.user.id)
+
+  const { data, error } = await query
+  if (error) throw error
+
+  const textbooks = (data ?? []).map((book) => {
+    const file = (book.textbook_files ?? [])[0]
+    return {
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      edition: book.edition,
+      subjectId: book.subject_id,
+      subjectCode: book.subjects?.code || null,
+      subjectName: book.subjects?.name || null,
+      programme: book.subjects?.programme || null,
+      semester: book.subjects?.semester || null,
+      uploadedBy: book.uploaded_by,
+      uploadedByName: book.faculty?.name || 'Faculty',
+      uploadedAt: book.uploaded_at,
+      file: file
+        ? {
+            name: file.file_name,
+            url: file.file_url,
+            size: Number(file.file_size || 0),
+            type: file.file_type,
+            uploadedAt: file.uploaded_at,
+          }
+        : null,
+    }
+  })
+
+  return res.json({ textbooks })
+})
+
+app.post('/api/textbooks', requireAuth, requireRoles('faculty'), upload.single('file'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res) || !ensureDriveConfigured(res)) return
+  if (!req.file) return res.status(400).json({ message: 'File is required.' })
+
+  const { user, role } = req.auth
+  const title = normalizeString(req.body?.title) || req.file.originalname
+  const author = normalizeString(req.body?.author)
+  const edition = normalizeString(req.body?.edition) || null
+  if (!title || !author) {
+    return res.status(400).json({ message: 'title and author are required.' })
+  }
+
+  const resolvedSubject = await resolveSubjectName({
+    subjectId: req.body?.subjectId,
+    subjectName: req.body?.subjectName,
+  })
+  if (!resolvedSubject.subjectName) {
+    return res.status(400).json({ message: 'subjectId or subjectName is required.' })
+  }
+
+  await syncFacultyProfileFromUser(user)
+
+  const uploaded = await uploadToDrive({
+    file: req.file,
+    userId: user.id,
+    role,
+    subjectName: resolvedSubject.subjectName,
+    folderId: req.body?.folderId,
+    fileName: req.body?.fileName || title,
+    category: 'textbook',
+    metadata: { contentType: 'textbook' },
+  })
+
+  const { data: textbook, error: textbookError } = await adminSupabase
+    .from('textbooks')
+    .insert({
+      title,
+      author,
+      edition,
+      subject_id: resolvedSubject.subjectId,
+      uploaded_by: user.id,
+    })
+    .select('id,title,author,edition,subject_id,uploaded_by,uploaded_at')
+    .single()
+  if (textbookError) throw textbookError
+
+  const { error: fileError } = await adminSupabase.from('textbook_files').insert({
+    textbook_id: textbook.id,
+    file_name: uploaded.file.name,
+    file_url: uploaded.file.webViewLink || uploaded.file.webContentLink || '',
+    file_size: Number(uploaded.file.size || 0),
+    file_type: uploaded.file.mimeType || null,
+  })
+  if (fileError) throw fileError
+
+  return res.status(201).json({
+    message: 'Textbook uploaded successfully.',
+    textbook: {
+      ...textbook,
+      subject_name: resolvedSubject.subjectName,
+      file: {
+        name: uploaded.file.name,
+        url: uploaded.file.webViewLink || uploaded.file.webContentLink || '',
+        size: Number(uploaded.file.size || 0),
+        type: uploaded.file.mimeType || null,
+      },
+    },
+    folder: uploaded.folder,
+  })
+})
+
+app.delete('/api/textbooks/:textbookId', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const textbookId = normalizeString(req.params.textbookId)
+  if (!textbookId) return res.status(400).json({ message: 'textbookId is required.' })
+
+  const { data: textbook, error: textbookError } = await adminSupabase
+    .from('textbooks')
+    .select('id,uploaded_by')
+    .eq('id', textbookId)
+    .maybeSingle()
+  if (textbookError) throw textbookError
+  if (!textbook) return res.status(404).json({ message: 'Textbook not found.' })
+
+  if (req.auth.role === 'faculty' && textbook.uploaded_by !== req.auth.user.id) {
+    return res.status(403).json({ message: 'You can only delete your own textbooks.' })
+  }
+
+  const { data: files, error: filesError } = await adminSupabase
+    .from('textbook_files')
+    .select('file_url')
+    .eq('textbook_id', textbookId)
+  if (filesError) throw filesError
+
+  if (driveClient) {
+    for (const file of files ?? []) {
+      const fileId = extractDriveFileIdFromUrl(file.file_url)
+      if (!fileId) continue
+      try {
+        await driveClient.files.delete({ fileId, supportsAllDrives: true })
+      } catch (err) {
+        console.warn(`Failed to delete Drive file for textbook ${textbookId}:`, err?.message || err)
+      }
+    }
+  }
+
+  const { error: deleteError } = await adminSupabase
+    .from('textbooks')
+    .delete()
+    .eq('id', textbookId)
+  if (deleteError) throw deleteError
+
+  return res.json({ message: 'Textbook deleted successfully.' })
+})
+
 app.get('/api/faculty/dashboard', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
   if (!ensureDatabaseConfigured(res)) return
 
@@ -804,24 +1001,35 @@ app.get('/api/faculty/dashboard', requireAuth, requireRoles('faculty', 'admin'),
     .limit(8)
   if (officialNotesError) throw officialNotesError
 
-  let textbooks = []
-  if (driveClient) {
-    const clauses = [
-      "trashed = false",
-      "appProperties has { key='category' and value='textbook' }",
-      `appProperties has { key='uploadedBy' and value='${escapeDriveQueryValue(facultyId)}' }`,
-    ]
-    const listed = await driveClient.files.list({
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-      q: clauses.join(' and '),
-      pageSize: 20,
-      fields:
-        'files(id,name,mimeType,size,createdTime,webViewLink,webContentLink,parents,appProperties)',
-      orderBy: 'createdTime desc',
-    })
-    textbooks = (listed.data.files ?? []).map(mapDriveFile)
-  }
+  const { data: textbookRows, error: textbookError } = await adminSupabase
+    .from('textbooks')
+    .select(`
+      id,title,author,edition,subject_id,uploaded_at,
+      subjects(code,name),
+      textbook_files(file_name,file_url,file_size,file_type,uploaded_at)
+    `)
+    .eq('uploaded_by', facultyId)
+    .order('uploaded_at', { ascending: false })
+    .limit(20)
+  if (textbookError) throw textbookError
+
+  const textbooks = (textbookRows ?? []).map((book) => {
+    const file = (book.textbook_files ?? [])[0]
+    return {
+      id: book.id,
+      name: book.title,
+      title: book.title,
+      author: book.author,
+      edition: book.edition,
+      subjectId: book.subject_id,
+      subjectCode: book.subjects?.code || null,
+      subjectName: book.subjects?.name || null,
+      size: String(file?.file_size ?? 0),
+      createdTime: file?.uploaded_at || book.uploaded_at,
+      webViewLink: file?.file_url || '',
+      fileName: file?.file_name || null,
+    }
+  })
 
   const verificationNotes = (verificationNotesRows ?? []).map((note) => ({
     id: note.id,

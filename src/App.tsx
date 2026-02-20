@@ -94,92 +94,12 @@ type AcademicEvent = {
   targetAudience: 'students' | 'faculty' | 'both'
 }
 
-const defaultDepartmentNotices: DepartmentNotice[] = [
-  {
-    id: 'notice-1',
-    title: 'Mid-Sem Exam Schedule Published',
-    content: 'Exam timetable for all 4th and 6th semester students is now available in the portal.',
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    author: 'Admin Office',
-    authorRole: 'admin',
-    urgent: true,
-  },
-  {
-    id: 'notice-2',
-    title: 'Library Access Extended',
-    content: 'Department library will remain open until 8:00 PM during project submission week.',
-    createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-    author: 'Library Coordinator',
-    authorRole: 'admin',
-    urgent: false,
-  },
-]
-
-const academicHolidaySeeds = [
-  { month: 0, day: 1, title: "New Year's Day", details: 'National holiday.' },
-  { month: 0, day: 26, title: 'Republic Day', details: 'National holiday.' },
-  { month: 7, day: 15, title: 'Independence Day', details: 'National holiday.' },
-  { month: 9, day: 2, title: 'Gandhi Jayanti', details: 'National holiday.' },
-  { month: 11, day: 25, title: 'Christmas Day', details: 'National holiday.' },
-]
-
-function getAcademicHolidays(year: number): AcademicEvent[] {
-  return academicHolidaySeeds.map((holiday, index) => ({
-    id: `event-holiday-${year}-${index + 1}`,
-    title: holiday.title,
-    date: new Date(year, holiday.month, holiday.day).toISOString(),
-    type: 'holiday' as const,
-    details: holiday.details,
-    createdBy: 'Admin Office',
-    createdByRole: 'admin' as const,
-    targetAudience: 'both' as const,
-  }))
-}
-
-function mergeCalendarEventsWithDefaults(events: AcademicEvent[]): AcademicEvent[] {
-  const merged = [...events]
-  const existingKeys = new Set(
-    events.map((event) => `${event.type}|${event.title.toLowerCase()}|${new Date(event.date).toDateString()}`),
-  )
-  for (const event of defaultAcademicEvents) {
-    const key = `${event.type}|${event.title.toLowerCase()}|${new Date(event.date).toDateString()}`
-    if (!existingKeys.has(key)) {
-      merged.push(event)
-    }
-  }
-  return merged
-}
-
 function isEventVisibleToRole(event: AcademicEvent, role: 'student' | 'faculty'): boolean {
   if (event.targetAudience === 'both') {
     return true
   }
   return role === 'student' ? event.targetAudience === 'students' : event.targetAudience === 'faculty'
 }
-
-const defaultAcademicEvents: AcademicEvent[] = [
-  {
-    id: 'event-1',
-    title: 'Class Test: Unit 3',
-    date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-    type: 'test',
-    details: 'Syllabus: Memory management and process synchronization.',
-    createdBy: 'Faculty Office',
-    createdByRole: 'faculty',
-    targetAudience: 'both',
-  },
-  {
-    id: 'event-2',
-    title: 'Lab Evaluation',
-    date: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(),
-    type: 'assignment',
-    details: 'Carry records and completed lab sheets.',
-    createdBy: 'Faculty Office',
-    createdByRole: 'faculty',
-    targetAudience: 'both',
-  },
-  ...getAcademicHolidays(new Date().getFullYear()),
-]
 
 function isNoticeNew(createdAt: string): boolean {
   const createdMs = new Date(createdAt).getTime()
@@ -2760,9 +2680,6 @@ function FacultyDashboardScreen({
   onViewAssignment,
   calendarEvents,
   onCreateCalendarEvent,
-  notices,
-  onCreateNotice,
-  onDeleteOwnNotice,
   currentPath,
   onNavigate,
   onLogout,
@@ -2779,15 +2696,11 @@ function FacultyDashboardScreen({
     details: string
     targetAudience?: 'students' | 'faculty' | 'both'
   }) => Promise<void>
-  notices: DepartmentNotice[]
-  onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => Promise<void>
-  onDeleteOwnNotice: (id: string) => Promise<void>
   currentPath: RoutePath
   onNavigate: (path: RoutePath) => void
   onLogout: () => void
 }) {
   const { user } = useAuth()
-  const displayName = user?.name || user?.fullName || 'Faculty User'
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isDashboardLoading, setIsDashboardLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState<string | null>(null)
@@ -2798,18 +2711,12 @@ function FacultyDashboardScreen({
   const [officialNoteSubjectId, setOfficialNoteSubjectId] = useState('')
   const [isOfficialNoteUploading, setIsOfficialNoteUploading] = useState(false)
   const [officialNoteUploadError, setOfficialNoteUploadError] = useState<string | null>(null)
-  const [notificationTitle, setNotificationTitle] = useState('')
-  const [notificationContent, setNotificationContent] = useState('')
-  const [isUrgentNotification, setIsUrgentNotification] = useState(false)
-  const [notificationError, setNotificationError] = useState<string | null>(null)
-  const [notificationSuccess, setNotificationSuccess] = useState<string | null>(null)
   const [eventTitle, setEventTitle] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [eventType, setEventType] = useState<AcademicEventType>('test')
   const [eventDetails, setEventDetails] = useState('')
   const [eventFeedback, setEventFeedback] = useState<string | null>(null)
   const department = user?.department || 'Department'
-  const facultyNotices = notices.filter((notice) => notice.authorRole === 'faculty' && notice.author === displayName)
 
   const loadFacultyDashboard = async () => {
     setIsDashboardLoading(true)
@@ -2872,28 +2779,6 @@ function FacultyDashboardScreen({
       setOfficialNoteSubjectId(assignedSubjects[0].id)
     }
     setIsUploadModalOpen(true)
-  }
-
-  const handleSendNotification = async (event: React.FormEvent) => {
-    event.preventDefault()
-    const title = notificationTitle.trim()
-    const content = notificationContent.trim()
-    if (!title || !content) {
-      setNotificationError('Please provide both a title and message.')
-      setNotificationSuccess(null)
-      return
-    }
-    try {
-      await onCreateNotice({ title, content, urgent: isUrgentNotification })
-      setNotificationTitle('')
-      setNotificationContent('')
-      setIsUrgentNotification(false)
-      setNotificationError(null)
-      setNotificationSuccess('Notification sent to students.')
-    } catch (error) {
-      setNotificationError(error instanceof Error ? error.message : 'Failed to send notification.')
-      setNotificationSuccess(null)
-    }
   }
 
   const handleCreateCalendarEvent = async (event: React.FormEvent) => {
@@ -3231,88 +3116,6 @@ function FacultyDashboardScreen({
           </div>
         </section>
 
-        <section className="dashboard-card faculty-notification-card">
-          <div className="faculty-section-head">
-            <div className="dashboard-section-title">
-              <span className="material-symbols-outlined">campaign</span>
-              <h2>Department Notifications</h2>
-            </div>
-          </div>
-
-          <form className="faculty-notification-form" onSubmit={handleSendNotification}>
-            <div className="field-group">
-              <label htmlFor="faculty-notification-title">Title</label>
-              <input
-                id="faculty-notification-title"
-                type="text"
-                value={notificationTitle}
-                onChange={(event) => setNotificationTitle(event.target.value)}
-                placeholder="Exam update, class change, deadline reminder..."
-              />
-            </div>
-
-            <div className="field-group">
-              <label htmlFor="faculty-notification-content">Message</label>
-              <textarea
-                id="faculty-notification-content"
-                rows={4}
-                value={notificationContent}
-                onChange={(event) => setNotificationContent(event.target.value)}
-                placeholder="Write the department circular/notification for students..."
-              />
-            </div>
-            <label className="notice-urgent-toggle">
-              <input
-                type="checkbox"
-                checked={isUrgentNotification}
-                onChange={(event) => setIsUrgentNotification(event.target.checked)}
-              />
-              <span>Mark as urgent notice</span>
-            </label>
-
-            <div className="faculty-notification-actions">
-              <button type="submit" className="dashboard-btn-primary">
-                <span className="material-symbols-outlined">send</span>
-                Send Notification
-              </button>
-              <p>This appears in the non-clickable notification block on the student dashboard.</p>
-            </div>
-            {notificationError ? <p className="faculty-notification-error">{notificationError}</p> : null}
-            {notificationSuccess ? <p className="faculty-notification-success">{notificationSuccess}</p> : null}
-          </form>
-
-          <div className="faculty-notification-history">
-            <h3>Recent Sent</h3>
-            {facultyNotices.length === 0 ? (
-              <p className="faculty-notification-empty">No notifications sent yet.</p>
-            ) : null}
-            {facultyNotices.slice(0, 5).map((notice) => (
-              <article key={notice.id} className={`faculty-notification-item ${notice.urgent || isNoticeNew(notice.createdAt) ? 'highlight' : ''}`}>
-                <div>
-                  <div>
-                    <h4>{notice.title}</h4>
-                    <div className="notice-badges">
-                      {notice.urgent ? <span className="notice-badge urgent">Urgent</span> : null}
-                      {isNoticeNew(notice.createdAt) ? <span className="notice-badge new">New</span> : null}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="notice-delete-btn"
-                    onClick={() => {
-                      void onDeleteOwnNotice(notice.id)
-                    }}
-                    aria-label={`Delete ${notice.title}`}
-                  >
-                    <span className="material-symbols-outlined">delete</span>
-                  </button>
-                </div>
-                <p>{notice.content}</p>
-                <small>{new Date(notice.createdAt).toLocaleString()}</small>
-              </article>
-            ))}
-          </div>
-        </section>
       </main>
 
       {isUploadModalOpen ? (
@@ -4097,21 +3900,44 @@ function FacultyTextbookUploadScreen({
     edition: '',
     subjectId: '',
   })
+  const [textbooks, setTextbooks] = useState<Array<{
+    id: string
+    title: string
+    author: string
+    edition: string | null
+    subjectCode: string | null
+    subjectName: string | null
+    uploadedAt: string
+    fileUrl: string | null
+  }>>([])
   const [file, setFile] = useState<File | null>(null)
   const [subjects, setSubjects] = useState<Array<{ id: string; code: string; name: string }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let active = true
-    adminService
-      .getSubjects()
-      .then((items) => {
+    Promise.all([adminService.getSubjects(), facultyService.getTextbooks()])
+      .then(([subjectItems, textbookItems]) => {
         if (!active) return
-        setSubjects(items.map((subject) => ({ id: subject.id, code: subject.code, name: subject.name })))
+        const mappedSubjects = subjectItems.map((subject) => ({ id: subject.id, code: subject.code, name: subject.name }))
+        setSubjects(mappedSubjects)
+        setTextbooks(
+          textbookItems.map((book) => ({
+            id: book.id,
+            title: book.title,
+            author: book.author,
+            edition: book.edition,
+            subjectCode: book.subjectCode,
+            subjectName: book.subjectName,
+            uploadedAt: book.uploadedAt,
+            fileUrl: book.file?.url || null,
+          })),
+        )
       })
       .catch((err) => {
         if (!active) return
-        console.error('Failed to load subjects:', err)
+        console.error('Failed to load textbook screen data:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load textbook data')
       })
 
     return () => {
@@ -4140,8 +3966,8 @@ function FacultyTextbookUploadScreen({
     event.preventDefault()
     setError(null)
 
-    if (!formData.title || !formData.author || !file) {
-      setError('Please fill in all required fields and select a file')
+    if (!formData.title || !formData.author || !formData.subjectId || !file) {
+      setError('Please fill in all required fields (including subject) and select a file')
       return
     }
 
@@ -4153,8 +3979,21 @@ function FacultyTextbookUploadScreen({
         title: formData.title,
         author: formData.author,
         edition: formData.edition,
-        subjectId: formData.subjectId || undefined,
+        subjectId: formData.subjectId,
       })
+      const refreshed = await facultyService.getTextbooks()
+      setTextbooks(
+        refreshed.map((book) => ({
+          id: book.id,
+          title: book.title,
+          author: book.author,
+          edition: book.edition,
+          subjectCode: book.subjectCode,
+          subjectName: book.subjectName,
+          uploadedAt: book.uploadedAt,
+          fileUrl: book.file?.url || null,
+        })),
+      )
       setIsModalOpen(false)
       setFormData({ title: '', author: '', edition: '', subjectId: '' })
       setFile(null)
@@ -4162,6 +4001,18 @@ function FacultyTextbookUploadScreen({
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleDeleteTextbook = async (textbookId: string) => {
+    const ok = window.confirm('Delete this textbook?')
+    if (!ok) return
+
+    try {
+      await facultyService.deleteTextbook(textbookId)
+      setTextbooks((current) => current.filter((item) => item.id !== textbookId))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete textbook')
     }
   }
 
@@ -4204,53 +4055,59 @@ function FacultyTextbookUploadScreen({
             <div className="align-right">Action</div>
           </div>
           <div className="textbook-list-body">
-            <article className="textbook-list-row">
-              <div className="textbook-book-cell">
-                <div className="textbook-icon-cell">
-                  <span className="material-symbols-outlined">book_2</span>
+            {textbooks.length === 0 ? (
+              <article className="textbook-list-row">
+                <div className="textbook-book-cell">
+                  <div className="textbook-icon-cell">
+                    <span className="material-symbols-outlined">book_2</span>
+                  </div>
+                  <div>
+                    <h3>No textbooks uploaded</h3>
+                    <p>Upload a textbook to see it here.</p>
+                  </div>
                 </div>
                 <div>
-                  <h3>Modern Operating Systems</h3>
-                  <p>ISBN: 978-0133591620</p>
-                </div>
-              </div>
-              <div>
-                <p>Andrew S. Tanenbaum</p>
-                <p>4th Edition</p>
-              </div>
-              <div>
-                <p>Oct 24, 2023</p>
-              </div>
-              <div className="align-right">
-                <button type="button" className="faculty-icon-danger">
-                  <span className="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-            </article>
-
-            <article className="textbook-list-row">
-              <div className="textbook-book-cell">
-                <div className="textbook-icon-cell">
-                  <span className="material-symbols-outlined">book_2</span>
+                  <p>-</p>
+                  <p>-</p>
                 </div>
                 <div>
-                  <h3>Introduction to Algorithms</h3>
-                  <p>ISBN: 978-0262033848</p>
+                  <p>-</p>
                 </div>
-              </div>
-              <div>
-                <p>Thomas H. Cormen</p>
-                <p>3rd Edition</p>
-              </div>
-              <div>
-                <p>Oct 15, 2023</p>
-              </div>
-              <div className="align-right">
-                <button type="button" className="faculty-icon-danger">
-                  <span className="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-            </article>
+                <div className="align-right">
+                  <span className="material-symbols-outlined" style={{ opacity: 0.35 }}>delete</span>
+                </div>
+              </article>
+            ) : null}
+            {textbooks.map((book) => (
+              <article key={book.id} className="textbook-list-row">
+                <div className="textbook-book-cell">
+                  <div className="textbook-icon-cell">
+                    <span className="material-symbols-outlined">book_2</span>
+                  </div>
+                  <div>
+                    <h3>{book.title}</h3>
+                    <p>{book.subjectCode && book.subjectName ? `${book.subjectCode} - ${book.subjectName}` : (book.subjectName || 'General')}</p>
+                  </div>
+                </div>
+                <div>
+                  <p>{book.author}</p>
+                  <p>{book.edition || 'Edition not specified'}</p>
+                </div>
+                <div>
+                  <p>{new Date(book.uploadedAt).toLocaleDateString()}</p>
+                </div>
+                <div className="align-right">
+                  {book.fileUrl ? (
+                    <a href={book.fileUrl} target="_blank" rel="noreferrer" className="faculty-icon-danger" style={{ marginRight: 10 }}>
+                      <span className="material-symbols-outlined">open_in_new</span>
+                    </a>
+                  ) : null}
+                  <button type="button" className="faculty-icon-danger" onClick={() => void handleDeleteTextbook(book.id)}>
+                    <span className="material-symbols-outlined">delete</span>
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -4333,8 +4190,9 @@ function FacultyTextbookUploadScreen({
                   value={formData.subjectId}
                   onChange={handleChange}
                   disabled={isLoading}
+                  required
                 >
-                  <option value="">Select Subject (optional)</option>
+                  <option value="">Select Subject</option>
                   {subjects.map((subject) => (
                     <option key={subject.id} value={subject.id}>
                       {subject.code} - {subject.name}
@@ -6881,8 +6739,8 @@ function App() {
   const { user, isAuthenticated, isLoading: isAuthLoading, logout } = useAuth()
   const [path, setPath] = useState<RoutePath>(() => normalizePath(window.location.pathname))
   const [sessionNotice, setSessionNotice] = useState<string | null>(null)
-  const [notices, setNotices] = useState<DepartmentNotice[]>(defaultDepartmentNotices)
-  const [calendarEvents, setCalendarEvents] = useState<AcademicEvent[]>(defaultAcademicEvents)
+  const [notices, setNotices] = useState<DepartmentNotice[]>([])
+  const [calendarEvents, setCalendarEvents] = useState<AcademicEvent[]>([])
 
   useEffect(() => {
     const normalized = normalizePath(window.location.pathname)
@@ -6930,8 +6788,8 @@ function App() {
           targetAudience: event.target_audience,
         }))
 
-        setNotices(mappedNotices.length > 0 ? mappedNotices : defaultDepartmentNotices)
-        setCalendarEvents(mergeCalendarEventsWithDefaults(mappedEvents))
+        setNotices(mappedNotices)
+        setCalendarEvents(mappedEvents)
       })
       .catch((error) => {
         console.error('Failed to load communications:', error)
@@ -7003,11 +6861,6 @@ function App() {
   }
 
   const deleteNoticeAsAdmin = async (id: string) => {
-    await communicationsService.deleteNotice(id)
-    setNotices((current) => current.filter((notice) => notice.id !== id))
-  }
-
-  const deleteNoticeAsFaculty = async (id: string) => {
     await communicationsService.deleteNotice(id)
     setNotices((current) => current.filter((notice) => notice.id !== id))
   }
@@ -7205,9 +7058,6 @@ function App() {
           onViewAssignment={() => navigate('/faculty_assignment_submissions')}
           calendarEvents={calendarEvents.filter((event) => isEventVisibleToRole(event, 'faculty'))}
           onCreateCalendarEvent={createCalendarEvent}
-          notices={notices}
-          onCreateNotice={createNotice}
-          onDeleteOwnNotice={deleteNoticeAsFaculty}
           currentPath={path}
           onNavigate={navigate}
           onLogout={async () => {

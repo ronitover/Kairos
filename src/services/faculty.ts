@@ -1,5 +1,25 @@
 import { apiClient } from './api'
 
+export interface TextbookItem {
+  id: string
+  title: string
+  author: string
+  edition: string | null
+  subjectId: string | null
+  subjectCode: string | null
+  subjectName: string | null
+  uploadedBy: string
+  uploadedByName: string
+  uploadedAt: string
+  file: {
+    name: string
+    url: string
+    size: number
+    type: string | null
+    uploadedAt: string
+  } | null
+}
+
 export interface FacultyDashboard {
   faculty: {
     id: string
@@ -129,16 +149,28 @@ class FacultyService {
     title: string
     author: string
     edition: string
-    subjectId?: string
+    subjectId: string
   }): Promise<{ id: string }> {
     const formData = new FormData()
     formData.append('file', data.file)
-    formData.append('fileName', data.title)
-    formData.append('category', 'textbook')
-    if (data.subjectId) formData.append('subjectId', data.subjectId)
-    const response = await apiClient.uploadFile<{ file: { id: string } }>('/files/upload', formData)
+    formData.append('title', data.title)
+    formData.append('author', data.author)
+    if (data.edition) formData.append('edition', data.edition)
+    formData.append('subjectId', data.subjectId)
+    const response = await apiClient.uploadFile<{ textbook: { id: string } }>('/textbooks', formData)
     if (response.error || !response.data) throw new Error(response.error?.message || 'Upload failed')
-    return { id: response.data.file.id }
+    return { id: response.data.textbook.id }
+  }
+
+  async getTextbooks(): Promise<TextbookItem[]> {
+    const response = await apiClient.get<{ textbooks: TextbookItem[] }>('/textbooks?mine=true')
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Failed to load textbooks')
+    return response.data.textbooks
+  }
+
+  async deleteTextbook(textbookId: string): Promise<void> {
+    const response = await apiClient.delete(`/textbooks/${textbookId}`)
+    if (response.error) throw new Error(response.error.message)
   }
 }
 
