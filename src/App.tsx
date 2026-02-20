@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 
-type RoutePath = '/' | '/student_login' | '/student_register'
+type RoutePath = '/' | '/student_login' | '/student_register' | '/faculty_login'
 
 const links = [
   { label: 'Help Center', href: '#' },
@@ -17,10 +17,20 @@ function normalizePath(pathname: string): RoutePath {
     return '/student_register'
   }
 
+  if (pathname === '/faculty_login') {
+    return '/faculty_login'
+  }
+
   return '/'
 }
 
-function HomeScreen({ onStudentLogin }: { onStudentLogin: () => void }) {
+function HomeScreen({
+  onStudentLogin,
+  onFacultyLogin,
+}: {
+  onStudentLogin: () => void
+  onFacultyLogin: () => void
+}) {
   return (
     <>
       <main className="auth-card" aria-label="Department Academic Repository login">
@@ -40,7 +50,7 @@ function HomeScreen({ onStudentLogin }: { onStudentLogin: () => void }) {
               <span>Student Login</span>
             </button>
 
-            <button type="button" className="login-button">
+            <button type="button" className="login-button" onClick={onFacultyLogin}>
               <span className="material-symbols-outlined">badge</span>
               <span>Faculty Login</span>
             </button>
@@ -114,11 +124,17 @@ function StudentLoginScreen({ onBack, onRegister }: { onBack: () => void; onRegi
               <button type="submit" className="student-primary-btn">
                 Login
               </button>
-              <button type="button" className="student-secondary-btn" onClick={onRegister}>
-                Register
-              </button>
             </div>
           </form>
+
+          <div className="student-register-cta">
+            <p>
+              Dont have an account?{' '}
+              <button type="button" className="inline-link" onClick={onRegister}>
+                Register now
+              </button>
+            </p>
+          </div>
 
           <div className="forgot-wrap">
             <a href="#">Forgot Password?</a>
@@ -226,6 +242,63 @@ function StudentRegisterScreen({ onLogin }: { onLogin: () => void }) {
   )
 }
 
+function FacultyLoginScreen() {
+  return (
+    <>
+      <main className="student-login-card" aria-label="Faculty login">
+        <div className="student-card-content">
+          <div className="student-logo-wrap">
+            <div className="student-logo-shell">
+              <span className="material-symbols-outlined icon-faculty">account_balance</span>
+            </div>
+          </div>
+
+          <div className="student-heading">
+            <h1 className="student-title">Faculty Login</h1>
+            <p>Authorized Faculty Access Only</p>
+          </div>
+
+          <div className="student-accent faculty-accent" />
+
+          <form className="student-form faculty-form" onSubmit={(event) => event.preventDefault()}>
+            <div className="field-group">
+              <label htmlFor="facultyEmail">Faculty Email</label>
+              <input id="facultyEmail" name="facultyEmail" type="email" placeholder="faculty@college.edu" required />
+            </div>
+
+            <div className="field-group">
+              <label htmlFor="facultyPassword">Password</label>
+              <div className="password-wrap">
+                <input
+                  id="facultyPassword"
+                  name="password"
+                  type="password"
+                  placeholder="••••••••"
+                  required
+                />
+                <button type="button" className="password-toggle" aria-label="Toggle password visibility">
+                  <span className="material-symbols-outlined">visibility</span>
+                </button>
+              </div>
+              <p className="field-help">Contact administrator if you do not have credentials.</p>
+            </div>
+
+            <div className="student-actions">
+              <button type="submit" className="student-primary-btn">
+                Login
+              </button>
+            </div>
+          </form>
+
+          <div className="forgot-wrap">
+            <a href="#">Forgot Password?</a>
+          </div>
+        </div>
+      </main>
+    </>
+  )
+}
+
 function App() {
   const [path, setPath] = useState<RoutePath>(() => normalizePath(window.location.pathname))
 
@@ -258,7 +331,14 @@ function App() {
 
       {path === '/student_register' ? <StudentRegisterScreen onLogin={() => navigate('/student_login')} /> : null}
 
-      {path === '/' ? <HomeScreen onStudentLogin={() => navigate('/student_login')} /> : null}
+      {path === '/faculty_login' ? <FacultyLoginScreen /> : null}
+
+      {path === '/' ? (
+        <HomeScreen
+          onStudentLogin={() => navigate('/student_login')}
+          onFacultyLogin={() => navigate('/faculty_login')}
+        />
+      ) : null}
     </>
   )
 }

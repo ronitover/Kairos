@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Student Registration</title>
+<title>Faculty Login</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -16,6 +16,7 @@
                         "accent-yellow": "#FACC15",
                         "bg-light": "#F8FAFC",
                         "border-light": "#E2E8F0",
+                        "secondary-text": "#64748B",
                     },
                     fontFamily: {
                         "poppins": ["Poppins", "sans-serif"]
@@ -33,83 +34,47 @@
             background-color: #F8FAFC;
         }
         .form-input-custom {
-            @apply w-full px-4 py-2 text-sm border border-[#E2E8F0] rounded-md focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue outline-none transition-all;
+            @apply w-full px-4 py-2.5 text-sm border border-[#E2E8F0] rounded-md focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue outline-none transition-all;
         }
         .label-custom {
-            @apply block text-sm font-medium text-slate-700 mb-1.5;
+            @apply block text-sm font-medium text-slate-700 mb-2;
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-6 md:p-12">
-<main class="w-full max-w-[480px] bg-white border border-border-light rounded-lg shadow-[0_4px_12px_rgba(0,0,0,0.05)] overflow-hidden">
+<body class="min-h-screen flex items-center justify-center p-6 bg-bg-light">
+<main class="w-full max-w-[420px] bg-white border border-border-light rounded-[8px] shadow-[0_4px_12px_rgba(0,0,0,0.05)] overflow-hidden">
 <div class="px-8 pt-10 pb-6 text-center">
 <div class="mb-4 inline-flex items-center justify-center bg-primary-blue/5 rounded-full p-4">
-<span class="material-symbols-outlined text-4xl text-primary-blue">school</span>
+<span class="material-symbols-outlined text-4xl text-primary-blue">account_balance</span>
 </div>
-<h1 class="text-[28px] font-semibold text-slate-900 leading-tight">Student Registration</h1>
-<p class="text-sm text-slate-500 mt-1">Create your academic portal account</p>
+<h1 class="text-[28px] font-semibold text-slate-900 leading-tight">Faculty Login</h1>
+<p class="text-sm text-slate-500 mt-1">Authorized Faculty Access Only</p>
 </div>
 <div class="h-[2px] w-full bg-accent-yellow"></div>
-<form class="px-8 py-8 space-y-5">
+<form class="px-8 py-8 space-y-6">
 <div>
-<label class="label-custom" for="fullName">Full Name</label>
-<input class="form-input-custom" id="fullName" name="fullName" placeholder="Enter your full name" type="text"/>
+<label class="label-custom" for="facultyEmail">Faculty Email</label>
+<input class="form-input-custom" id="facultyEmail" name="facultyEmail" placeholder="faculty@college.edu" required="" type="email"/>
 </div>
-<div>
-<label class="label-custom" for="usn">USN (Unique Student Number)</label>
-<input class="form-input-custom" id="usn" name="usn" placeholder="e.g. 1US20CS001" type="text"/>
+<div class="relative">
+<label class="label-custom" for="password">Password</label>
+<div class="relative">
+<input class="form-input-custom pr-11" id="password" name="password" placeholder="••••••••" required="" type="password"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" type="button">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
 </div>
-<div class="grid grid-cols-2 gap-4">
-<div>
-<label class="label-custom" for="programme">Programme</label>
-<select class="form-input-custom appearance-none bg-white" id="programme" name="programme">
-<option value="">Select Programme</option>
-<option value="be">B.E. / B.Tech</option>
-<option value="mtech">M.Tech</option>
-<option value="mca">MCA</option>
-<option value="mba">MBA</option>
-</select>
+<p class="text-[12px] text-secondary-text mt-2 leading-snug">
+                    Contact administrator if you do not have credentials.
+                </p>
 </div>
-<div>
-<label class="label-custom" for="semester">Semester</label>
-<select class="form-input-custom appearance-none bg-white" id="semester" name="semester">
-<option value="">Select</option>
-<option value="1">1st Sem</option>
-<option value="2">2nd Sem</option>
-<option value="3">3rd Sem</option>
-<option value="4">4th Sem</option>
-<option value="5">5th Sem</option>
-<option value="6">6th Sem</option>
-<option value="7">7th Sem</option>
-<option value="8">8th Sem</option>
-</select>
-</div>
-</div>
-<div>
-<label class="label-custom" for="email">Educational Email</label>
-<input class="form-input-custom" id="email" name="email" placeholder="student@university.edu" type="email"/>
-<p class="text-[11px] text-slate-400 mt-1.5 ml-0.5">Use your official college email</p>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<div>
-<label class="label-custom" for="password">Create Password</label>
-<input class="form-input-custom" id="password" name="password" type="password"/>
-</div>
-<div>
-<label class="label-custom" for="confirmPassword">Confirm Password</label>
-<input class="form-input-custom" id="confirmPassword" name="confirmPassword" type="password"/>
-</div>
-</div>
-<div class="pt-4">
-<button class="w-full bg-primary-blue hover:bg-blue-900 text-white font-medium py-3 rounded-md transition-colors shadow-sm" type="submit">
-                    Create Account
+<div class="pt-2">
+<button class="w-full bg-primary-blue hover:bg-blue-900 text-white font-medium py-3 rounded-md transition-colors shadow-sm text-sm" type="submit">
+                    Login
                 </button>
 </div>
-<div class="text-center pt-2">
-<p class="text-sm text-slate-600">
-                    Already have an account? 
-                    <a class="text-primary-blue font-semibold hover:underline" href="#">Login</a>
-</p>
+<div class="text-center">
+<a class="text-sm text-primary-blue hover:text-blue-800 font-medium hover:underline" href="#">Forgot Password?</a>
 </div>
 </form>
 </main>
