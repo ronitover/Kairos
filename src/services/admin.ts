@@ -138,61 +138,36 @@ class AdminService {
     programme?: string
     semester?: string
   }): Promise<Subject[]> {
-    void filters
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<Subject[]>('/subjects', { params: filters })
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            id: 'subj-1',
-            code: 'CS-401',
-            name: 'Advanced Algorithms',
-            programme: 'B.Tech CSE',
-            semester: 'Sem IV',
-          },
-        ])
-      }, 500)
-    })
+    const response = await apiClient.get<{ subjects: Array<{
+      id: string
+      code: string
+      name: string
+      programme: string
+      semester: number
+    }> }>('/subjects', filters)
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Failed to load subjects')
+    return response.data.subjects.map((subject) => ({
+      ...subject,
+      semester: String(subject.semester),
+    }))
   }
 
   async assignSubjectsToFaculty(
     facultyId: string,
     subjectIds: string[]
   ): Promise<void> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.post(`/faculty/${facultyId}/subjects`, { subjectIds })
-    // if (response.error) throw new Error(response.error.message)
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log(`[Mock] Assigning subjects ${subjectIds.join(', ')} to faculty ${facultyId}`)
-        resolve()
-      }, 1000)
-    })
+    const response = await apiClient.post(`/faculty/${facultyId}/subjects`, { subjectIds })
+    if (response.error) throw new Error(response.error.message)
   }
 
   async enrollStudentsInSubject(
     subjectId: string,
     studentIds: string[]
   ): Promise<void> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.post(`/subjects/${subjectId}/enroll`, { studentIds })
-    // if (response.error) throw new Error(response.error.message)
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log(`[Mock] Enrolling students ${studentIds.join(', ')} in subject ${subjectId}`)
-        resolve()
-      }, 1000)
-    })
+    const response = await apiClient.post(`/subjects/${subjectId}/enroll`, { studentIds })
+    if (response.error) throw new Error(response.error.message)
   }
 }
 
 export const adminService = new AdminService()
+import { apiClient } from './api'

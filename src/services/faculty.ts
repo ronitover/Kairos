@@ -81,46 +81,44 @@ class FacultyService {
   }
 
   async getPendingNotes(): Promise<PendingNote[]> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<PendingNote[]>('/faculty/notes/verification')
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
+    const response = await apiClient.get<{ notes: Array<{
+      id: string
+      title: string
+      chapter: string | null
+      uploaded_at: string
+      status: 'pending' | 'verified' | 'rejected'
+      students?: {
+        id: string
+        full_name: string
+        usn: string
+      }
+      note_files?: Array<{
+        file_url: string
+      }>
+      uploaded_by: string
+    }> }>('/notes', { type: 'unofficial', status: 'pending' })
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Failed to load pending notes')
 
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            id: 'note-1',
-            title: 'Virtual Memory Deep Dive',
-            student: {
-              id: 'stud-1',
-              name: 'Aditya Kulkarni',
-              usn: '1MS21CS004',
-            },
-            chapter: 'Unit 3',
-            uploadedAt: new Date().toISOString(),
-            status: 'pending',
-            downloadUrl: '/mock/note1.pdf',
-          },
-        ])
-      }, 500)
-    })
+    return response.data.notes.map((note) => ({
+      id: note.id,
+      title: note.title,
+      student: {
+        id: note.students?.id || note.uploaded_by,
+        name: note.students?.full_name || 'Student',
+        usn: note.students?.usn || 'NA',
+      },
+      chapter: note.chapter || '',
+      uploadedAt: note.uploaded_at,
+      status: note.status,
+      downloadUrl: note.note_files?.[0]?.file_url || '#',
+    }))
   }
 
   async verifyNote(noteId: string, action: 'approve' | 'reject'): Promise<void> {
-    // TODO: Replace with actual API call
-    // const endpoint = action === 'approve' ? `/notes/${noteId}/verify` : `/notes/${noteId}/reject`
-    // const response = await apiClient.post(endpoint, { action })
-    // if (response.error) throw new Error(response.error.message)
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log(`[Mock] Note ${noteId} ${action}d`)
-        resolve()
-      }, 500)
+    const response = await apiClient.patch(`/notes/${noteId}/verify`, {
+      status: action === 'approve' ? 'approved' : 'rejected',
     })
+    if (response.error) throw new Error(response.error.message)
   }
 
   async uploadOfficialNote(data: {
@@ -129,25 +127,14 @@ class FacultyService {
     chapter: string
     subjectId: string
   }): Promise<{ id: string }> {
-    void data
-    // TODO: Replace with actual API call
-    // const formData = new FormData()
-    // formData.append('file', data.file)
-    // formData.append('title', data.title)
-    // formData.append('chapter', data.chapter)
-    // formData.append('subjectId', data.subjectId)
-    // const response = await apiClient.uploadFile('/faculty/notes/official', formData)
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id: 'note-new',
-        })
-      }, 1500)
-    })
+    const formData = new FormData()
+    formData.append('file', data.file)
+    formData.append('title', data.title)
+    formData.append('chapter', data.chapter)
+    formData.append('subjectId', data.subjectId)
+    const response = await apiClient.uploadFile<{ note: { id: string } }>('/notes/official', formData)
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Upload failed')
+    return { id: response.data.note.id }
   }
 
   async uploadTextbook(data: {
@@ -157,27 +144,16 @@ class FacultyService {
     edition: string
     subjectId?: string
   }): Promise<{ id: string }> {
-    void data
-    // TODO: Replace with actual API call
-    // const formData = new FormData()
-    // formData.append('file', data.file)
-    // formData.append('title', data.title)
-    // formData.append('author', data.author)
-    // formData.append('edition', data.edition)
-    // if (data.subjectId) formData.append('subjectId', data.subjectId)
-    // const response = await apiClient.uploadFile('/textbooks', formData)
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id: 'book-new',
-        })
-      }, 1500)
-    })
+    const formData = new FormData()
+    formData.append('file', data.file)
+    formData.append('fileName', data.title)
+    formData.append('category', 'textbook')
+    if (data.subjectId) formData.append('subjectId', data.subjectId)
+    const response = await apiClient.uploadFile<{ file: { id: string } }>('/files/upload', formData)
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Upload failed')
+    return { id: response.data.file.id }
   }
 }
 
 export const facultyService = new FacultyService()
+import { apiClient } from './api'

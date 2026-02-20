@@ -3,6 +3,7 @@ import './App.css'
 import { useAuth } from './contexts/AuthContext'
 import { authService } from './services/auth'
 import { assignmentService } from './services/assignments'
+import { adminService } from './services/admin'
 import { facultyService } from './services/faculty'
 import { validateFile, FileUploadError } from './utils/fileUpload'
 
@@ -3367,7 +3368,26 @@ function FacultyTextbookUploadScreen({
     subjectId: '',
   })
   const [file, setFile] = useState<File | null>(null)
+  const [subjects, setSubjects] = useState<Array<{ id: string; code: string; name: string }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let active = true
+    adminService
+      .getSubjects()
+      .then((items) => {
+        if (!active) return
+        setSubjects(items.map((subject) => ({ id: subject.id, code: subject.code, name: subject.name })))
+      })
+      .catch((err) => {
+        if (!active) return
+        console.error('Failed to load subjects:', err)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
@@ -3576,6 +3596,23 @@ function FacultyTextbookUploadScreen({
                 </div>
               </div>
               <div>
+                <label htmlFor="textbook-subject">Subject</label>
+                <select
+                  id="textbook-subject"
+                  name="subjectId"
+                  value={formData.subjectId}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                >
+                  <option value="">Select Subject (optional)</option>
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.code} - {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label>Book Document</label>
                 <input
                   ref={fileInputRef}
@@ -3642,7 +3679,26 @@ function FacultyCreateAssignmentScreen({
     allowLateSubmission: false,
   })
   const [resourceFiles, setResourceFiles] = useState<File[]>([])
+  const [subjects, setSubjects] = useState<Array<{ id: string; code: string; name: string }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let active = true
+    adminService
+      .getSubjects()
+      .then((items) => {
+        if (!active) return
+        setSubjects(items.map((subject) => ({ id: subject.id, code: subject.code, name: subject.name })))
+      })
+      .catch((err) => {
+        if (!active) return
+        setError(err instanceof Error ? err.message : 'Failed to load subjects')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value
@@ -3759,6 +3815,24 @@ function FacultyCreateAssignmentScreen({
                   required
                   disabled={isLoading}
                 />
+              </div>
+              <div>
+                <label htmlFor="assignment-subject">Subject</label>
+                <select
+                  id="assignment-subject"
+                  name="subjectId"
+                  value={formData.subjectId}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                >
+                  <option value="">Select subject</option>
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.code} - {subject.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label htmlFor="assignment-instructions">Instructions</label>

@@ -101,27 +101,21 @@ class StudentService {
     file: File
     title: string
     chapter?: string
+    subjectId?: string
+    subjectName?: string
   }): Promise<{ id: string; status: string }> {
-    void data
-    // TODO: Replace with actual API call
-    // const formData = new FormData()
-    // formData.append('file', data.file)
-    // formData.append('title', data.title)
-    // if (data.chapter) formData.append('chapter', data.chapter)
-    // const response = await apiClient.uploadFile('/students/notes/unofficial', formData)
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
+    const formData = new FormData()
+    formData.append('file', data.file)
+    formData.append('title', data.title)
+    if (data.chapter) formData.append('chapter', data.chapter)
+    if (data.subjectId) formData.append('subjectId', data.subjectId)
+    if (data.subjectName) formData.append('subjectName', data.subjectName)
 
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id: 'note-new',
-          status: 'pending',
-        })
-      }, 1500)
-    })
+    const response = await apiClient.uploadFile<{ note: { id: string; status: string } }>('/notes/unofficial', formData)
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Upload failed')
+    return { id: response.data.note.id, status: response.data.note.status }
   }
 }
 
 export const studentService = new StudentService()
+import { apiClient } from './api'

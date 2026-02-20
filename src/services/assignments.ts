@@ -155,32 +155,35 @@ class AssignmentService {
     files: File[],
     comment?: string
   ): Promise<Submission> {
-    void assignmentId
-    // TODO: Replace with actual API call
-    // const formData = new FormData()
-    // files.forEach((file) => formData.append('files', file))
-    // if (comment) formData.append('comment', comment)
-    // const response = await apiClient.uploadFile<Submission>(`/assignments/${assignmentId}/submit`, formData)
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
+    if (files.length === 0) {
+      throw new Error('Please attach at least one file.')
+    }
 
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id: 'sub-new',
-          status: 'submitted',
-          submittedAt: new Date().toISOString(),
-          files: files.map((file, idx) => ({
-            id: `file-${idx}`,
-            fileName: file.name,
-            fileSize: file.size,
-            uploadedAt: new Date().toISOString(),
-          })),
-          comment,
-        })
-      }, 1500)
-    })
+    const formData = new FormData()
+    // Backend currently supports one file per request for submissions.
+    formData.append('file', files[0])
+    if (comment) formData.append('comment', comment)
+
+    const response = await apiClient.uploadFile<{ submission: {
+      id: string
+      status: 'submitted' | 'late' | 'pending'
+      submitted_at: string
+      comment?: string | null
+    } }>(`/assignments/${assignmentId}/submit`, formData)
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Submission failed')
+
+    return {
+      id: response.data.submission.id,
+      status: response.data.submission.status,
+      submittedAt: response.data.submission.submitted_at,
+      files: files.map((file, idx) => ({
+        id: `local-${idx}`,
+        fileName: file.name,
+        fileSize: file.size,
+        uploadedAt: new Date().toISOString(),
+      })),
+      comment: response.data.submission.comment || undefined,
+    }
   }
 
   async getSubmission(assignmentId: string): Promise<Submission | null> {
@@ -219,30 +222,38 @@ class AssignmentService {
     allowLateSubmission: boolean
     resources?: File[]
   }): Promise<Assignment> {
-    // TODO: Replace with actual API call
-    // const formData = new FormData()
-    // Object.entries(data).forEach(([key, value]) => {
-    //   if (key === 'resources' && Array.isArray(value)) {
-    //     value.forEach((file) => formData.append('resources', file))
-    //   } else {
-    //     formData.append(key, value)
-    //   }
-    // })
-    // const response = await apiClient.uploadFile<Assignment>('/assignments', formData)
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id: 'assign-new',
-          ...data,
-          subjectCode: 'CS501',
-          resources: [],
-        })
-      }, 1500)
+    const response = await apiClient.post<{
+      assignment: {
+        id: string
+        title: string
+        instructions: string
+        total_marks: number
+        due_date: string
+        allow_late_submission: boolean
+        subjects?: { id: string; code: string }
+      }
+    }>('/assignments', {
+      title: data.title,
+      subjectId: data.subjectId,
+      instructions: data.instructions,
+      totalMarks: data.totalMarks,
+      dueDate: data.dueDate,
+      allowLateSubmission: data.allowLateSubmission,
     })
+
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Failed to create assignment')
+
+    return {
+      id: response.data.assignment.id,
+      title: response.data.assignment.title,
+      subjectId: response.data.assignment.subjects?.id || data.subjectId,
+      subjectCode: response.data.assignment.subjects?.code || '',
+      instructions: response.data.assignment.instructions,
+      totalMarks: response.data.assignment.total_marks,
+      dueDate: response.data.assignment.due_date,
+      allowLateSubmission: response.data.assignment.allow_late_submission,
+      resources: [],
+    }
   }
 
   async getAssignmentSubmissions(assignmentId: string): Promise<{
@@ -299,3 +310,4 @@ class AssignmentService {
 }
 
 export const assignmentService = new AssignmentService()
+import { apiClient } from './api'

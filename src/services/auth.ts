@@ -1,3 +1,5 @@
+import { apiClient } from './api'
+
 export interface User {
   id: string
   email: string
@@ -67,138 +69,35 @@ class AuthService {
   }
 
   async studentRegister(data: StudentRegisterData): Promise<AuthResponse> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.post<AuthResponse>('/auth/student/register', data)
-    // if (response.error) throw new Error(response.error.message)
-    // this.saveSession(response.data.session, response.data.user)
-    // return response.data
+    const registerResponse = await apiClient.post<{
+      user: { id: string; email: string; role: 'student' }
+      message: string
+    }>('/auth/student/register', data)
+    if (registerResponse.error) throw new Error(registerResponse.error.message)
 
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockResponse: AuthResponse = {
-          user: {
-            id: 'mock-student-id',
-            email: data.email,
-            role: 'student',
-            fullName: data.fullName,
-            usn: data.usn,
-            programme: data.programme,
-            semester: data.semester,
-          },
-          session: {
-            accessToken: 'mock-access-token',
-            refreshToken: 'mock-refresh-token',
-            expiresAt: Math.floor(Date.now() / 1000) + 3600, // 1 hour
-          },
-        }
-        this.saveSession(mockResponse.session, mockResponse.user)
-        resolve(mockResponse)
-      }, 1000)
-    })
+    // Backend registration does not return session, so login immediately.
+    return this.studentLogin({ email: data.email, password: data.password })
   }
 
   async studentLogin(credentials: LoginCredentials): Promise<AuthResponse> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.post<AuthResponse>('/auth/student/login', credentials)
-    // if (response.error) throw new Error(response.error.message)
-    // this.saveSession(response.data.session, response.data.user)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (credentials.email && credentials.password) {
-          const mockResponse: AuthResponse = {
-            user: {
-              id: 'mock-student-id',
-              email: credentials.email,
-              role: 'student',
-              fullName: 'Mock Student',
-              usn: '1RV21CS001',
-              programme: 'Computer Science & Engineering',
-              semester: '6',
-            },
-            session: {
-              accessToken: 'mock-access-token',
-              refreshToken: 'mock-refresh-token',
-              expiresAt: Math.floor(Date.now() / 1000) + 3600,
-            },
-          }
-          this.saveSession(mockResponse.session, mockResponse.user)
-          resolve(mockResponse)
-        } else {
-          reject(new Error('Invalid credentials'))
-        }
-      }, 1000)
-    })
+    const response = await apiClient.post<AuthResponse>('/auth/student/login', credentials)
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Login failed')
+    this.saveSession(response.data.session, response.data.user)
+    return response.data
   }
 
   async facultyLogin(credentials: LoginCredentials): Promise<AuthResponse> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.post<AuthResponse>('/auth/faculty/login', credentials)
-    // if (response.error) throw new Error(response.error.message)
-    // this.saveSession(response.data.session, response.data.user)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (credentials.email && credentials.password) {
-          const mockResponse: AuthResponse = {
-            user: {
-              id: 'mock-faculty-id',
-              email: credentials.email,
-              role: 'faculty',
-              name: 'Dr. Sarah Jenkins',
-              department: 'Computer Science',
-            },
-            session: {
-              accessToken: 'mock-access-token',
-              refreshToken: 'mock-refresh-token',
-              expiresAt: Math.floor(Date.now() / 1000) + 3600,
-            },
-          }
-          this.saveSession(mockResponse.session, mockResponse.user)
-          resolve(mockResponse)
-        } else {
-          reject(new Error('Invalid credentials'))
-        }
-      }, 1000)
-    })
+    const response = await apiClient.post<AuthResponse>('/auth/faculty/login', credentials)
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Login failed')
+    this.saveSession(response.data.session, response.data.user)
+    return response.data
   }
 
   async adminLogin(credentials: LoginCredentials): Promise<AuthResponse> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.post<AuthResponse>('/auth/admin/login', credentials)
-    // if (response.error) throw new Error(response.error.message)
-    // this.saveSession(response.data.session, response.data.user)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (credentials.email && credentials.password) {
-          const mockResponse: AuthResponse = {
-            user: {
-              id: 'mock-admin-id',
-              email: credentials.email,
-              role: 'admin',
-              name: 'Admin User',
-            },
-            session: {
-              accessToken: 'mock-access-token',
-              refreshToken: 'mock-refresh-token',
-              expiresAt: Math.floor(Date.now() / 1000) + 3600,
-            },
-          }
-          this.saveSession(mockResponse.session, mockResponse.user)
-          resolve(mockResponse)
-        } else {
-          reject(new Error('Invalid credentials'))
-        }
-      }, 1000)
-    })
+    const response = await apiClient.post<AuthResponse>('/auth/admin/login', credentials)
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Login failed')
+    this.saveSession(response.data.session, response.data.user)
+    return response.data
   }
 
   async logout(): Promise<void> {
@@ -208,43 +107,48 @@ class AuthService {
   }
 
   async forgotPassword(email: string): Promise<void> {
-    // TODO: Replace with actual API call
-    // await apiClient.post('/auth/forgot-password', { email })
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log('[Mock] Password reset email sent to', email)
-        resolve()
-      }, 1000)
-    })
+    void email
+    throw new Error('Forgot password API is not implemented in backend yet.')
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
     void token
     void newPassword
-    // TODO: Replace with actual API call
-    // await apiClient.post('/auth/reset-password', { token, newPassword })
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log('[Mock] Password reset successful')
-        resolve()
-      }, 1000)
-    })
+    throw new Error('Reset password API is not implemented in backend yet.')
   }
 
   async getCurrentUserProfile(): Promise<User> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<User>('/auth/me')
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
+    const response = await apiClient.get<{
+      user: {
+        id: string
+        email: string
+        role: 'student' | 'faculty' | 'admin'
+      }
+      profile?: {
+        full_name?: string
+        usn?: string
+        programme?: string
+        semester?: number
+        name?: string
+        department?: string
+      }
+    }>('/me')
+    if (response.error || !response.data) throw new Error(response.error?.message || 'Not authenticated')
 
-    // Mock implementation
-    const user = this.getCurrentUser()
-    if (!user) throw new Error('Not authenticated')
-    return user
+    const mappedUser: User = {
+      id: response.data.user.id,
+      email: response.data.user.email,
+      role: response.data.user.role,
+      fullName: response.data.profile?.full_name,
+      usn: response.data.profile?.usn,
+      programme: response.data.profile?.programme,
+      semester: response.data.profile?.semester ? String(response.data.profile.semester) : undefined,
+      name: response.data.profile?.name,
+      department: response.data.profile?.department,
+    }
+
+    localStorage.setItem('auth_user', JSON.stringify(mappedUser))
+    return mappedUser
   }
 }
 
