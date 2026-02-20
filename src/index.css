@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700&family=Public+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700&family=Poppins:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap');
 
 * {
   box-sizing: border-box;
@@ -13,7 +13,7 @@ body {
 
 body {
   font-family: 'Public Sans', sans-serif;
-  background: #f8fafc;
+  background: #ffffff;
   color: #1e293b;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
