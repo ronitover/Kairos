@@ -6,6 +6,8 @@ type RoutePath =
   | '/student_login'
   | '/student_register'
   | '/faculty_login'
+  | '/admin_login'
+  | '/admin_dashboard'
   | '/faculty_dashboard'
   | '/faculty_verification'
   | '/faculty_textbook_upload'
@@ -78,6 +80,8 @@ function formatUploadDate(date: Date): string {
 }
 
 function normalizePath(pathname: string): RoutePath {
+  const isAdminHost = /^admin\./i.test(window.location.hostname)
+
   if (pathname === '/student_login' || pathname === '/login') {
     return '/student_login'
   }
@@ -88,6 +92,14 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/faculty_login') {
     return '/faculty_login'
+  }
+
+  if (pathname === '/admin_login') {
+    return '/admin_login'
+  }
+
+  if (pathname === '/admin_dashboard') {
+    return '/admin_dashboard'
   }
 
   if (pathname === '/faculty_dashboard') {
@@ -130,15 +142,21 @@ function normalizePath(pathname: string): RoutePath {
     return '/unofficial_notes'
   }
 
+  if (isAdminHost) {
+    return '/admin_login'
+  }
+
   return '/'
 }
 
 function HomeScreen({
   onStudentLogin,
   onFacultyLogin,
+  onAdminLogin,
 }: {
   onStudentLogin: () => void
   onFacultyLogin: () => void
+  onAdminLogin: () => void
 }) {
   return (
     <>
@@ -166,9 +184,9 @@ function HomeScreen({
           </div>
 
           <div className="utility-links">
-            <a href="#" className="admin-link">
+            <button type="button" className="admin-link admin-button" onClick={onAdminLogin}>
               Admin Login
-            </a>
+            </button>
 
             <nav className="help-nav" aria-label="Help and support links">
               {links.map((link, index) => (
@@ -425,6 +443,254 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
         </div>
       </main>
     </>
+  )
+}
+
+function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
+  return (
+    <>
+      <main className="student-login-card" aria-label="Admin login">
+        <div className="student-card-content">
+          <div className="student-logo-wrap">
+            <div className="student-logo-shell">
+              <span className="material-symbols-outlined icon-faculty">admin_panel_settings</span>
+            </div>
+          </div>
+
+          <div className="student-heading">
+            <h1 className="student-title">Admin Login</h1>
+            <p>Global administrative access</p>
+          </div>
+
+          <div className="student-accent faculty-accent" />
+
+          <form
+            className="student-form faculty-form"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault()
+              onLogin()
+            }}
+          >
+            <div className="field-group">
+              <label htmlFor="adminEmail">Admin Email</label>
+              <input id="adminEmail" name="adminEmail" type="email" placeholder="admin@domain.com" />
+            </div>
+
+            <div className="field-group">
+              <label htmlFor="adminPassword">Password</label>
+              <div className="password-wrap">
+                <input id="adminPassword" name="password" type="password" placeholder="••••••••" />
+                <button type="button" className="password-toggle" aria-label="Toggle password visibility">
+                  <span className="material-symbols-outlined">visibility</span>
+                </button>
+              </div>
+              <p className="field-help">Super admin credentials required.</p>
+            </div>
+
+            <div className="student-actions">
+              <button type="submit" className="student-primary-btn">
+                Login
+              </button>
+            </div>
+          </form>
+
+          <div className="forgot-wrap">
+            <a href="#">Forgot Password?</a>
+          </div>
+        </div>
+      </main>
+    </>
+  )
+}
+
+function AdminDashboardScreen() {
+  return (
+    <div className="admin-page" aria-label="Global admin dashboard">
+      <header className="admin-header">
+        <div className="admin-container admin-header-row">
+          <h1>Admin Dashboard</h1>
+          <div className="admin-header-right">
+            <button type="button" className="admin-notification-btn" aria-label="Notifications">
+              <span className="material-symbols-outlined">notifications</span>
+            </button>
+            <div className="admin-user">
+              <div>
+                <p>Admin User</p>
+                <p>Super Administrator</p>
+              </div>
+              <div>AU</div>
+            </div>
+          </div>
+        </div>
+        <div className="admin-header-accent" />
+      </header>
+
+      <main className="admin-container admin-main">
+        <section className="admin-kpi-grid">
+          <article className="admin-kpi-card">
+            <div>
+              <p>Total Students</p>
+              <h3>12,482</h3>
+              <small>
+                <span className="material-symbols-outlined">trending_up</span>
+                +3.2%
+              </small>
+            </div>
+            <span className="material-symbols-outlined">group</span>
+          </article>
+          <article className="admin-kpi-card">
+            <div>
+              <p>Total Faculty</p>
+              <h3>845</h3>
+              <small>
+                <span className="material-symbols-outlined">trending_up</span>
+                +1.5%
+              </small>
+            </div>
+            <span className="material-symbols-outlined">badge</span>
+          </article>
+          <article className="admin-kpi-card">
+            <div>
+              <p>Total Subjects</p>
+              <h3>312</h3>
+              <small>Active Curricula</small>
+            </div>
+            <span className="material-symbols-outlined">library_books</span>
+          </article>
+          <article className="admin-kpi-card warning">
+            <div>
+              <p>Pending Verifications</p>
+              <h3>58</h3>
+              <small>Requires action</small>
+            </div>
+            <span className="material-symbols-outlined">verified_user</span>
+          </article>
+        </section>
+
+        <section className="admin-quick-actions">
+          <h2>
+            <span className="material-symbols-outlined">bolt</span>
+            Quick Actions
+          </h2>
+          <div>
+            <button type="button">
+              <span className="material-symbols-outlined">person_add</span>
+              Add Faculty
+            </button>
+            <button type="button">
+              <span className="material-symbols-outlined">assignment_ind</span>
+              Assign Subjects
+            </button>
+            <button type="button">
+              <span className="material-symbols-outlined">account_tree</span>
+              Manage Programmes
+            </button>
+            <button type="button">
+              <span className="material-symbols-outlined">rule</span>
+              View Verifications
+            </button>
+            <button type="button">
+              <span className="material-symbols-outlined">monitoring</span>
+              System Reports
+            </button>
+          </div>
+        </section>
+
+        <section className="admin-content-grid">
+          <article className="admin-activity">
+            <div className="admin-card-head">
+              <h2>
+                <span className="material-symbols-outlined">history</span>
+                Activity Feed
+              </h2>
+              <button type="button">View All</button>
+            </div>
+            <div className="admin-activity-list">
+              <div className="admin-activity-item">
+                <div className="admin-activity-icon">
+                  <span className="material-symbols-outlined">person_add</span>
+                </div>
+                <div>
+                  <div>
+                    <h4>New student registered</h4>
+                    <span>2 mins ago</span>
+                  </div>
+                  <p>David Smith (ID: ST2024001) has completed the portal registration.</p>
+                </div>
+              </div>
+              <div className="admin-activity-item">
+                <div className="admin-activity-icon blue">
+                  <span className="material-symbols-outlined">verified</span>
+                </div>
+                <div>
+                  <div>
+                    <h4>Notes verified</h4>
+                    <span>45 mins ago</span>
+                  </div>
+                  <p>Dr. Sarah Jenkins verified "Introduction to Quantum Physics" lecture notes.</p>
+                </div>
+              </div>
+              <div className="admin-activity-item">
+                <div className="admin-activity-icon amber">
+                  <span className="material-symbols-outlined">upload_file</span>
+                </div>
+                <div>
+                  <div>
+                    <h4>New Resource Uploaded</h4>
+                    <span>2 hours ago</span>
+                  </div>
+                  <p>Faculty of Engineering uploaded 4 new research papers for verification.</p>
+                </div>
+              </div>
+              <div className="admin-activity-item">
+                <div className="admin-activity-icon gray">
+                  <span className="material-symbols-outlined">settings</span>
+                </div>
+                <div>
+                  <div>
+                    <h4>System backup completed</h4>
+                    <span>6 hours ago</span>
+                  </div>
+                  <p>Weekly system redundancy and security patch successfully deployed.</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <aside className="admin-side-cards">
+            <article className="admin-storage-card">
+              <h3>Storage Usage</h3>
+              <div>
+                <span />
+              </div>
+              <p>650 GB of 1 TB used (65%)</p>
+              <button type="button">Manage Storage</button>
+            </article>
+
+            <article className="admin-support-card">
+              <h3>Support Portal</h3>
+              <p>
+                Having issues with the repository system? Contact technical support or view documentation.
+              </p>
+              <a href="#">
+                Go to Help Center
+                <span className="material-symbols-outlined">arrow_forward</span>
+              </a>
+            </article>
+          </aside>
+        </section>
+      </main>
+
+      <footer className="admin-footer admin-container">
+        <p>© 2024 University Digital Repository. Global Administrative Control.</p>
+        <nav aria-label="Admin footer links">
+          <a href="#">System Status</a>
+          <a href="#">Privacy Policy</a>
+          <a href="#">User Audit Log</a>
+        </nav>
+      </footer>
+    </div>
   )
 }
 
@@ -2514,7 +2780,11 @@ function App() {
   }
 
   const isAuthRoute =
-    path === '/' || path === '/student_login' || path === '/student_register' || path === '/faculty_login'
+    path === '/' ||
+    path === '/student_login' ||
+    path === '/student_register' ||
+    path === '/faculty_login' ||
+    path === '/admin_login'
 
   return (
     <div className={isAuthRoute ? 'app-shell auth-shell' : 'app-shell'}>
@@ -2534,6 +2804,10 @@ function App() {
       {path === '/student_register' ? <StudentRegisterScreen onLogin={() => navigate('/student_login')} /> : null}
 
       {path === '/faculty_login' ? <FacultyLoginScreen onLogin={() => navigate('/faculty_dashboard')} /> : null}
+
+      {path === '/admin_login' ? <AdminLoginScreen onLogin={() => navigate('/admin_dashboard')} /> : null}
+
+      {path === '/admin_dashboard' ? <AdminDashboardScreen /> : null}
 
       {path === '/faculty_dashboard' ? (
         <FacultyDashboardScreen
@@ -2574,6 +2848,7 @@ function App() {
         <HomeScreen
           onStudentLogin={() => navigate('/student_login')}
           onFacultyLogin={() => navigate('/faculty_login')}
+          onAdminLogin={() => navigate('/admin_login')}
         />
       ) : null}
     </div>
