@@ -32,7 +32,6 @@ type RoutePath =
   | '/faculty_assignment_submissions'
   | '/faculty_grade_submission'
   | '/student_dashboard'
-  | '/search_results'
   | '/repository'
   | '/assignment_review'
   | '/assignment_result'
@@ -126,6 +125,12 @@ type HeaderNavItem = {
   label: string
   path: RoutePath
 }
+
+const STUDENT_NAV_ITEMS: HeaderNavItem[] = [
+  { label: 'Dashboard', path: '/student_dashboard' },
+  { label: 'Repository', path: '/repository' },
+  { label: 'Unofficial Notes', path: '/unofficial_notes' },
+]
 
 function BrandIdentity({ small = false }: { small?: boolean }) {
   return (
@@ -285,6 +290,162 @@ function PdfPreviewModal({
           </div>
         </div>
       </div>
+      <StudyAssistantOverlay visible />
+    </div>
+  )
+}
+
+type AssistantMode = 'summarize' | 'explain' | 'quiz'
+
+type AssistantMessage = {
+  id: string
+  role: 'assistant' | 'user'
+  text: string
+}
+
+function StudyAssistantOverlay({ visible }: { visible: boolean }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [isPreviewVisible, setIsPreviewVisible] = useState(true)
+  const [mode, setMode] = useState<AssistantMode>('summarize')
+  const [input, setInput] = useState('')
+  const [messages, setMessages] = useState<AssistantMessage[]>([
+    {
+      id: 'assistant-welcome',
+      role: 'assistant',
+      text: 'Hi, I can summarize notes, explain concepts, or generate quick quizzes from your material.',
+    },
+  ])
+
+  useEffect(() => {
+    if (visible) {
+      return
+    }
+    setIsOpen(false)
+    setIsPreviewVisible(false)
+  }, [visible])
+
+  const sendMessage = () => {
+    const trimmed = input.trim()
+    if (!trimmed) {
+      return
+    }
+
+    const userMessage: AssistantMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      text: trimmed,
+    }
+
+    const cannedResponseByMode: Record<AssistantMode, string> = {
+      summarize: 'I can summarize this into key points, definitions, and likely exam questions.',
+      explain: 'I can break this topic into simple steps with examples and memory aids.',
+      quiz: 'I can generate a quick 5-question quiz with answers and explanations.',
+    }
+
+    const assistantMessage: AssistantMessage = {
+      id: `assistant-${Date.now() + 1}`,
+      role: 'assistant',
+      text: cannedResponseByMode[mode],
+    }
+
+    setMessages((current) => [...current, userMessage, assistantMessage])
+    setInput('')
+  }
+
+  if (!visible) {
+    return null
+  }
+
+  return (
+    <div className="assistant-overlay" aria-label="Study assistant">
+      {!isOpen && isPreviewVisible ? (
+        <button
+          type="button"
+          className="assistant-preview"
+          onClick={() => setIsOpen(true)}
+          aria-label="Open study assistant preview"
+        >
+          <div className="assistant-preview-top">
+            <span className="material-symbols-outlined">auto_awesome</span>
+            <strong>Study Assistant</strong>
+            <span
+              className="material-symbols-outlined assistant-preview-close"
+              onClick={(event) => {
+                event.stopPropagation()
+                setIsPreviewVisible(false)
+              }}
+            >
+              close
+            </span>
+          </div>
+          <p>Need a quick notes summary?</p>
+          <small>Tap to open AI chat</small>
+        </button>
+      ) : null}
+
+      <button
+        type="button"
+        className={`assistant-fab ${isOpen ? 'open' : ''}`}
+        onClick={() => setIsOpen((current) => !current)}
+        aria-label={isOpen ? 'Collapse assistant' : 'Open assistant'}
+      >
+        <span className="material-symbols-outlined">{isOpen ? 'close' : 'chat'}</span>
+      </button>
+
+      {isOpen ? (
+        <section className="assistant-panel" role="dialog" aria-modal="false" aria-label="AI study assistant">
+          <header className="assistant-panel-head">
+            <div>
+              <h3>AI Study Assistant</h3>
+              <p>Summaries, explanations, and quiz prep</p>
+            </div>
+          </header>
+
+          <div className="assistant-mode-row" role="tablist" aria-label="Assistant mode">
+            <button
+              type="button"
+              className={mode === 'summarize' ? 'active' : ''}
+              onClick={() => setMode('summarize')}
+            >
+              Summarize
+            </button>
+            <button
+              type="button"
+              className={mode === 'explain' ? 'active' : ''}
+              onClick={() => setMode('explain')}
+            >
+              Explain
+            </button>
+            <button
+              type="button"
+              className={mode === 'quiz' ? 'active' : ''}
+              onClick={() => setMode('quiz')}
+            >
+              Quiz Me
+            </button>
+          </div>
+
+          <div className="assistant-messages">
+            {messages.map((message) => (
+              <article key={message.id} className={`assistant-msg ${message.role}`}>
+                <p>{message.text}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="assistant-input-wrap">
+            <textarea
+              rows={2}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="Paste notes or ask a question..."
+            />
+            <button type="button" onClick={sendMessage} disabled={!input.trim()}>
+              <span className="material-symbols-outlined">north_east</span>
+            </button>
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }
@@ -292,7 +453,6 @@ function PdfPreviewModal({
 function getRequiredRole(route: RoutePath): 'student' | 'faculty' | 'admin' | null {
   if (
     route === '/student_dashboard' ||
-    route === '/search_results' ||
     route === '/repository' ||
     route === '/assignment_review' ||
     route === '/assignment_result' ||
@@ -463,7 +623,7 @@ function normalizePath(pathname: string): RoutePath {
   }
 
   if (pathname === '/search_results' || pathname === '/search') {
-    return '/search_results'
+    return '/repository'
   }
 
   if (pathname === '/repository' || pathname === '/resources') {
@@ -2755,8 +2915,7 @@ function StudentDashboardScreen({
   onViewBrief,
   onViewResult,
   onUnofficialNotes,
-  onSearchResources,
-  onBrowseRepository,
+  onGoToRepository,
   notices,
   currentPath,
   onNavigate,
@@ -2765,8 +2924,7 @@ function StudentDashboardScreen({
   onViewBrief: () => void
   onViewResult: () => void
   onUnofficialNotes: () => void
-  onSearchResources: () => void
-  onBrowseRepository: () => void
+  onGoToRepository: () => void
   notices: DepartmentNotice[]
   currentPath: RoutePath
   onNavigate: (path: RoutePath) => void
@@ -2855,17 +3013,28 @@ function StudentDashboardScreen({
     }
   }
 
+  const [activeNotesTab, setActiveNotesTab] = useState<'official' | 'unofficial'>('official')
+  const [selectedSubject, setSelectedSubject] = useState('')
+  useEffect(() => {
+    if (subjectOptions.length > 0) {
+      setSelectedSubject((prev) => (prev === '' ? `${subjectOptions[0].code} - ${subjectOptions[0].name}` : prev))
+    }
+  }, [subjectOptions])
+
+  const handleDownloadNote = (title: string) => {
+    console.log('[Mock] Download note:', title)
+  }
+
+  const handleDownloadTextbook = (title: string) => {
+    console.log('[Mock] Download textbook:', title)
+  }
+
   return (
     <div className="dashboard-page" aria-label="Student dashboard">
       <CommonDashboardHeader
         title="Student Dashboard"
         subtitle={`${semester} • ${programme}`}
-        navItems={[
-          { label: 'Dashboard', path: '/student_dashboard' },
-          { label: 'Repository', path: '/repository' },
-          { label: 'Search', path: '/search_results' },
-          { label: 'Unofficial Notes', path: '/unofficial_notes' },
-        ]}
+        navItems={STUDENT_NAV_ITEMS}
         currentPath={currentPath}
         onNavigate={onNavigate}
         onLogout={onLogout}
@@ -2923,10 +3092,14 @@ function StudentDashboardScreen({
 
             <div className="field-group">
               <label htmlFor="subject">Subject Code</label>
-              <select id="subject" defaultValue={subjectOptions[0] ? `${subjectOptions[0].code} - ${subjectOptions[0].name}` : ''}>
+              <select
+                id="subject"
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+              >
                 {subjectOptions.length === 0 ? <option>No subjects found</option> : null}
                 {subjectOptions.map((subject) => (
-                  <option key={subject.id}>
+                  <option key={subject.id} value={`${subject.code} - ${subject.name}`}>
                     {subject.code} - {subject.name}
                   </option>
                 ))}
@@ -2938,22 +3111,29 @@ function StudentDashboardScreen({
         <section className="dashboard-card">
           <div className="dashboard-notes-header">
             <div className="dashboard-tabs" role="tablist" aria-label="Notes type">
-              <button type="button" className="dashboard-tab dashboard-tab-active">
+              <button
+                type="button"
+                className={`dashboard-tab ${activeNotesTab === 'official' ? 'dashboard-tab-active' : ''}`}
+                onClick={() => setActiveNotesTab('official')}
+              >
                 Official Notes
               </button>
-              <button type="button" className="dashboard-tab" onClick={onUnofficialNotes}>
+              <button
+                type="button"
+                className={`dashboard-tab ${activeNotesTab === 'unofficial' ? 'dashboard-tab-active' : ''}`}
+                onClick={() => {
+                  setActiveNotesTab('unofficial')
+                  onUnofficialNotes()
+                }}
+              >
                 Unofficial Notes
               </button>
             </div>
 
             <div className="dashboard-top-actions">
-              <button type="button" className="dashboard-upload-btn" onClick={onSearchResources}>
-                <span className="material-symbols-outlined">search</span>
-                Search Repository
-              </button>
-              <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onBrowseRepository}>
+              <button type="button" className="dashboard-upload-btn" onClick={onGoToRepository}>
                 <span className="material-symbols-outlined">folder_open</span>
-                Browse Repository
+                Open Repository
               </button>
             </div>
           </div>
@@ -3032,7 +3212,8 @@ function StudentDashboardScreen({
                 </a>
               </article>
             ))}
-          </div>        </section>
+          </div>
+        </section>
 
         <section className="dashboard-card">
           <div className="dashboard-section-title">
@@ -3076,7 +3257,8 @@ function StudentDashboardScreen({
                 </article>
               )
             })}
-          </div>        </section>
+          </div>
+        </section>
       </main>
 
       <CommonDashboardFooter
@@ -4445,10 +4627,32 @@ function FacultyGradeSubmissionScreen() {
   )
 }
 
-function UnofficialNotesScreen() {
+const unofficialFindNotesData = [
+  { id: 'fn-1', title: 'CPU Scheduling Algorithms Summary', author: 'Rahul Sharma', usn: '1RV21CS084' },
+  { id: 'fn-2', title: 'File Systems - Complete Notes', author: 'Sneha Gupta', usn: '1RV21CS112' },
+  { id: 'fn-3', title: "Banker's Algorithm Flowchart", author: 'Mark Johnson', usn: '1RV21CS045' },
+]
+
+function UnofficialNotesScreen({
+  currentPath,
+  onNavigate,
+  onLogout,
+}: {
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
+}) {
+  const { user } = useAuth()
   const [uploadedNotes, setUploadedNotes] = useState<UploadedNote[]>(initialUploadedNotes)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const subtitle = user?.semester ? `Semester ${user.semester}` : ''
+  const programme = user?.programme || ''
+  const [findSearchQuery, setFindSearchQuery] = useState('')
+  const [findUnit, setFindUnit] = useState('All Units')
+  const [findSortBy, setFindSortBy] = useState('Most Recent')
+  const [findFileType, setFindFileType] = useState<'all' | 'pdf' | 'docx' | 'images' | 'handwritten'>('all')
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
 
   const handleOpenUploadPicker = () => {
     fileInputRef.current?.click()
@@ -4506,44 +4710,50 @@ function UnofficialNotesScreen() {
     link.remove()
   }
 
+  const filteredFindNotes = unofficialFindNotesData.filter((item) => {
+    const q = findSearchQuery.trim().toLowerCase()
+    const matchesQuery =
+      !q ||
+      item.title.toLowerCase().includes(q) ||
+      item.author.toLowerCase().includes(q) ||
+      item.usn.toLowerCase().includes(q)
+    return matchesQuery
+  })
+
+  const handleDownloadFindNote = (title: string) => {
+    console.log('[Mock] Download find-note:', title)
+  }
+
   return (
-    <div className="unofficial-page" aria-label="Student unofficial notes portal">
-      <header className="unofficial-header">
-        <div className="dashboard-container unofficial-header-row">
-          <div>
-            <h1>Unofficial Notes</h1>
-            <div className="unofficial-header-accent" />
-          </div>
-          <div className="unofficial-header-right">
-            <button type="button" className="dashboard-upload-btn" onClick={handleOpenUploadPicker}>
-              <span className="material-symbols-outlined">cloud_upload</span>
-              Upload Notes
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={SUPPORTED_UPLOAD_ACCEPT}
-              multiple
-              className="visually-hidden-input"
-              onChange={handleFilesSelected}
-            />
-            {uploadError ? (
-              <p style={{ margin: '0.5rem 0 0', color: '#b91c1c', fontSize: '0.8125rem' }}>{uploadError}</p>
-            ) : null}
-            <div className="dashboard-user">
-              <div className="dashboard-user-info">
-                <p>Alex Thompson</p>
-                <p>5th Sem • CS</p>
-              </div>
-              <div className="dashboard-avatar">
-                <span className="material-symbols-outlined">account_circle</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="unofficial-page dashboard-page" aria-label="Student unofficial notes portal">
+      <CommonDashboardHeader
+        title="Unofficial Notes"
+        subtitle={subtitle ? `${subtitle} • ${programme}` : programme || 'Upload & browse peer notes'}
+        navItems={STUDENT_NAV_ITEMS}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="dashboard-container"
+      />
 
       <main className="dashboard-container unofficial-main">
+        <div className="common-dashboard-controls dashboard-container" style={{ marginBottom: '1rem' }}>
+          <button type="button" className="dashboard-upload-btn" onClick={handleOpenUploadPicker}>
+            <span className="material-symbols-outlined">cloud_upload</span>
+            Upload Notes
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={SUPPORTED_UPLOAD_ACCEPT}
+            multiple
+            className="visually-hidden-input"
+            onChange={handleFilesSelected}
+          />
+          {uploadError ? (
+            <p style={{ margin: '0.5rem 0 0', color: '#b91c1c', fontSize: '0.8125rem' }}>{uploadError}</p>
+          ) : null}
+        </div>
         <div className="unofficial-grid">
           <aside className="unofficial-column">
             <section className="dashboard-card">
@@ -4592,95 +4802,121 @@ function UnofficialNotesScreen() {
 
               <div className="unofficial-searchbox">
                 <span className="material-symbols-outlined">search</span>
-                <input type="text" placeholder="Search by topic, unit, or author name..." />
+                <input
+                  type="text"
+                  placeholder="Search by topic, unit, or author name..."
+                  value={findSearchQuery}
+                  onChange={(e) => setFindSearchQuery(e.target.value)}
+                />
               </div>
 
               <div className="unofficial-filters">
-                <button type="button" className="unofficial-filter-head">
+                <button
+                  type="button"
+                  className="unofficial-filter-head"
+                  onClick={() => setAdvancedFiltersOpen((open) => !open)}
+                  aria-expanded={advancedFiltersOpen}
+                >
                   <span>
                     <span className="material-symbols-outlined">tune</span>
                     Advanced Filters
                   </span>
-                  <span className="material-symbols-outlined">expand_more</span>
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ transform: advancedFiltersOpen ? 'rotate(180deg)' : undefined }}
+                  >
+                    expand_more
+                  </span>
                 </button>
-                <div className="unofficial-filter-body">
-                  <div className="unofficial-filter-grid">
-                    <div className="field-group">
-                      <label>Unit / Chapter</label>
-                      <select defaultValue="All Units">
-                        <option>All Units</option>
-                        <option>Unit 1: Introduction</option>
-                        <option>Unit 2: Processes</option>
-                        <option>Unit 3: Scheduling</option>
-                      </select>
+                {advancedFiltersOpen ? (
+                  <div className="unofficial-filter-body">
+                    <div className="unofficial-filter-grid">
+                      <div className="field-group">
+                        <label>Unit / Chapter</label>
+                        <select value={findUnit} onChange={(e) => setFindUnit(e.target.value)}>
+                          <option>All Units</option>
+                          <option>Unit 1: Introduction</option>
+                          <option>Unit 2: Processes</option>
+                          <option>Unit 3: Scheduling</option>
+                        </select>
+                      </div>
+                      <div className="field-group">
+                        <label>Sort By</label>
+                        <select value={findSortBy} onChange={(e) => setFindSortBy(e.target.value)}>
+                          <option>Most Recent</option>
+                          <option>Highest Rated</option>
+                          <option>Verified First</option>
+                        </select>
+                      </div>
                     </div>
-                    <div className="field-group">
-                      <label>Sort By</label>
-                      <select defaultValue="Most Recent">
-                        <option>Most Recent</option>
-                        <option>Highest Rated</option>
-                        <option>Verified First</option>
-                      </select>
+                    <div>
+                      <p className="unofficial-label">File Type</p>
+                      <div className="unofficial-chip-row">
+                        <button
+                          type="button"
+                          className={`unofficial-chip ${findFileType === 'all' ? 'active' : ''}`}
+                          onClick={() => setFindFileType('all')}
+                        >
+                          All
+                        </button>
+                        <button
+                          type="button"
+                          className={`unofficial-chip ${findFileType === 'pdf' ? 'active' : ''}`}
+                          onClick={() => setFindFileType('pdf')}
+                        >
+                          PDF
+                        </button>
+                        <button
+                          type="button"
+                          className={`unofficial-chip ${findFileType === 'docx' ? 'active' : ''}`}
+                          onClick={() => setFindFileType('docx')}
+                        >
+                          DOCX
+                        </button>
+                        <button
+                          type="button"
+                          className={`unofficial-chip ${findFileType === 'images' ? 'active' : ''}`}
+                          onClick={() => setFindFileType('images')}
+                        >
+                          Images
+                        </button>
+                        <button
+                          type="button"
+                          className={`unofficial-chip ${findFileType === 'handwritten' ? 'active' : ''}`}
+                          onClick={() => setFindFileType('handwritten')}
+                        >
+                          Handwritten
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <p className="unofficial-label">File Type</p>
-                    <div className="unofficial-chip-row">
-                      <button type="button" className="unofficial-chip active">All</button>
-                      <button type="button" className="unofficial-chip">PDF</button>
-                      <button type="button" className="unofficial-chip">DOCX</button>
-                      <button type="button" className="unofficial-chip">Images</button>
-                      <button type="button" className="unofficial-chip">Handwritten</button>
-                    </div>
-                  </div>
-                </div>
+                ) : null}
               </div>
 
               <div className="unofficial-results">
-                <h3>Results (24)</h3>
+                <h3>Results ({filteredFindNotes.length})</h3>
                 <div className="unofficial-result-list">
-                  <article className="unofficial-result-item">
-                    <div>
-                      <div className="unofficial-doc-icon">
-                        <span className="material-symbols-outlined">description</span>
-                      </div>
+                  {filteredFindNotes.map((item) => (
+                    <article key={item.id} className="unofficial-result-item">
                       <div>
-                        <h4>CPU Scheduling Algorithms Summary</h4>
-                        <p>Uploaded By: Rahul Sharma (1RV21CS084)</p>
+                        <div className="unofficial-doc-icon">
+                          <span className="material-symbols-outlined">description</span>
+                        </div>
+                        <div>
+                          <h4>{item.title}</h4>
+                          <p>Uploaded By: {item.author} ({item.usn})</p>
+                        </div>
                       </div>
-                    </div>
-                    <button type="button" className="dashboard-icon-btn">
-                      <span className="material-symbols-outlined">download</span>
-                    </button>
-                  </article>
-                  <article className="unofficial-result-item">
-                    <div>
-                      <div className="unofficial-doc-icon">
-                        <span className="material-symbols-outlined">description</span>
-                      </div>
-                      <div>
-                        <h4>File Systems - Complete Notes</h4>
-                        <p>Uploaded By: Sneha Gupta (1RV21CS112)</p>
-                      </div>
-                    </div>
-                    <button type="button" className="dashboard-icon-btn">
-                      <span className="material-symbols-outlined">download</span>
-                    </button>
-                  </article>
-                  <article className="unofficial-result-item">
-                    <div>
-                      <div className="unofficial-doc-icon">
-                        <span className="material-symbols-outlined">description</span>
-                      </div>
-                      <div>
-                        <h4>Banker's Algorithm Flowchart</h4>
-                        <p>Uploaded By: Mark Johnson (1RV21CS045)</p>
-                      </div>
-                    </div>
-                    <button type="button" className="dashboard-icon-btn">
-                      <span className="material-symbols-outlined">download</span>
-                    </button>
-                  </article>
+                      <button
+                        type="button"
+                        className="dashboard-icon-btn"
+                        aria-label={`Download ${item.title}`}
+                        onClick={() => handleDownloadFindNote(item.title)}
+                      >
+                        <span className="material-symbols-outlined">download</span>
+                      </button>
+                    </article>
+                  ))}
                 </div>
               </div>
             </section>
@@ -4688,16 +4924,7 @@ function UnofficialNotesScreen() {
         </div>
       </main>
 
-      <footer className="dashboard-footer dashboard-container">
-        <div>
-          <p>© 2024 Academic Digital Repository • Unofficial Notes Portal</p>
-        </div>
-        <nav aria-label="Footer links">
-          <a href="#">Portal Guidelines</a>
-          <a href="#">Verification Criteria</a>
-          <a href="#">Report Abuse</a>
-        </nav>
-      </footer>
+      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
     </div>
   )
 }
@@ -4778,237 +5005,74 @@ const searchResourceData: SearchResource[] = [
   },
 ]
 
-function SearchResultsScreen({ onBackDashboard }: { onBackDashboard: () => void }) {
-  const [subjectCode, setSubjectCode] = useState('All Subjects')
-  const [semester, setSemester] = useState('All Semesters')
-  const [professor, setProfessor] = useState('All Professors')
+function StudentRepositoryScreen({
+  currentPath,
+  onNavigate,
+  onLogout,
+}: {
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
+}) {
+  const { user } = useAuth()
   const [query, setQuery] = useState('')
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
-  const [previewTitle, setPreviewTitle] = useState('Document.pdf')
-
-  const results = searchResourceData.filter((resource) => {
-    const isVisible = resource.status === 'approved'
-    const subjectMatch = subjectCode === 'All Subjects' || resource.subjectCode === subjectCode
-    const semesterMatch = semester === 'All Semesters' || resource.semester === semester
-    const professorMatch = professor === 'All Professors' || resource.professor === professor
-    const queryMatch =
-      query.trim() === '' ||
-      resource.title.toLowerCase().includes(query.toLowerCase()) ||
-      resource.subjectCode.toLowerCase().includes(query.toLowerCase()) ||
-      resource.professor.toLowerCase().includes(query.toLowerCase())
-
-    return isVisible && subjectMatch && semesterMatch && professorMatch && queryMatch
-  })
-
-  return (
-    <div className="search-page" aria-label="Search repository results">
-      <header className="search-header">
-        <div className="dashboard-container search-header-content">
-          <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
-            <button type="button" className="search-breadcrumb-btn" onClick={onBackDashboard}>
-              Dashboard
-            </button>
-            <span className="material-symbols-outlined">chevron_right</span>
-            <span>Search Results</span>
-          </nav>
-          <div className="search-title-row">
-            <h1>Repository Search</h1>
-            <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onBackDashboard}>
-              Back to Dashboard
-            </button>
-          </div>
-        </div>
-        <div className="assignment-header-accent" />
-      </header>
-
-      <main className="dashboard-container search-main">
-        <section className="dashboard-card">
-          <div className="search-filter-head">
-            <div className="dashboard-section-title">
-              <span className="material-symbols-outlined">filter_alt</span>
-              <h2>Advanced Filters</h2>
-            </div>
-            <button
-              type="button"
-              className="search-filter-toggle"
-              onClick={() => setShowAdvancedFilters((current) => !current)}
-              aria-expanded={showAdvancedFilters}
-              aria-controls="repository-advanced-filters"
-            >
-              {showAdvancedFilters ? 'Hide Filters' : 'Show Filters'}
-              <span className="material-symbols-outlined">
-                {showAdvancedFilters ? 'expand_less' : 'expand_more'}
-              </span>
-            </button>
-          </div>
-          {showAdvancedFilters ? (
-            <div id="repository-advanced-filters" className="search-filter-grid">
-              <div className="field-group">
-                <label htmlFor="search-keyword">Keyword</label>
-                <input
-                  id="search-keyword"
-                  type="text"
-                  placeholder="Title, subject code, or professor"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </div>
-              <div className="field-group">
-                <label htmlFor="search-subject-code">Subject Code</label>
-                <select id="search-subject-code" value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)}>
-                  <option>All Subjects</option>
-                  <option>CS501</option>
-                  <option>CS502</option>
-                  <option>CS503</option>
-                </select>
-              </div>
-              <div className="field-group">
-                <label htmlFor="search-semester">Semester</label>
-                <select id="search-semester" value={semester} onChange={(e) => setSemester(e.target.value)}>
-                  <option>All Semesters</option>
-                  <option>Semester 5</option>
-                  <option>Semester 6</option>
-                </select>
-              </div>
-              <div className="field-group">
-                <label htmlFor="search-professor">Professor</label>
-                <select id="search-professor" value={professor} onChange={(e) => setProfessor(e.target.value)}>
-                  <option>All Professors</option>
-                  <option>Dr. Robert Wilson</option>
-                  <option>Dr. Sarah Jenkins</option>
-                  <option>Dr. Alan Green</option>
-                </select>
-              </div>
-            </div>
-          ) : (
-            <div className="search-filter-collapsed-note">
-              <p>Use filters to narrow by subject, semester, and professor.</p>
-            </div>
-          )}
-        </section>
-
-        <section className="dashboard-card search-results-card">
-          <div className="search-results-head">
-            <div className="dashboard-section-title">
-              <span className="material-symbols-outlined">travel_explore</span>
-              <h2>Search Results</h2>
-            </div>
-            <p>
-              <span>{results.length}</span> files found
-            </p>
-          </div>
-
-          {results.length === 0 ? (
-            <div className="search-empty-state">
-              <span className="material-symbols-outlined">search_off</span>
-              <p>No matching files found. Try changing your filters.</p>
-            </div>
-          ) : (
-            <div className="search-results-grid">
-              {results.map((resource) => (
-                <article key={resource.id} className="search-result-item">
-                  <div>
-                    <h3>{resource.title}</h3>
-                    <p>
-                      {resource.subjectCode} • {resource.semester} • {resource.unit}
-                    </p>
-                  </div>
-                  <div className="search-result-meta">
-                    <span>{resource.professor}</span>
-                    <span>
-                      {resource.format} • {resource.size}
-                    </span>
-                    <span>{resource.uploadedAt}</span>
-                  </div>
-                  <div className="search-result-actions">
-                    <button
-                      type="button"
-                      className="dashboard-btn-secondary dashboard-btn-small"
-                      onClick={() => {
-                        setPreviewTitle(`${resource.title}.${resource.format.toLowerCase()}`)
-                        setIsPreviewOpen(true)
-                      }}
-                    >
-                      <span className="material-symbols-outlined">visibility</span>
-                      View
-                    </button>
-                    <button type="button" className="dashboard-btn-primary dashboard-btn-small">
-                      <span className="material-symbols-outlined">download</span>
-                      Download
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
-
-      <footer className="dashboard-footer dashboard-container">
-        <div>
-          <p>© 2024 University Academic Digital Repository</p>
-        </div>
-        <nav aria-label="Footer links">
-          <a href="#">Help Center</a>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Support</a>
-        </nav>
-      </footer>
-      <PdfPreviewModal
-        isOpen={isPreviewOpen}
-        title={previewTitle}
-        onClose={() => setIsPreviewOpen(false)}
-      />
-    </div>
-  )
-}
-
-function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => void }) {
-  const [semester, setSemester] = useState('Semester 5')
+  const [semester, setSemester] = useState('All Semesters')
   const [subjectCode, setSubjectCode] = useState('All Subjects')
   const [unit, setUnit] = useState('All Units')
   const [professor, setProfessor] = useState('All Professors')
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewTitle, setPreviewTitle] = useState('Document.pdf')
 
+  const subtitle = user?.semester ? `Semester ${user.semester}` : ''
+  const programme = user?.programme || ''
+
   const resources = searchResourceData.filter((resource) => {
+    if (resource.status !== 'approved') return false
+    const q = query.trim().toLowerCase()
+    const queryMatch =
+      !q ||
+      resource.title.toLowerCase().includes(q) ||
+      resource.subjectCode.toLowerCase().includes(q) ||
+      resource.professor.toLowerCase().includes(q)
     const semesterMatch = semester === 'All Semesters' || resource.semester === semester
     const subjectMatch = subjectCode === 'All Subjects' || resource.subjectCode === subjectCode
     const unitMatch = unit === 'All Units' || resource.unit === unit
     const professorMatch = professor === 'All Professors' || resource.professor === professor
-    return resource.status === 'approved' && semesterMatch && subjectMatch && unitMatch && professorMatch
+    return queryMatch && semesterMatch && subjectMatch && unitMatch && professorMatch
   })
 
   const approvedResources = searchResourceData.filter((resource) => resource.status === 'approved')
   const professorOptions = Array.from(new Set(approvedResources.map((resource) => resource.professor)))
 
   return (
-    <div className="search-page" aria-label="Structured repository browser">
-      <header className="search-header">
-        <div className="dashboard-container search-header-content">
-          <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
-            <button type="button" className="search-breadcrumb-btn" onClick={onBackDashboard}>
-              Dashboard
-            </button>
-            <span className="material-symbols-outlined">chevron_right</span>
-            <span>Repository</span>
-          </nav>
-          <div className="search-title-row">
-            <h1>Repository Browser</h1>
-            <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onBackDashboard}>
-              Back
-            </button>
-          </div>
-        </div>
-        <div className="assignment-header-accent" />
-      </header>
+    <div className="dashboard-page" aria-label="Repository">
+      <CommonDashboardHeader
+        title="Repository"
+        subtitle={subtitle ? `${subtitle} • ${programme}` : programme || 'Browse & search resources'}
+        navItems={STUDENT_NAV_ITEMS}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="dashboard-container"
+      />
 
       <main className="dashboard-container search-main">
         <section className="dashboard-card">
           <div className="dashboard-section-title">
-            <span className="material-symbols-outlined">account_tree</span>
-            <h2>Semester → Subject → Unit</h2>
+            <span className="material-symbols-outlined">filter_alt</span>
+            <h2>Search & filters</h2>
+          </div>
+          <div className="search-filter-grid" style={{ marginBottom: '1rem' }}>
+            <div className="field-group">
+              <label htmlFor="repo-keyword">Keyword</label>
+              <input
+                id="repo-keyword"
+                type="text"
+                placeholder="Title, subject code, or professor"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
           </div>
           <div className="search-filter-grid">
             <div className="field-group">
@@ -5064,6 +5128,12 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
               <span>{resources.length}</span> approved files
             </p>
           </div>
+          {resources.length === 0 ? (
+            <div className="search-empty-state">
+              <span className="material-symbols-outlined">search_off</span>
+              <p>No matching files. Try changing your keyword or filters.</p>
+            </div>
+          ) : (
           <div className="search-results-grid">
             {resources.map((resource) => (
               <article key={resource.id} className="search-result-item">
@@ -5098,8 +5168,10 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
               </article>
             ))}
           </div>
+          )}
         </section>
       </main>
+      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
       <PdfPreviewModal
         isOpen={isPreviewOpen}
         title={previewTitle}
@@ -5109,13 +5181,26 @@ function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => v
   )
 }
 
-function AssignmentReviewScreen({ onBackToDashboard }: { onBackToDashboard?: () => void }) {
+function AssignmentReviewScreen({
+  onBackToDashboard,
+  currentPath,
+  onNavigate,
+  onLogout,
+}: {
+  onBackToDashboard?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
+}) {
+  const { user } = useAuth()
   const [files, setFiles] = useState<File[]>([])
   const [comment, setComment] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const subtitle = user?.semester ? `Semester ${user.semester}` : ''
+  const programme = user?.programme || ''
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -5161,36 +5246,16 @@ function AssignmentReviewScreen({ onBackToDashboard }: { onBackToDashboard?: () 
   }
 
   return (
-    <div className="assignment-page" aria-label="Assignment submission details">
-      <header className="assignment-header">
-        <div className="dashboard-container assignment-header-content">
-          <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
-            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
-              Assignments
-            </button>
-            <span className="material-symbols-outlined">chevron_right</span>
-            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
-              CS501
-            </button>
-            <span className="material-symbols-outlined">chevron_right</span>
-            <span>Assignment 2</span>
-          </nav>
-
-          <div className="assignment-title-row">
-            <h1>Assignment 2 - SQL Joins</h1>
-            <div className="dashboard-user">
-              <div className="dashboard-user-info">
-                <p>Alex Thompson</p>
-                <p>Semester 5 • CS</p>
-              </div>
-              <div className="dashboard-avatar">
-                <span className="material-symbols-outlined">account_circle</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="assignment-header-accent" />
-      </header>
+    <div className="assignment-page dashboard-page" aria-label="Assignment submission details">
+      <CommonDashboardHeader
+        title="Submit Assignment"
+        subtitle={subtitle ? `${subtitle} • ${programme}` : programme || 'Student'}
+        navItems={STUDENT_NAV_ITEMS}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="dashboard-container"
+      />
 
       <main className="dashboard-container assignment-main">
         <div className="assignment-layout">
@@ -5345,58 +5410,46 @@ function AssignmentReviewScreen({ onBackToDashboard }: { onBackToDashboard?: () 
         </div>
       </main>
 
-      <footer className="dashboard-footer dashboard-container">
-        <div>
-          <p>© 2024 University Academic Digital Repository</p>
-        </div>
-        <nav aria-label="Footer links">
-          <a href="#">Help Center</a>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Support</a>
-        </nav>
-      </footer>
+      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
     </div>
   )
 }
 
 function AssignmentResultScreen({
   onBackToDashboard,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
   onBackToDashboard?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
+  const { user } = useAuth()
+  const subtitle = user?.semester ? `Semester ${user.semester}` : ''
+  const programme = user?.programme || ''
   return (
-    <div className="assignment-page" aria-label="Submission and grade status">
-      <header className="assignment-header">
-        <div className="dashboard-container result-header-content">
-          <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
-            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
-              Assignments
-            </button>
-            <span className="result-breadcrumb-divider">/</span>
-            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
-              CS501
-            </button>
-            <span className="result-breadcrumb-divider">/</span>
-            <span>Lab Report</span>
-          </nav>
-
-          <div className="assignment-title-row">
-            <h1 className="result-title">Memory Mapping Lab Report</h1>
-            <div className="dashboard-user">
-              <div className="dashboard-user-info">
-                <p>Alex Thompson</p>
-                <p>Semester 5 • CS501</p>
-              </div>
-              <div className="dashboard-avatar">
-                <span className="material-symbols-outlined">account_circle</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="assignment-header-accent" />
-      </header>
+    <div className="assignment-page dashboard-page" aria-label="Submission and grade status">
+      <CommonDashboardHeader
+        title="Assignment Result"
+        subtitle={subtitle ? `${subtitle} • ${programme}` : programme || 'Student'}
+        navItems={STUDENT_NAV_ITEMS}
+        currentPath={currentPath}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        containerClassName="dashboard-container"
+      />
 
       <main className="dashboard-container assignment-main">
+        {onBackToDashboard ? (
+          <p className="assignment-back-row">
+            <button type="button" className="back-link" onClick={onBackToDashboard}>
+              <span className="material-symbols-outlined">arrow_back</span>
+              <span>Back to Dashboard</span>
+            </button>
+          </p>
+        ) : null}
         <section className="assignment-card">
           <div className="result-status-head">
             <span className="material-symbols-outlined">info</span>
@@ -5503,16 +5556,7 @@ function AssignmentResultScreen({
         </section>
       </main>
 
-      <footer className="dashboard-footer dashboard-container">
-        <div>
-          <p>© 2024 University Academic Digital Repository</p>
-        </div>
-        <nav aria-label="Footer links">
-          <a href="#">Help Center</a>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Support</a>
-        </nav>
-      </footer>
+      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
     </div>
   )
 }
@@ -6368,7 +6412,15 @@ function App() {
       nextPath = roleHomeRoute[user.role]
     }
 
-    if (!nextPath && isAuthenticated && user && (path === '/student_login' || path === '/faculty_login' || path === '/admin_login')) {
+    // Only redirect to dashboard when user is on their own role's login page (so faculty on Student Login stays there)
+    if (
+      !nextPath &&
+      isAuthenticated &&
+      user &&
+      ((path === '/student_login' && user.role === 'student') ||
+        (path === '/faculty_login' && user.role === 'faculty') ||
+        (path === '/admin_login' && user.role === 'admin'))
+    ) {
       nextPath = roleHomeRoute[user.role]
     }
 
@@ -6584,8 +6636,7 @@ function App() {
           onViewBrief={() => navigate('/assignment_review')}
           onViewResult={() => navigate('/assignment_result')}
           onUnofficialNotes={() => navigate('/unofficial_notes')}
-          onSearchResources={() => navigate('/search_results')}
-          onBrowseRepository={() => navigate('/repository')}
+          onGoToRepository={() => navigate('/repository')}
           notices={notices}
           currentPath={path}
           onNavigate={navigate}
@@ -6596,19 +6647,51 @@ function App() {
         />
       ) : null}
 
-      {path === '/search_results' ? <SearchResultsScreen onBackDashboard={() => navigate('/student_dashboard')} /> : null}
-
-      {path === '/repository' ? <StudentRepositoryScreen onBackDashboard={() => navigate('/student_dashboard')} /> : null}
+      {path === '/repository' ? (
+        <StudentRepositoryScreen
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
+        />
+      ) : null}
 
       {path === '/assignment_review' ? (
-        <AssignmentReviewScreen onBackToDashboard={() => navigate('/student_dashboard')} />
+        <AssignmentReviewScreen
+          onBackToDashboard={() => navigate('/student_dashboard')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
+        />
       ) : null}
 
       {path === '/assignment_result' ? (
-        <AssignmentResultScreen onBackToDashboard={() => navigate('/student_dashboard')} />
+        <AssignmentResultScreen
+          onBackToDashboard={() => navigate('/student_dashboard')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
+        />
       ) : null}
 
-      {path === '/unofficial_notes' ? <UnofficialNotesScreen /> : null}
+      {path === '/unofficial_notes' ? (
+        <UnofficialNotesScreen
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => {
+            await logout()
+            navigate('/')
+          }}
+        />
+      ) : null}
 
       {path === '/' ? (
         <HomeScreen
@@ -6616,6 +6699,7 @@ function App() {
           onFacultyLogin={() => navigate('/faculty_login')}
         />
       ) : null}
+
     </div>
   )
 }
