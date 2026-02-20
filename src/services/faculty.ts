@@ -1,3 +1,5 @@
+import { apiClient } from './api'
+
 export interface FacultyDashboard {
   faculty: {
     id: string
@@ -9,20 +11,44 @@ export interface FacultyDashboard {
     id: string
     code: string
     name: string
+    programme: string
+    semester: number
     enrolledStudents: number
   }>
   pendingVerifications: number
+  pendingNotes: Array<{
+    id: string
+    title: string
+    chapter: string | null
+    uploadedAt: string
+    status: 'pending' | 'verified' | 'rejected'
+    student: {
+      id: string
+      name: string
+      usn: string
+    }
+  }>
   recentAssignments: Array<{
     id: string
     title: string
     subjectCode: string
     dueDate: string
+    submissionCount: number
+    isClosed: boolean
   }>
   officialNotes: Array<{
     id: string
     title: string
-    chapter: string
+    chapter: string | null
     uploadedAt: string
+    subjectCode: string
+  }>
+  textbooks: Array<{
+    id: string
+    name: string
+    size: string
+    createdTime: string
+    webViewLink: string
   }>
 }
 
@@ -42,42 +68,11 @@ export interface PendingNote {
 
 class FacultyService {
   async getDashboard(): Promise<FacultyDashboard> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<FacultyDashboard>('/faculty/dashboard')
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          faculty: {
-            id: 'fac-1',
-            name: 'Dr. Sarah Jenkins',
-            email: 'sarah.jenkins@univ.edu.in',
-            department: 'Computer Science',
-          },
-          assignedSubjects: [
-            {
-              id: 'subj-1',
-              code: 'CS501',
-              name: 'Operating Systems',
-              enrolledStudents: 60,
-            },
-          ],
-          pendingVerifications: 5,
-          recentAssignments: [],
-          officialNotes: [
-            {
-              id: 'note-1',
-              title: 'Virtual Memory Architecture',
-              chapter: 'Unit 4',
-              uploadedAt: new Date().toISOString(),
-            },
-          ],
-        })
-      }, 500)
-    })
+    const response = await apiClient.get<FacultyDashboard>('/faculty/dashboard')
+    if (response.error || !response.data) {
+      throw new Error(response.error?.message || 'Failed to load faculty dashboard')
+    }
+    return response.data
   }
 
   async getPendingNotes(): Promise<PendingNote[]> {
@@ -156,4 +151,3 @@ class FacultyService {
 }
 
 export const facultyService = new FacultyService()
-import { apiClient } from './api'

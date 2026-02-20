@@ -2411,7 +2411,14 @@ function FacultyDashboardScreen({
   const { user } = useAuth()
   const displayName = user?.name || user?.fullName || 'Faculty User'
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true)
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
+  const [facultyDashboardData, setFacultyDashboardData] = useState<Awaited<ReturnType<typeof facultyService.getDashboard>> | null>(null)
   const [officialNoteFile, setOfficialNoteFile] = useState<File | null>(null)
+  const [officialNoteTitle, setOfficialNoteTitle] = useState('')
+  const [officialNoteChapter, setOfficialNoteChapter] = useState('')
+  const [officialNoteSubjectId, setOfficialNoteSubjectId] = useState('')
+  const [isOfficialNoteUploading, setIsOfficialNoteUploading] = useState(false)
   const [officialNoteUploadError, setOfficialNoteUploadError] = useState<string | null>(null)
   const [notificationTitle, setNotificationTitle] = useState('')
   const [notificationContent, setNotificationContent] = useState('')
@@ -2420,6 +2427,35 @@ function FacultyDashboardScreen({
   const [notificationSuccess, setNotificationSuccess] = useState<string | null>(null)
   const department = user?.department || 'Department'
   const facultyNotices = notices.filter((notice) => notice.authorRole === 'faculty' && notice.author === displayName)
+
+  const loadFacultyDashboard = async () => {
+    setIsDashboardLoading(true)
+    setDashboardError(null)
+    try {
+      const data = await facultyService.getDashboard()
+      setFacultyDashboardData(data)
+      if (!officialNoteSubjectId && data.assignedSubjects.length > 0) {
+        setOfficialNoteSubjectId(data.assignedSubjects[0].id)
+      }
+    } catch (error) {
+      setDashboardError(error instanceof Error ? error.message : 'Failed to load faculty dashboard.')
+    } finally {
+      setIsDashboardLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadFacultyDashboard().catch(() => {})
+  }, [])
+
+  const assignedSubjects = facultyDashboardData?.assignedSubjects ?? []
+  const officialNotes = facultyDashboardData?.officialNotes ?? []
+  const pendingNotes = facultyDashboardData?.pendingNotes ?? []
+  const recentAssignments = facultyDashboardData?.recentAssignments ?? []
+  const textbooks = facultyDashboardData?.textbooks ?? []
+  const selectedSubject = assignedSubjects.find((item) => item.id === officialNoteSubjectId) ?? assignedSubjects[0]
+  const programmeOptions = [...new Set(assignedSubjects.map((subject) => subject.programme))]
+  const semesterOptions = [...new Set(assignedSubjects.map((subject) => `Semester ${subject.semester}`))]
 
   const handleOfficialNoteFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -2443,7 +2479,16 @@ function FacultyDashboardScreen({
   const closeOfficialNoteModal = () => {
     setIsUploadModalOpen(false)
     setOfficialNoteFile(null)
+    setOfficialNoteTitle('')
+    setOfficialNoteChapter('')
     setOfficialNoteUploadError(null)
+  }
+
+  const openOfficialNoteModal = () => {
+    if (!officialNoteSubjectId && assignedSubjects.length > 0) {
+      setOfficialNoteSubjectId(assignedSubjects[0].id)
+    }
+    setIsUploadModalOpen(true)
   }
 
   const handleSendNotification = (event: React.FormEvent) => {
@@ -2481,6 +2526,11 @@ function FacultyDashboardScreen({
       />
 
       <main className="faculty-container faculty-main">
+        {dashboardError ? (
+          <section className="dashboard-card">
+            <p style={{ color: '#b91c1c', fontWeight: 600 }}>{dashboardError}</p>
+          </section>
+        ) : null}
         <section className="dashboard-card">
           <div className="dashboard-section-title">
             <span className="material-symbols-outlined">subject</span>
@@ -2489,26 +2539,31 @@ function FacultyDashboardScreen({
           <div className="faculty-subject-grid">
             <div className="field-group">
               <label>Programme</label>
-              <select defaultValue="B.Tech Computer Science">
-                <option>B.Tech Computer Science</option>
-                <option>M.Tech Software Engineering</option>
-                <option>B.Sc Data Science</option>
+              <select defaultValue={programmeOptions[0] || ''}>
+                {programmeOptions.length === 0 ? <option>No programme</option> : null}
+                {programmeOptions.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
               </select>
             </div>
             <div className="field-group">
               <label>Semester</label>
-              <select defaultValue="Semester 5">
-                <option>Semester 5</option>
-                <option>Semester 6</option>
-                <option>Semester 7</option>
+              <select defaultValue={semesterOptions[0] || ''}>
+                {semesterOptions.length === 0 ? <option>No semester</option> : null}
+                {semesterOptions.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
               </select>
             </div>
             <div className="field-group">
               <label>Subject Code</label>
-              <select defaultValue="CS501 - Operating Systems">
-                <option>CS501 - Operating Systems</option>
-                <option>CS502 - DBMS</option>
-                <option>CS503 - Computer Networks</option>
+              <select defaultValue={selectedSubject ? `${selectedSubject.code} - ${selectedSubject.name}` : ''}>
+                {assignedSubjects.length === 0 ? <option>No assigned subject</option> : null}
+                {assignedSubjects.map((subject) => (
+                  <option key={subject.id}>
+                    {subject.code} - {subject.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -2521,7 +2576,7 @@ function FacultyDashboardScreen({
                 <span className="material-symbols-outlined">description</span>
                 <h2>Official Notes</h2>
               </div>
-              <button type="button" className="dashboard-upload-btn" onClick={() => setIsUploadModalOpen(true)}>
+              <button type="button" className="dashboard-upload-btn" onClick={openOfficialNoteModal}>
                 <span className="material-symbols-outlined">upload</span>
                 Upload New
               </button>
@@ -2537,26 +2592,21 @@ function FacultyDashboardScreen({
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>Virtual Memory Architecture</td>
-                    <td>Unit 4</td>
-                    <td className="muted">Oct 12, 2023</td>
-                    <td className="align-right">
-                      <button type="button" className="faculty-link-btn">
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Process Scheduling Algorithms</td>
-                    <td>Unit 2</td>
-                    <td className="muted">Oct 05, 2023</td>
-                    <td className="align-right">
-                      <button type="button" className="faculty-link-btn">
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
+                  {officialNotes.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="muted">{isDashboardLoading ? 'Loading...' : 'No official notes yet.'}</td>
+                    </tr>
+                  ) : null}
+                  {officialNotes.slice(0, 5).map((note) => (
+                    <tr key={note.id}>
+                      <td>{note.title}</td>
+                      <td>{note.chapter || '-'}</td>
+                      <td className="muted">{new Date(note.uploadedAt).toLocaleDateString()}</td>
+                      <td className="align-right">
+                        <button type="button" className="faculty-link-btn">View</button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -2574,42 +2624,50 @@ function FacultyDashboardScreen({
             </div>
             <p className="faculty-subtitle">Pending Student Notes</p>
             <div className="faculty-verify-list">
-              <article className="faculty-verify-card">
-                <div className="faculty-verify-top">
-                  <div>
-                    <h3>James Wilson</h3>
-                    <p>2GI21CS045</p>
+              {pendingNotes.length === 0 ? (
+                <article className="faculty-verify-card">
+                  <div className="faculty-verify-top">
+                    <div>
+                      <h3>{isDashboardLoading ? 'Loading...' : 'No pending notes'}</h3>
+                      <p>{isDashboardLoading ? 'Please wait' : 'Everything is verified'}</p>
+                    </div>
                   </div>
-                  <span className="faculty-new-tag">NEW</span>
-                </div>
-                <p className="faculty-note-title">"Simplified Notes on Semaphores"</p>
-                <div className="faculty-verify-actions">
-                  <button type="button" className="faculty-approve-btn">
-                    Approve
-                  </button>
-                  <button type="button" className="faculty-reject-btn">
-                    Reject
-                  </button>
-                </div>
-              </article>
-
-              <article className="faculty-verify-card">
-                <div className="faculty-verify-top">
-                  <div>
-                    <h3>Amara Okafor</h3>
-                    <p>2GI21CS012</p>
+                </article>
+              ) : null}
+              {pendingNotes.slice(0, 2).map((note) => (
+                <article key={note.id} className="faculty-verify-card">
+                  <div className="faculty-verify-top">
+                    <div>
+                      <h3>{note.student.name}</h3>
+                      <p>{note.student.usn}</p>
+                    </div>
+                    <span className="faculty-new-tag">NEW</span>
                   </div>
-                </div>
-                <p className="faculty-note-title">"Shell Scripting Guide.pdf"</p>
-                <div className="faculty-verify-actions">
-                  <button type="button" className="faculty-approve-btn">
-                    Approve
-                  </button>
-                  <button type="button" className="faculty-reject-btn">
-                    Reject
-                  </button>
-                </div>
-              </article>
+                  <p className="faculty-note-title">"{note.title}"</p>
+                  <div className="faculty-verify-actions">
+                    <button
+                      type="button"
+                      className="faculty-approve-btn"
+                      onClick={async () => {
+                        await facultyService.verifyNote(note.id, 'approve')
+                        await loadFacultyDashboard()
+                      }}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="faculty-reject-btn"
+                      onClick={async () => {
+                        await facultyService.verifyNote(note.id, 'reject')
+                        await loadFacultyDashboard()
+                      }}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         </section>
@@ -2627,24 +2685,25 @@ function FacultyDashboardScreen({
               </button>
             </div>
             <div className="faculty-item-list">
-              <div className="faculty-item-row">
-                <div>
-                  <h3>Operating System Concepts</h3>
-                  <p>Silberschatz • 10th Ed</p>
+              {textbooks.length === 0 ? (
+                <div className="faculty-item-row">
+                  <div>
+                    <h3>{isDashboardLoading ? 'Loading...' : 'No textbooks uploaded'}</h3>
+                    <p>Use Upload to add textbooks.</p>
+                  </div>
                 </div>
-                <button type="button" className="faculty-icon-danger">
-                  <span className="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-              <div className="faculty-item-row">
-                <div>
-                  <h3>Modern Operating Systems</h3>
-                  <p>Andrew Tanenbaum • 4th Ed</p>
+              ) : null}
+              {textbooks.slice(0, 5).map((book) => (
+                <div key={book.id} className="faculty-item-row">
+                  <div>
+                    <h3>{book.name}</h3>
+                    <p>{new Date(book.createdTime).toLocaleDateString()} • {formatFileSize(Number(book.size || 0))}</p>
+                  </div>
+                  <a href={book.webViewLink} target="_blank" rel="noreferrer" className="faculty-icon-danger">
+                    <span className="material-symbols-outlined">open_in_new</span>
+                  </a>
                 </div>
-                <button type="button" className="faculty-icon-danger">
-                  <span className="material-symbols-outlined">delete</span>
-                </button>
-              </div>
+              ))}
             </div>
           </section>
 
@@ -2659,26 +2718,28 @@ function FacultyDashboardScreen({
               </button>
             </div>
             <div className="faculty-item-list">
-              <div className="faculty-item-row faculty-assignment-row">
-                <div>
-                  <h3>Multi-threaded Scheduler</h3>
-                  <p>42 Submissions • Due: 3 Days</p>
+              {recentAssignments.length === 0 ? (
+                <div className="faculty-item-row faculty-assignment-row">
+                  <div>
+                    <h3>{isDashboardLoading ? 'Loading...' : 'No active assignments'}</h3>
+                    <p>Create an assignment to get started.</p>
+                  </div>
                 </div>
-                <button type="button" className="faculty-view-btn" onClick={onViewAssignment}>
-                  View
-                  <span className="material-symbols-outlined">arrow_forward</span>
-                </button>
-              </div>
-              <div className="faculty-item-row faculty-assignment-row">
-                <div>
-                  <h3>Disk Management Quiz</h3>
-                  <p>128 Submissions • Closed</p>
+              ) : null}
+              {recentAssignments.slice(0, 5).map((assignment) => (
+                <div key={assignment.id} className="faculty-item-row faculty-assignment-row">
+                  <div>
+                    <h3>{assignment.title}</h3>
+                    <p>
+                      {assignment.submissionCount} Submissions • {assignment.isClosed ? 'Closed' : `Due: ${new Date(assignment.dueDate).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                  <button type="button" className="faculty-view-btn" onClick={onViewAssignment}>
+                    View
+                    <span className="material-symbols-outlined">arrow_forward</span>
+                  </button>
                 </div>
-                <button type="button" className="faculty-view-btn" onClick={onViewAssignment}>
-                  View
-                  <span className="material-symbols-outlined">arrow_forward</span>
-                </button>
-              </div>
+              ))}
             </div>
           </section>
         </section>
@@ -2787,13 +2848,36 @@ function FacultyDashboardScreen({
 
             <form
               className="faculty-modal-form"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault()
                 if (!officialNoteFile) {
                   setOfficialNoteUploadError(`Please choose a file. Allowed: ${SUPPORTED_UPLOAD_LABEL}.`)
                   return
                 }
-                closeOfficialNoteModal()
+                if (!officialNoteSubjectId) {
+                  setOfficialNoteUploadError('Please select a subject.')
+                  return
+                }
+                if (!officialNoteChapter.trim() || !officialNoteTitle.trim()) {
+                  setOfficialNoteUploadError('Please provide title and chapter.')
+                  return
+                }
+                setIsOfficialNoteUploading(true)
+                setOfficialNoteUploadError(null)
+                try {
+                  await facultyService.uploadOfficialNote({
+                    file: officialNoteFile,
+                    title: officialNoteTitle.trim(),
+                    chapter: officialNoteChapter.trim(),
+                    subjectId: officialNoteSubjectId,
+                  })
+                  await loadFacultyDashboard()
+                  closeOfficialNoteModal()
+                } catch (error) {
+                  setOfficialNoteUploadError(error instanceof Error ? error.message : 'Upload failed.')
+                } finally {
+                  setIsOfficialNoteUploading(false)
+                }
               }}
             >
               <div className="faculty-modal-field">
@@ -2801,7 +2885,18 @@ function FacultyDashboardScreen({
                   <span>1</span>
                   Subject
                 </label>
-                <input type="text" value="CS501 - Operating Systems" disabled />
+                <select
+                  value={officialNoteSubjectId}
+                  onChange={(event) => setOfficialNoteSubjectId(event.target.value)}
+                  disabled={isOfficialNoteUploading}
+                >
+                  {assignedSubjects.length === 0 ? <option value="">No assigned subjects</option> : null}
+                  {assignedSubjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.code} - {subject.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="faculty-modal-field">
@@ -2809,16 +2904,13 @@ function FacultyDashboardScreen({
                   <span>2</span>
                   Unit / Chapter
                 </label>
-                <select defaultValue="">
-                  <option disabled value="">
-                    Select Unit/Chapter
-                  </option>
-                  <option>Unit 1: Introduction to OS</option>
-                  <option>Unit 2: Process Management</option>
-                  <option>Unit 3: Memory Management</option>
-                  <option>Unit 4: Storage Management</option>
-                  <option>Unit 5: Protection and Security</option>
-                </select>
+                <input
+                  type="text"
+                  placeholder="e.g., Unit 3"
+                  value={officialNoteChapter}
+                  onChange={(event) => setOfficialNoteChapter(event.target.value)}
+                  disabled={isOfficialNoteUploading}
+                />
               </div>
 
               <div className="faculty-modal-field">
@@ -2826,7 +2918,13 @@ function FacultyDashboardScreen({
                   <span>3</span>
                   Note Title
                 </label>
-                <input type="text" placeholder="e.g., Detailed Guide on Paging & Segmentation" />
+                <input
+                  type="text"
+                  placeholder="e.g., Detailed Guide on Paging & Segmentation"
+                  value={officialNoteTitle}
+                  onChange={(event) => setOfficialNoteTitle(event.target.value)}
+                  disabled={isOfficialNoteUploading}
+                />
               </div>
 
               <div className="faculty-modal-field">
@@ -2843,7 +2941,7 @@ function FacultyDashboardScreen({
                   Upload File
                 </label>
                 <label className="faculty-upload-dropzone">
-                  <input type="file" accept={SUPPORTED_UPLOAD_ACCEPT} onChange={handleOfficialNoteFileChange} />
+                  <input type="file" accept={SUPPORTED_UPLOAD_ACCEPT} onChange={handleOfficialNoteFileChange} disabled={isOfficialNoteUploading} />
                   <div>
                     <span className="material-symbols-outlined">cloud_upload</span>
                   </div>
@@ -2863,8 +2961,8 @@ function FacultyDashboardScreen({
               </div>
 
               <div className="faculty-modal-submit-wrap">
-                <button type="submit" className="faculty-modal-submit">
-                  Publish Notes
+                <button type="submit" className="faculty-modal-submit" disabled={isOfficialNoteUploading}>
+                  {isOfficialNoteUploading ? 'Publishing...' : 'Publish Notes'}
                 </button>
                 <div>
                   <span className="material-symbols-outlined">info</span>

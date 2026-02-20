@@ -648,11 +648,19 @@ app.get('/api/files', requireAuth, async (req, res) => {
   const { user, role } = req.auth
   const canReadAll = role === 'admin' || role === 'faculty'
   const subjectName = normalizeString(req.query?.subjectName)
+  const category = normalizeString(req.query?.category)
+  const uploadedByParam = normalizeString(req.query?.uploadedBy)
 
   const clauses = ["trashed = false"]
   clauses.push("appProperties has { key='uploadedBy' }")
   if (subjectName) {
     clauses.push(`appProperties has { key='subjectName' and value='${escapeDriveQueryValue(subjectName)}' }`)
+  }
+  if (category) {
+    clauses.push(`appProperties has { key='category' and value='${escapeDriveQueryValue(category)}' }`)
+  }
+  if (canReadAll && uploadedByParam) {
+    clauses.push(`appProperties has { key='uploadedBy' and value='${escapeDriveQueryValue(uploadedByParam)}' }`)
   }
   if (!canReadAll) {
     clauses.push(`appProperties has { key='uploadedBy' and value='${user.id}' }`)
@@ -670,6 +678,180 @@ app.get('/api/files', requireAuth, async (req, res) => {
 
   return res.json({
     files: (listed.data.files ?? []).map(mapDriveFile),
+  })
+})
+
+app.get('/api/faculty/dashboard', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const requestedFacultyId = normalizeString(req.query?.facultyId)
+  const facultyId = req.auth.role === 'admin' && requestedFacultyId ? requestedFacultyId : req.auth.user.id
+
+  if (req.auth.role === 'faculty' && facultyId === req.auth.user.id) {
+    await syncFacultyProfileFromUser(req.auth.user)
+  }
+
+  const { data: facultyProfile, error: facultyError } = await adminSupabase
+    .from('faculty')
+    .select('id,name,department,designation,status')
+    .eq('id', facultyId)
+    .maybeSingle()
+  if (facultyError) throw facultyError
+
+  const { data: facultySubjectRows, error: fsError } = await adminSupabase
+    .from('faculty_subjects')
+    .select('subject_id')
+    .eq('faculty_id', facultyId)
+  if (fsError) throw fsError
+
+  const subjectIds = (facultySubjectRows ?? []).map((row) => row.subject_id).filter(Boolean)
+  let subjects = []
+  if (subjectIds.length > 0) {
+    const { data: subjectRows, error: subjectsError } = await adminSupabase
+      .from('subjects')
+      .select('id,code,name,programme,semester')
+      .in('id', subjectIds)
+      .order('semester', { ascending: true })
+      .order('name', { ascending: true })
+    if (subjectsError) throw subjectsError
+    subjects = subjectRows ?? []
+  }
+
+  let enrolledBySubjectId = {}
+  if (subjectIds.length > 0) {
+    const { data: enrollmentRows, error: enrollmentError } = await adminSupabase
+      .from('student_subjects')
+      .select('subject_id')
+      .in('subject_id', subjectIds)
+      .eq('status', 'active')
+    if (enrollmentError) throw enrollmentError
+
+    enrolledBySubjectId = (enrollmentRows ?? []).reduce((acc, row) => {
+      const key = row.subject_id
+      acc[key] = (acc[key] ?? 0) + 1
+      return acc
+    }, {})
+  }
+
+  let pendingQuery = adminSupabase
+    .from('notes')
+    .select('id,title,chapter,uploaded_at,uploaded_by,status,subject_id')
+    .eq('note_type', 'unofficial')
+    .eq('status', 'pending')
+    .order('uploaded_at', { ascending: false })
+    .limit(10)
+  if (subjectIds.length > 0) {
+    pendingQuery = pendingQuery.in('subject_id', subjectIds)
+  }
+  const { data: pendingNotesRows, error: pendingNotesError } = await pendingQuery
+  if (pendingNotesError) throw pendingNotesError
+
+  const pendingUploaderIds = [...new Set((pendingNotesRows ?? []).map((row) => row.uploaded_by).filter(Boolean))]
+  let pendingUploaders = {}
+  if (pendingUploaderIds.length > 0) {
+    const { data: pendingStudents, error: pendingStudentsError } = await adminSupabase
+      .from('students')
+      .select('id,full_name,usn')
+      .in('id', pendingUploaderIds)
+    if (pendingStudentsError) throw pendingStudentsError
+    pendingUploaders = Object.fromEntries((pendingStudents ?? []).map((student) => [student.id, student]))
+  }
+
+  const { data: recentAssignmentsRows, error: assignmentsError } = await adminSupabase
+    .from('assignments')
+    .select('id,title,due_date,allow_late_submission,subject_id,subjects(code)')
+    .eq('faculty_id', facultyId)
+    .order('created_at', { ascending: false })
+    .limit(8)
+  if (assignmentsError) throw assignmentsError
+
+  const assignmentIds = (recentAssignmentsRows ?? []).map((row) => row.id).filter(Boolean)
+  let submissionCountByAssignmentId = {}
+  if (assignmentIds.length > 0) {
+    const { data: submissionRows, error: submissionsError } = await adminSupabase
+      .from('submissions')
+      .select('assignment_id')
+      .in('assignment_id', assignmentIds)
+    if (submissionsError) throw submissionsError
+    submissionCountByAssignmentId = (submissionRows ?? []).reduce((acc, row) => {
+      const key = row.assignment_id
+      acc[key] = (acc[key] ?? 0) + 1
+      return acc
+    }, {})
+  }
+
+  const { data: officialNotesRows, error: officialNotesError } = await adminSupabase
+    .from('notes')
+    .select('id,title,chapter,uploaded_at,subject_id,subjects(code)')
+    .eq('uploaded_by', facultyId)
+    .eq('note_type', 'official')
+    .order('uploaded_at', { ascending: false })
+    .limit(8)
+  if (officialNotesError) throw officialNotesError
+
+  let textbooks = []
+  if (driveClient) {
+    const clauses = [
+      "trashed = false",
+      "appProperties has { key='category' and value='textbook' }",
+      `appProperties has { key='uploadedBy' and value='${escapeDriveQueryValue(facultyId)}' }`,
+    ]
+    const listed = await driveClient.files.list({
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      q: clauses.join(' and '),
+      pageSize: 20,
+      fields:
+        'files(id,name,mimeType,size,createdTime,webViewLink,webContentLink,parents,appProperties)',
+      orderBy: 'createdTime desc',
+    })
+    textbooks = (listed.data.files ?? []).map(mapDriveFile)
+  }
+
+  return res.json({
+    faculty: {
+      id: facultyId,
+      name: facultyProfile?.name || req.auth.user.user_metadata?.name || req.auth.user.user_metadata?.fullName || 'Faculty',
+      email: req.auth.user.email,
+      department: facultyProfile?.department || req.auth.user.user_metadata?.department || 'Department',
+    },
+    assignedSubjects: subjects.map((subject) => ({
+      id: subject.id,
+      code: subject.code,
+      name: subject.name,
+      programme: subject.programme,
+      semester: subject.semester,
+      enrolledStudents: enrolledBySubjectId[subject.id] ?? 0,
+    })),
+    pendingVerifications: (pendingNotesRows ?? []).length,
+    pendingNotes: (pendingNotesRows ?? []).map((note) => ({
+      id: note.id,
+      title: note.title,
+      chapter: note.chapter,
+      uploadedAt: note.uploaded_at,
+      status: note.status,
+      student: {
+        id: note.uploaded_by,
+        name: pendingUploaders[note.uploaded_by]?.full_name || 'Student',
+        usn: pendingUploaders[note.uploaded_by]?.usn || 'NA',
+      },
+    })),
+    recentAssignments: (recentAssignmentsRows ?? []).map((assignment) => ({
+      id: assignment.id,
+      title: assignment.title,
+      subjectCode: assignment.subjects?.code || 'SUBJECT',
+      dueDate: assignment.due_date,
+      submissionCount: submissionCountByAssignmentId[assignment.id] ?? 0,
+      isClosed: new Date(assignment.due_date).getTime() < Date.now(),
+    })),
+    officialNotes: (officialNotesRows ?? []).map((note) => ({
+      id: note.id,
+      title: note.title,
+      chapter: note.chapter,
+      uploadedAt: note.uploaded_at,
+      subjectCode: note.subjects?.code || 'SUBJECT',
+    })),
+    textbooks,
   })
 })
 
