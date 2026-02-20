@@ -2,9 +2,9 @@
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Student Unofficial Notes Portal</title>
+<title>Faculty Management Dashboard</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
         tailwind.config = {
@@ -21,9 +21,6 @@
                     },
                     fontFamily: {
                         "poppins": ["Poppins", "sans-serif"]
-                    },
-                    spacing: {
-                        '8px': '8px',
                     }
                 },
             },
@@ -39,274 +36,268 @@
             border: 1px solid #E2E8F0;
             border-radius: 8px;
             padding: 24px;
+            margin-bottom: 24px;
         }
         .btn-primary {
             background-color: #1E3A8A;
             color: white;
             padding: 8px 16px;
-            border-radius: 4px;
+            border-radius: 6px;
             font-weight: 500;
-            transition: opacity 0.2s;
-        }
-        .btn-primary:hover:not(:disabled) {
-            opacity: 0.9;
-        }
-        .btn-primary:disabled {
-            background-color: #E2E8F0;
-            color: #94A3B8;
-            cursor: not-allowed;
-        }
-        .badge {
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        .badge-verified { background-color: #DCFCE7; color: #16A34A; }
-        .badge-pending { background-color: #FEF3C7; color: #D97706; }
-        .badge-rejected { background-color: #FEE2E2; color: #DC2626; }
-        .chip {
-            padding: 4px 12px;
-            border-radius: 16px;
-            border: 1px solid #E2E8F0;
-            font-size: 12px;
-            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
             transition: all 0.2s;
         }
-        .chip.active {
-            background-color: #1E3A8A;
-            color: white;
-            border-color: #1E3A8A;
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        .btn-outline {
+            border: 1px solid #E2E8F0;
+            color: #475569;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-outline:hover {
+            background-color: #F1F5F9;
+        }
+        .table-header {
+            background-color: #F8FAFC;
+            border-top: 1px solid #E2E8F0;
+            border-bottom: 1px solid #E2E8F0;
         }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
-<header class="bg-white sticky top-0 z-50">
-<div class="max-w-[1100px] mx-auto px-4 h-20 flex items-center justify-between">
-<div class="flex flex-col">
-<h1 class="text-[28px] font-semibold text-slate-900 leading-tight">Unofficial Notes</h1>
-<div class="w-16 h-[3px] bg-accent-yellow mt-1"></div>
+<header class="bg-white border-b border-card-border sticky top-0 z-50">
+<div class="max-w-[1200px] mx-auto px-6 h-20 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="bg-primary-blue p-2 rounded-lg">
+<span class="material-symbols-outlined text-white">account_balance</span>
 </div>
-<div class="flex items-center gap-6">
-<button class="flex items-center gap-2 px-6 py-2.5 bg-primary-blue text-white rounded-md text-sm font-semibold shadow-sm hover:opacity-90 transition-all">
-<span class="material-symbols-outlined text-[20px]">cloud_upload</span>
-                Upload Notes
-            </button>
-<div class="flex items-center gap-3 border-l pl-6 border-slate-200">
+<h1 class="text-2xl font-bold text-primary-blue">Faculty Dashboard</h1>
+</div>
+<div class="flex items-center gap-4 cursor-pointer group">
 <div class="text-right">
-<p class="text-sm font-semibold leading-none">Alex Thompson</p>
-<p class="text-[11px] text-slate-500 mt-1">5th Sem • CS</p>
+<p class="text-sm font-semibold leading-none">Dr. Sarah Jenkins</p>
+<p class="text-xs text-slate-500 mt-1">Senior Professor • CS Dept</p>
 </div>
 <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border border-card-border overflow-hidden">
-<span class="material-symbols-outlined text-primary-blue">account_circle</span>
+<span class="material-symbols-outlined text-primary-blue text-3xl">account_circle</span>
+</div>
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary-blue transition-colors">expand_more</span>
 </div>
 </div>
-</div>
-</div>
+<div class="w-full h-[3px] bg-accent-yellow"></div>
 </header>
-<main class="max-w-[1100px] mx-auto px-4 py-8">
-<div class="grid grid-cols-12 gap-8">
-<aside class="col-span-12 lg:col-span-5 flex flex-col gap-6">
+<main class="max-w-[1200px] mx-auto px-6 py-8">
 <section class="card">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary-blue">subject</span>
+<h2 class="text-lg font-bold">Manage Subjects</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-slate-600">Programme</label>
+<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue w-full">
+<option>B.Tech Computer Science</option>
+<option>M.Tech Software Engineering</option>
+<option>B.Sc Data Science</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-slate-600">Semester</label>
+<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue w-full">
+<option>Semester 5</option>
+<option>Semester 6</option>
+<option>Semester 7</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-slate-600">Subject Code</label>
+<select class="form-select border-card-border rounded-md text-sm focus:ring-primary-blue focus:border-primary-blue w-full">
+<option>CS501 - Operating Systems</option>
+<option>CS502 - DBMS</option>
+<option>CS503 - Computer Networks</option>
+</select>
+</div>
+</div>
+</section>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="lg:col-span-2">
+<section class="card h-full">
 <div class="flex items-center justify-between mb-6">
 <div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary-blue">folder_shared</span>
-<h2 class="text-lg font-semibold">My Uploads</h2>
+<span class="material-symbols-outlined text-primary-blue">description</span>
+<h2 class="text-lg font-bold">Official Notes</h2>
 </div>
-<span class="text-xs text-slate-400 font-medium">3 Total</span>
+<button class="btn-primary">
+<span class="material-symbols-outlined text-sm">upload</span>
+                            Upload New
+                        </button>
 </div>
+<div class="overflow-x-auto border border-card-border rounded-lg">
+<table class="w-full text-left text-sm">
+<thead class="table-header">
+<tr>
+<th class="px-4 py-3 font-semibold text-slate-600">Title</th>
+<th class="px-4 py-3 font-semibold text-slate-600">Unit/Chapter</th>
+<th class="px-4 py-3 font-semibold text-slate-600">Date Uploaded</th>
+<th class="px-4 py-3 text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-card-border">
+<tr>
+<td class="px-4 py-4 font-medium">Virtual Memory Architecture</td>
+<td class="px-4 py-4">Unit 4</td>
+<td class="px-4 py-4 text-slate-500">Oct 12, 2023</td>
+<td class="px-4 py-4 text-right">
+<button class="text-primary-blue hover:underline">Edit</button>
+</td>
+</tr>
+<tr>
+<td class="px-4 py-4 font-medium">Process Scheduling Algorithms</td>
+<td class="px-4 py-4">Unit 2</td>
+<td class="px-4 py-4 text-slate-500">Oct 05, 2023</td>
+<td class="px-4 py-4 text-right">
+<button class="text-primary-blue hover:underline">Edit</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</div>
+<div class="lg:col-span-1">
+<section class="card h-full">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary-blue">verified_user</span>
+<h2 class="text-lg font-bold">Verification Panel</h2>
+</div>
+<p class="text-xs text-slate-500 mb-4 uppercase tracking-wider font-semibold">Pending Student Notes</p>
 <div class="space-y-4">
-<div class="p-4 border border-card-border rounded-lg bg-slate-50/30">
-<div class="flex justify-between items-start mb-3">
+<div class="p-4 border border-card-border rounded-lg bg-slate-50">
+<div class="flex justify-between items-start mb-2">
 <div>
-<h3 class="font-medium text-sm text-slate-900">OS - Deadlocks Short Notes</h3>
-<p class="text-xs text-slate-500 mt-0.5">Uploaded on Oct 24, 2023</p>
+<p class="font-semibold text-sm">James Wilson</p>
+<p class="text-xs text-slate-500">2GI21CS045</p>
 </div>
-<span class="badge badge-verified">Verified</span>
+<span class="bg-accent-yellow text-status-yellow text-[10px] px-2 py-0.5 rounded font-bold">NEW</span>
 </div>
-<div class="flex items-center justify-between mt-4">
-<span class="text-[11px] text-slate-400">PDF • 1.2 MB</span>
-<button class="btn-primary text-xs py-1.5 px-4 flex items-center gap-1">
-<span class="material-symbols-outlined text-sm">download</span>
-                                Download
-                            </button>
+<p class="text-xs text-slate-600 mb-3 italic">"Simplified Notes on Semaphores"</p>
+<div class="flex gap-2">
+<button class="flex-1 py-2 text-xs font-semibold bg-status-green text-white rounded hover:opacity-90">Approve</button>
+<button class="flex-1 py-2 text-xs font-semibold border border-status-red text-status-red rounded hover:bg-red-50">Reject</button>
 </div>
 </div>
-<div class="p-4 border border-card-border rounded-lg bg-slate-50/30">
-<div class="flex justify-between items-start mb-3">
+<div class="p-4 border border-card-border rounded-lg bg-slate-50">
+<div class="flex justify-between items-start mb-2">
 <div>
-<h3 class="font-medium text-sm text-slate-900">Virtual Memory Lab Manual</h3>
-<p class="text-xs text-slate-500 mt-0.5">Uploaded on Oct 28, 2023</p>
-</div>
-<span class="badge badge-pending">Pending</span>
-</div>
-<div class="flex items-center justify-between mt-4">
-<span class="text-[11px] text-slate-400">DOCX • 850 KB</span>
-<button class="btn-primary text-xs py-1.5 px-4 flex items-center gap-1" disabled="">
-<span class="material-symbols-outlined text-sm">download</span>
-                                Download
-                            </button>
+<p class="font-semibold text-sm">Amara Okafor</p>
+<p class="text-xs text-slate-500">2GI21CS012</p>
 </div>
 </div>
-<div class="p-4 border border-card-border rounded-lg bg-slate-50/30">
-<div class="flex justify-between items-start mb-3">
-<div>
-<h3 class="font-medium text-sm text-slate-900">Networking - OSI Model</h3>
-<p class="text-xs text-slate-500 mt-0.5">Uploaded on Oct 15, 2023</p>
-</div>
-<span class="badge badge-rejected">Rejected</span>
-</div>
-<div class="flex items-center justify-between mt-4">
-<span class="text-[11px] text-slate-400">PDF • 3.4 MB</span>
-<button class="btn-primary text-xs py-1.5 px-4 flex items-center gap-1" disabled="">
-<span class="material-symbols-outlined text-sm">download</span>
-                                Download
-                            </button>
+<p class="text-xs text-slate-600 mb-3 italic">"Shell Scripting Guide.pdf"</p>
+<div class="flex gap-2">
+<button class="flex-1 py-2 text-xs font-semibold bg-status-green text-white rounded hover:opacity-90">Approve</button>
+<button class="flex-1 py-2 text-xs font-semibold border border-status-red text-status-red rounded hover:bg-red-50">Reject</button>
 </div>
 </div>
 </div>
 </section>
-</aside>
-<section class="col-span-12 lg:col-span-7 flex flex-col gap-6">
-<div class="card">
-<div class="flex items-center gap-2 mb-6">
-<span class="material-symbols-outlined text-primary-blue">search</span>
-<h2 class="text-lg font-semibold">Find Notes</h2>
-</div>
-<div class="relative mb-4">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-<input class="w-full pl-10 pr-4 py-3 border border-card-border rounded-lg text-sm focus:ring-1 focus:ring-primary-blue focus:border-primary-blue outline-none bg-slate-50/50" placeholder="Search by topic, unit, or author name..." type="text"/>
-</div>
-<div class="border border-card-border rounded-lg overflow-hidden">
-<button class="w-full flex items-center justify-between px-4 py-3 bg-slate-50 text-sm font-medium border-b border-card-border">
-<span class="flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]">tune</span>
-                            Advanced Filters
-                        </span>
-<span class="material-symbols-outlined text-slate-400">expand_more</span>
-</button>
-<div class="p-5 space-y-6">
-<div class="grid grid-cols-2 gap-4">
-<div class="flex flex-col gap-2">
-<label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Unit / Chapter</label>
-<select class="form-select border-card-border rounded-md text-sm py-2">
-<option>All Units</option>
-<option>Unit 1: Introduction</option>
-<option>Unit 2: Processes</option>
-<option>Unit 3: Scheduling</option>
-</select>
-</div>
-<div class="flex flex-col gap-2">
-<label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sort By</label>
-<select class="form-select border-card-border rounded-md text-sm py-2">
-<option>Most Recent</option>
-<option>Highest Rated</option>
-<option>Verified First</option>
-</select>
 </div>
 </div>
-<div>
-<label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 block">File Type</label>
-<div class="flex flex-wrap gap-2">
-<span class="chip active">All</span>
-<span class="chip">PDF</span>
-<span class="chip">DOCX</span>
-<span class="chip">Images</span>
-<span class="chip">Handwritten</span>
-</div>
-</div>
-<div class="flex items-center justify-between pt-2 border-t border-slate-100">
-<label class="flex items-center gap-3 cursor-pointer">
-<div class="relative inline-block w-10 h-5 align-middle select-none transition duration-200 ease-in">
-<input class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-slate-300 appearance-none cursor-pointer checked:right-0 checked:border-primary-blue right-5" id="toggle" name="toggle" type="checkbox"/>
-<label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-300 cursor-pointer" for="toggle"></label>
-</div>
-<span class="text-sm font-medium text-slate-700">Show Verified Only</span>
-</label>
-<button class="text-xs font-semibold text-primary-blue hover:underline">Clear All</button>
-</div>
-</div>
-</div>
-<div class="mt-8">
-<h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Results (24)</h3>
-<div class="divide-y divide-slate-100">
-<div class="py-4 flex items-center justify-between group">
-<div class="flex items-start gap-4">
-<div class="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-primary-blue">
-<span class="material-symbols-outlined">description</span>
-</div>
-<div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+<section class="card">
+<div class="flex items-center justify-between mb-6">
 <div class="flex items-center gap-2">
-<h4 class="font-semibold text-slate-900 group-hover:text-primary-blue transition-colors">CPU Scheduling Algorithms Summary</h4>
-<span class="material-symbols-outlined text-status-green text-[18px]" title="Verified">verified</span>
+<span class="material-symbols-outlined text-primary-blue">library_books</span>
+<h2 class="text-lg font-bold">Textbook Management</h2>
 </div>
-<p class="text-xs text-slate-500 mt-1">Uploaded By: <span class="font-medium">Rahul Sharma</span> (1RV21CS084)</p>
-</div>
-</div>
-<button class="p-2 text-slate-400 hover:text-primary-blue hover:bg-slate-50 rounded-full transition-all">
-<span class="material-symbols-outlined">download</span>
-</button>
-</div>
-<div class="py-4 flex items-center justify-between group">
-<div class="flex items-start gap-4">
-<div class="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-primary-blue">
-<span class="material-symbols-outlined">description</span>
-</div>
-<div>
-<div class="flex items-center gap-2">
-<h4 class="font-semibold text-slate-900 group-hover:text-primary-blue transition-colors">File Systems - Complete Notes</h4>
-<span class="material-symbols-outlined text-status-green text-[18px]" title="Verified">verified</span>
-</div>
-<p class="text-xs text-slate-500 mt-1">Uploaded By: <span class="font-medium">Sneha Gupta</span> (1RV21CS112)</p>
-</div>
-</div>
-<button class="p-2 text-slate-400 hover:text-primary-blue hover:bg-slate-50 rounded-full transition-all">
-<span class="material-symbols-outlined">download</span>
-</button>
-</div>
-<div class="py-4 flex items-center justify-between group">
-<div class="flex items-start gap-4">
-<div class="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-primary-blue">
-<span class="material-symbols-outlined">description</span>
-</div>
-<div>
-<div class="flex items-center gap-2">
-<h4 class="font-semibold text-slate-900 group-hover:text-primary-blue transition-colors">Banker's Algorithm Flowchart</h4>
-<span class="material-symbols-outlined text-status-green text-[18px]" title="Verified">verified</span>
-</div>
-<p class="text-xs text-slate-500 mt-1">Uploaded By: <span class="font-medium">Mark Johnson</span> (1RV21CS045)</p>
-</div>
-</div>
-<button class="p-2 text-slate-400 hover:text-primary-blue hover:bg-slate-50 rounded-full transition-all">
-<span class="material-symbols-outlined">download</span>
-</button>
-</div>
-</div>
-<button class="w-full mt-6 py-3 border border-dashed border-card-border rounded-lg text-sm text-slate-500 font-medium hover:bg-slate-50 hover:text-primary-blue transition-all">
-                        Load More Results
+<button class="btn-outline text-xs">
+<span class="material-symbols-outlined text-sm">add</span>
+                        Upload
                     </button>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3 border border-card-border rounded-lg">
+<div>
+<h3 class="text-sm font-semibold">Operating System Concepts</h3>
+<p class="text-xs text-slate-500">Silberschatz • 10th Ed</p>
+</div>
+<button class="text-slate-400 hover:text-status-red transition-colors">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+<div class="flex items-center justify-between p-3 border border-card-border rounded-lg">
+<div>
+<h3 class="text-sm font-semibold">Modern Operating Systems</h3>
+<p class="text-xs text-slate-500">Andrew Tanenbaum • 4th Ed</p>
+</div>
+<button class="text-slate-400 hover:text-status-red transition-colors">
+<span class="material-symbols-outlined text-xl">delete</span>
+</button>
+</div>
+</div>
+</section>
+<section class="card">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-blue">assignment_turned_in</span>
+<h2 class="text-lg font-bold">Active Assignments</h2>
+</div>
+<button class="btn-primary text-xs">
+                        Create New
+                    </button>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-4 border border-card-border rounded-lg bg-slate-50/50">
+<div>
+<h3 class="text-sm font-bold">Multi-threaded Scheduler</h3>
+<div class="flex gap-3 mt-1">
+<span class="text-xs text-slate-500 flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">group</span>
+                                    42 Submissions
+                                </span>
+<span class="text-xs text-status-yellow font-medium">Due: 3 Days</span>
+</div>
+</div>
+<button class="text-xs font-semibold text-primary-blue flex items-center gap-1 bg-white px-3 py-1.5 rounded-md border border-card-border hover:bg-slate-50">
+                            View
+                            <span class="material-symbols-outlined text-xs">arrow_forward</span>
+</button>
+</div>
+<div class="flex items-center justify-between p-4 border border-card-border rounded-lg bg-slate-50/50">
+<div>
+<h3 class="text-sm font-bold">Disk Management Quiz</h3>
+<div class="flex gap-3 mt-1">
+<span class="text-xs text-slate-500 flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">group</span>
+                                    128 Submissions
+                                </span>
+<span class="text-xs text-status-green font-medium">Closed</span>
+</div>
+</div>
+<button class="text-xs font-semibold text-primary-blue flex items-center gap-1 bg-white px-3 py-1.5 rounded-md border border-card-border hover:bg-slate-50">
+                            View
+                            <span class="material-symbols-outlined text-xs">arrow_forward</span>
+</button>
 </div>
 </div>
 </section>
 </div>
 </main>
-<footer class="max-w-[1100px] mx-auto px-4 pb-12">
+<footer class="max-w-[1200px] mx-auto px-6 pb-12">
 <div class="pt-8 border-t border-card-border flex flex-col md:flex-row justify-between items-center gap-4">
-<p class="text-[11px] text-slate-400 font-medium uppercase tracking-widest">© 2024 Academic Digital Repository • Unofficial Notes Portal</p>
+<p class="text-xs text-slate-400 uppercase tracking-widest font-medium">University Digital Repository • Faculty Portal</p>
 <div class="flex gap-6">
-<a class="text-xs text-slate-500 hover:text-primary-blue font-medium" href="#">Portal Guidelines</a>
-<a class="text-xs text-slate-500 hover:text-primary-blue font-medium" href="#">Verification Criteria</a>
-<a class="text-xs text-slate-500 hover:text-primary-blue font-medium" href="#">Report Abuse</a>
+<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">Internal Guidelines</a>
+<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">Faculty Support</a>
+<a class="text-xs text-slate-500 hover:text-primary-blue" href="#">System Status</a>
 </div>
 </div>
 </footer>
-<style type="text/tailwindcss">.toggle-checkbox:checked {
-        @apply right-0 border-primary-blue;
-    }
-    .toggle-checkbox:checked + .toggle-label {
-        @apply bg-primary-blue;
-    }
-</style>
 
 </body></html>

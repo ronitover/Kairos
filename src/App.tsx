@@ -6,6 +6,7 @@ type RoutePath =
   | '/student_login'
   | '/student_register'
   | '/faculty_login'
+  | '/faculty_dashboard'
   | '/student_dashboard'
   | '/assignment_review'
   | '/assignment_result'
@@ -82,6 +83,10 @@ function normalizePath(pathname: string): RoutePath {
 
   if (pathname === '/faculty_login') {
     return '/faculty_login'
+  }
+
+  if (pathname === '/faculty_dashboard') {
+    return '/faculty_dashboard'
   }
 
   if (pathname === '/student_dashboard' || pathname === '/dashboard') {
@@ -335,7 +340,7 @@ function StudentRegisterScreen({ onLogin }: { onLogin: () => void }) {
   )
 }
 
-function FacultyLoginScreen() {
+function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
   return (
     <>
       <main className="student-login-card" aria-label="Faculty login">
@@ -353,10 +358,17 @@ function FacultyLoginScreen() {
 
           <div className="student-accent faculty-accent" />
 
-          <form className="student-form faculty-form" onSubmit={(event) => event.preventDefault()}>
+          <form
+            className="student-form faculty-form"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault()
+              onLogin()
+            }}
+          >
             <div className="field-group">
               <label htmlFor="facultyEmail">Faculty Email</label>
-              <input id="facultyEmail" name="facultyEmail" type="email" placeholder="faculty@college.edu" required />
+              <input id="facultyEmail" name="facultyEmail" type="email" placeholder="faculty@college.edu" />
             </div>
 
             <div className="field-group">
@@ -367,7 +379,6 @@ function FacultyLoginScreen() {
                   name="password"
                   type="password"
                   placeholder="••••••••"
-                  required
                 />
                 <button type="button" className="password-toggle" aria-label="Toggle password visibility">
                   <span className="material-symbols-outlined">visibility</span>
@@ -389,6 +400,244 @@ function FacultyLoginScreen() {
         </div>
       </main>
     </>
+  )
+}
+
+function FacultyDashboardScreen() {
+  return (
+    <div className="faculty-page" aria-label="Faculty management dashboard">
+      <header className="faculty-header">
+        <div className="faculty-container faculty-header-row">
+          <div className="faculty-brand">
+            <div className="faculty-brand-icon">
+              <span className="material-symbols-outlined">account_balance</span>
+            </div>
+            <h1>Faculty Dashboard</h1>
+          </div>
+          <div className="dashboard-user">
+            <div className="dashboard-user-info">
+              <p>Dr. Sarah Jenkins</p>
+              <p>Senior Professor • CS Dept</p>
+            </div>
+            <div className="dashboard-avatar">
+              <span className="material-symbols-outlined">account_circle</span>
+            </div>
+            <span className="material-symbols-outlined dashboard-chevron">expand_more</span>
+          </div>
+        </div>
+        <div className="faculty-header-accent" />
+      </header>
+
+      <main className="faculty-container faculty-main">
+        <section className="dashboard-card">
+          <div className="dashboard-section-title">
+            <span className="material-symbols-outlined">subject</span>
+            <h2>Manage Subjects</h2>
+          </div>
+          <div className="faculty-subject-grid">
+            <div className="field-group">
+              <label>Programme</label>
+              <select defaultValue="B.Tech Computer Science">
+                <option>B.Tech Computer Science</option>
+                <option>M.Tech Software Engineering</option>
+                <option>B.Sc Data Science</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label>Semester</label>
+              <select defaultValue="Semester 5">
+                <option>Semester 5</option>
+                <option>Semester 6</option>
+                <option>Semester 7</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label>Subject Code</label>
+              <select defaultValue="CS501 - Operating Systems">
+                <option>CS501 - Operating Systems</option>
+                <option>CS502 - DBMS</option>
+                <option>CS503 - Computer Networks</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section className="faculty-grid-top">
+          <section className="dashboard-card">
+            <div className="faculty-section-head">
+              <div className="dashboard-section-title">
+                <span className="material-symbols-outlined">description</span>
+                <h2>Official Notes</h2>
+              </div>
+              <button type="button" className="dashboard-upload-btn">
+                <span className="material-symbols-outlined">upload</span>
+                Upload New
+              </button>
+            </div>
+            <div className="dashboard-table-wrap faculty-table-wrap">
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Unit/Chapter</th>
+                    <th>Date Uploaded</th>
+                    <th className="align-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Virtual Memory Architecture</td>
+                    <td>Unit 4</td>
+                    <td className="muted">Oct 12, 2023</td>
+                    <td className="align-right">
+                      <button type="button" className="faculty-link-btn">
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Process Scheduling Algorithms</td>
+                    <td>Unit 2</td>
+                    <td className="muted">Oct 05, 2023</td>
+                    <td className="align-right">
+                      <button type="button" className="faculty-link-btn">
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="dashboard-card">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">verified_user</span>
+              <h2>Verification Panel</h2>
+            </div>
+            <p className="faculty-subtitle">Pending Student Notes</p>
+            <div className="faculty-verify-list">
+              <article className="faculty-verify-card">
+                <div className="faculty-verify-top">
+                  <div>
+                    <h3>James Wilson</h3>
+                    <p>2GI21CS045</p>
+                  </div>
+                  <span className="faculty-new-tag">NEW</span>
+                </div>
+                <p className="faculty-note-title">"Simplified Notes on Semaphores"</p>
+                <div className="faculty-verify-actions">
+                  <button type="button" className="faculty-approve-btn">
+                    Approve
+                  </button>
+                  <button type="button" className="faculty-reject-btn">
+                    Reject
+                  </button>
+                </div>
+              </article>
+
+              <article className="faculty-verify-card">
+                <div className="faculty-verify-top">
+                  <div>
+                    <h3>Amara Okafor</h3>
+                    <p>2GI21CS012</p>
+                  </div>
+                </div>
+                <p className="faculty-note-title">"Shell Scripting Guide.pdf"</p>
+                <div className="faculty-verify-actions">
+                  <button type="button" className="faculty-approve-btn">
+                    Approve
+                  </button>
+                  <button type="button" className="faculty-reject-btn">
+                    Reject
+                  </button>
+                </div>
+              </article>
+            </div>
+          </section>
+        </section>
+
+        <section className="faculty-grid-bottom">
+          <section className="dashboard-card">
+            <div className="faculty-section-head">
+              <div className="dashboard-section-title">
+                <span className="material-symbols-outlined">library_books</span>
+                <h2>Textbook Management</h2>
+              </div>
+              <button type="button" className="faculty-outline-btn">
+                <span className="material-symbols-outlined">add</span>
+                Upload
+              </button>
+            </div>
+            <div className="faculty-item-list">
+              <div className="faculty-item-row">
+                <div>
+                  <h3>Operating System Concepts</h3>
+                  <p>Silberschatz • 10th Ed</p>
+                </div>
+                <button type="button" className="faculty-icon-danger">
+                  <span className="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+              <div className="faculty-item-row">
+                <div>
+                  <h3>Modern Operating Systems</h3>
+                  <p>Andrew Tanenbaum • 4th Ed</p>
+                </div>
+                <button type="button" className="faculty-icon-danger">
+                  <span className="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="dashboard-card">
+            <div className="faculty-section-head">
+              <div className="dashboard-section-title">
+                <span className="material-symbols-outlined">assignment_turned_in</span>
+                <h2>Active Assignments</h2>
+              </div>
+              <button type="button" className="dashboard-btn-primary dashboard-btn-small">
+                Create New
+              </button>
+            </div>
+            <div className="faculty-item-list">
+              <div className="faculty-item-row faculty-assignment-row">
+                <div>
+                  <h3>Multi-threaded Scheduler</h3>
+                  <p>42 Submissions • Due: 3 Days</p>
+                </div>
+                <button type="button" className="faculty-view-btn">
+                  View
+                  <span className="material-symbols-outlined">arrow_forward</span>
+                </button>
+              </div>
+              <div className="faculty-item-row faculty-assignment-row">
+                <div>
+                  <h3>Disk Management Quiz</h3>
+                  <p>128 Submissions • Closed</p>
+                </div>
+                <button type="button" className="faculty-view-btn">
+                  View
+                  <span className="material-symbols-outlined">arrow_forward</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <footer className="dashboard-footer faculty-container">
+        <div>
+          <p>University Digital Repository • Faculty Portal</p>
+        </div>
+        <nav aria-label="Footer links">
+          <a href="#">Internal Guidelines</a>
+          <a href="#">Faculty Support</a>
+          <a href="#">System Status</a>
+        </nav>
+      </footer>
+    </div>
   )
 }
 
@@ -1198,7 +1447,9 @@ function App() {
 
       {path === '/student_register' ? <StudentRegisterScreen onLogin={() => navigate('/student_login')} /> : null}
 
-      {path === '/faculty_login' ? <FacultyLoginScreen /> : null}
+      {path === '/faculty_login' ? <FacultyLoginScreen onLogin={() => navigate('/faculty_dashboard')} /> : null}
+
+      {path === '/faculty_dashboard' ? <FacultyDashboardScreen /> : null}
 
       {path === '/student_dashboard' ? (
         <StudentDashboardScreen
