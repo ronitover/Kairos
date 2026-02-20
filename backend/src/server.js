@@ -733,20 +733,19 @@ app.get('/api/faculty/dashboard', requireAuth, requireRoles('faculty', 'admin'),
     }, {})
   }
 
-  let pendingQuery = adminSupabase
+  let verificationQuery = adminSupabase
     .from('notes')
     .select('id,title,chapter,uploaded_at,uploaded_by,status,subject_id')
     .eq('note_type', 'unofficial')
-    .eq('status', 'pending')
     .order('uploaded_at', { ascending: false })
-    .limit(10)
+    .limit(50)
   if (subjectIds.length > 0) {
-    pendingQuery = pendingQuery.in('subject_id', subjectIds)
+    verificationQuery = verificationQuery.in('subject_id', subjectIds)
   }
-  const { data: pendingNotesRows, error: pendingNotesError } = await pendingQuery
+  const { data: verificationNotesRows, error: pendingNotesError } = await verificationQuery
   if (pendingNotesError) throw pendingNotesError
 
-  const pendingUploaderIds = [...new Set((pendingNotesRows ?? []).map((row) => row.uploaded_by).filter(Boolean))]
+  const pendingUploaderIds = [...new Set((verificationNotesRows ?? []).map((row) => row.uploaded_by).filter(Boolean))]
   let pendingUploaders = {}
   if (pendingUploaderIds.length > 0) {
     const { data: pendingStudents, error: pendingStudentsError } = await adminSupabase
@@ -808,6 +807,19 @@ app.get('/api/faculty/dashboard', requireAuth, requireRoles('faculty', 'admin'),
     textbooks = (listed.data.files ?? []).map(mapDriveFile)
   }
 
+  const verificationNotes = (verificationNotesRows ?? []).map((note) => ({
+    id: note.id,
+    title: note.title,
+    chapter: note.chapter,
+    uploadedAt: note.uploaded_at,
+    status: note.status,
+    student: {
+      id: note.uploaded_by,
+      name: pendingUploaders[note.uploaded_by]?.full_name || 'Student',
+      usn: pendingUploaders[note.uploaded_by]?.usn || 'NA',
+    },
+  }))
+
   return res.json({
     faculty: {
       id: facultyId,
@@ -823,19 +835,9 @@ app.get('/api/faculty/dashboard', requireAuth, requireRoles('faculty', 'admin'),
       semester: subject.semester,
       enrolledStudents: enrolledBySubjectId[subject.id] ?? 0,
     })),
-    pendingVerifications: (pendingNotesRows ?? []).length,
-    pendingNotes: (pendingNotesRows ?? []).map((note) => ({
-      id: note.id,
-      title: note.title,
-      chapter: note.chapter,
-      uploadedAt: note.uploaded_at,
-      status: note.status,
-      student: {
-        id: note.uploaded_by,
-        name: pendingUploaders[note.uploaded_by]?.full_name || 'Student',
-        usn: pendingUploaders[note.uploaded_by]?.usn || 'NA',
-      },
-    })),
+    pendingVerifications: verificationNotes.filter((note) => note.status === 'pending').length,
+    pendingNotes: verificationNotes.filter((note) => note.status === 'pending'),
+    verificationNotes,
     recentAssignments: (recentAssignmentsRows ?? []).map((assignment) => ({
       id: assignment.id,
       title: assignment.title,
