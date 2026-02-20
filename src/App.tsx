@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import './App.css'
+import { useAuth } from './contexts/AuthContext'
+import { authService } from './services/auth'
+import { assignmentService } from './services/assignments'
+import { facultyService } from './services/faculty'
+import { validateFile, FileUploadError } from './utils/fileUpload'
 
 type RoutePath =
   | '/'
@@ -11,6 +16,13 @@ type RoutePath =
   | '/admin_faculty_accounts'
   | '/admin_assign_subjects'
   | '/admin_student_accounts'
+  | '/admin_circulars'
+  | '/admin_enroll_students'
+  | '/admin_review_uploads'
+  | '/admin_student_details'
+  | '/admin_faculty_details'
+  | '/forgot_password'
+  | '/reset_password'
   | '/faculty_dashboard'
   | '/faculty_verification'
   | '/faculty_textbook_upload'
@@ -18,6 +30,8 @@ type RoutePath =
   | '/faculty_assignment_submissions'
   | '/faculty_grade_submission'
   | '/student_dashboard'
+  | '/search_results'
+  | '/repository'
   | '/assignment_review'
   | '/assignment_result'
   | '/unofficial_notes'
@@ -38,6 +52,111 @@ type UploadedNote = {
   canDownload: boolean
   downloadUrl?: string
   fileName?: string
+}
+
+const SUPPORTED_UPLOAD_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png',
+] as const
+
+const SUPPORTED_UPLOAD_ACCEPT = '.pdf,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png'
+const SUPPORTED_UPLOAD_LABEL = 'PDF, PPT/PPTX, DOC/DOCX, JPG/PNG'
+
+function enforceSupportedUploadFile(file: File, maxSizeInBytes: number): void {
+  validateFile(file, {
+    maxSize: maxSizeInBytes,
+    allowedTypes: [...SUPPORTED_UPLOAD_MIME_TYPES],
+  })
+}
+
+type DepartmentNotice = {
+  id: string
+  title: string
+  content: string
+  createdAt: string
+  author: string
+}
+
+const defaultDepartmentNotices: DepartmentNotice[] = [
+  {
+    id: 'notice-1',
+    title: 'Mid-Sem Exam Schedule Published',
+    content: 'Exam timetable for all 4th and 6th semester students is now available in the portal.',
+    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    author: 'Admin Office',
+  },
+  {
+    id: 'notice-2',
+    title: 'Library Access Extended',
+    content: 'Department library will remain open until 8:00 PM during project submission week.',
+    createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+    author: 'Library Coordinator',
+  },
+]
+
+function isNoticeNew(createdAt: string): boolean {
+  const createdMs = new Date(createdAt).getTime()
+  if (Number.isNaN(createdMs)) {
+    return false
+  }
+  return Date.now() - createdMs <= 24 * 60 * 60 * 1000
+}
+
+const roleHomeRoute: Record<'student' | 'faculty' | 'admin', RoutePath> = {
+  student: '/student_dashboard',
+  faculty: '/faculty_dashboard',
+  admin: '/admin_dashboard',
+}
+
+const roleLoginRoute: Record<'student' | 'faculty' | 'admin', RoutePath> = {
+  student: '/student_login',
+  faculty: '/faculty_login',
+  admin: '/admin_login',
+}
+
+function getRequiredRole(route: RoutePath): 'student' | 'faculty' | 'admin' | null {
+  if (
+    route === '/student_dashboard' ||
+    route === '/search_results' ||
+    route === '/repository' ||
+    route === '/assignment_review' ||
+    route === '/assignment_result' ||
+    route === '/unofficial_notes'
+  ) {
+    return 'student'
+  }
+
+  if (
+    route === '/faculty_dashboard' ||
+    route === '/faculty_verification' ||
+    route === '/faculty_textbook_upload' ||
+    route === '/faculty_create_assignment' ||
+    route === '/faculty_assignment_submissions' ||
+    route === '/faculty_grade_submission'
+  ) {
+    return 'faculty'
+  }
+
+  if (
+    route === '/admin_dashboard' ||
+    route === '/admin_faculty_accounts' ||
+    route === '/admin_assign_subjects' ||
+    route === '/admin_student_accounts' ||
+    route === '/admin_circulars' ||
+    route === '/admin_enroll_students' ||
+    route === '/admin_review_uploads' ||
+    route === '/admin_student_details' ||
+    route === '/admin_faculty_details'
+  ) {
+    return 'admin'
+  }
+
+  return null
 }
 
 const initialUploadedNotes: UploadedNote[] = [
@@ -117,6 +236,34 @@ function normalizePath(pathname: string): RoutePath {
     return '/admin_student_accounts'
   }
 
+  if (pathname === '/admin_circulars') {
+    return '/admin_circulars'
+  }
+
+  if (pathname === '/admin_enroll_students') {
+    return '/admin_enroll_students'
+  }
+
+  if (pathname === '/admin_review_uploads') {
+    return '/admin_review_uploads'
+  }
+
+  if (pathname === '/admin_student_details') {
+    return '/admin_student_details'
+  }
+
+  if (pathname === '/admin_faculty_details') {
+    return '/admin_faculty_details'
+  }
+
+  if (pathname === '/forgot_password' || pathname === '/forgot-password') {
+    return '/forgot_password'
+  }
+
+  if (pathname === '/reset_password' || pathname === '/reset-password') {
+    return '/reset_password'
+  }
+
   if (pathname === '/faculty_dashboard') {
     return '/faculty_dashboard'
   }
@@ -145,6 +292,14 @@ function normalizePath(pathname: string): RoutePath {
     return '/student_dashboard'
   }
 
+  if (pathname === '/search_results' || pathname === '/search') {
+    return '/search_results'
+  }
+
+  if (pathname === '/repository' || pathname === '/resources') {
+    return '/repository'
+  }
+
   if (pathname === '/assignment_review') {
     return '/assignment_review'
   }
@@ -168,10 +323,12 @@ function HomeScreen({
   onStudentLogin,
   onFacultyLogin,
   onAdminLogin,
+  notices,
 }: {
   onStudentLogin: () => void
   onFacultyLogin: () => void
   onAdminLogin: () => void
+  notices: DepartmentNotice[]
 }) {
   return (
     <>
@@ -212,6 +369,24 @@ function HomeScreen({
               ))}
             </nav>
           </div>
+
+          <section className="home-circulars" aria-label="Department Circulars">
+            <div className="home-circulars-head">
+              <h2>Department Circulars</h2>
+              <span>Latest updates</span>
+            </div>
+            <div className="home-circulars-list">
+              {notices.slice(0, 3).map((notice) => (
+                <article key={notice.id} className="home-circular-item">
+                  <div>
+                    <h3>{notice.title}</h3>
+                    {isNoticeNew(notice.createdAt) ? <span>New</span> : null}
+                  </div>
+                  <p>{notice.content}</p>
+                </article>
+              ))}
+            </div>
+          </section>
         </section>
       </main>
 
@@ -226,11 +401,35 @@ function StudentLoginScreen({
   onBack,
   onRegister,
   onLogin,
+  onForgotPassword,
 }: {
   onBack: () => void
   onRegister: () => void
   onLogin: () => void
+  onForgotPassword?: () => void
 }) {
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      await login(email, password, 'student')
+      onLogin()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <>
       <main className="student-login-card" aria-label="Student login">
@@ -253,32 +452,52 @@ function StudentLoginScreen({
 
           <div className="student-accent" />
 
-          <form
-            className="student-form"
-            onSubmit={(event) => {
-              event.preventDefault()
-              onLogin()
-            }}
-          >
+          <form className="student-form" onSubmit={handleSubmit}>
+            {error && (
+              <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                {error}
+              </div>
+            )}
             <div className="field-group">
               <label htmlFor="email">Educational Email</label>
-              <input id="email" type="email" placeholder="name@college.edu" />
+              <input
+                id="email"
+                type="email"
+                placeholder="name@college.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+              />
             </div>
 
             <div className="field-group">
               <label htmlFor="password">Password</label>
               <div className="password-wrap">
-                <input id="password" type="password" placeholder="••••••••" />
-                <button type="button" className="password-toggle" aria-label="Toggle password visibility">
-                  <span className="material-symbols-outlined">visibility</span>
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label="Toggle password visibility"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  <span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
               <p className="field-help">Use your official college credentials</p>
             </div>
 
             <div className="student-actions">
-              <button type="submit" className="student-primary-btn">
-                Login
+              <button type="submit" className="student-primary-btn" disabled={isLoading}>
+                {isLoading ? 'Logging in...' : 'Login'}
               </button>
             </div>
           </form>
@@ -293,7 +512,9 @@ function StudentLoginScreen({
           </div>
 
           <div className="forgot-wrap">
-            <a href="#">Forgot Password?</a>
+            <button type="button" className="inline-link" onClick={onForgotPassword}>
+              Forgot Password?
+            </button>
           </div>
         </div>
       </main>
@@ -306,6 +527,65 @@ function StudentLoginScreen({
 }
 
 function StudentRegisterScreen({ onLogin }: { onLogin: () => void }) {
+  const { register } = useAuth()
+  const [formData, setFormData] = useState({
+    fullName: '',
+    usn: '',
+    programme: '',
+    semester: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  })
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+    setError(null)
+  }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+
+    // Validation
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+
+    if (!formData.fullName || !formData.usn || !formData.programme || !formData.semester || !formData.email) {
+      setError('Please fill in all fields')
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      await register({
+        fullName: formData.fullName,
+        usn: formData.usn,
+        programme: formData.programme,
+        semester: formData.semester,
+        email: formData.email,
+        password: formData.password,
+      })
+      onLogin()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <>
       <main className="student-register-card" aria-label="Student registration">
@@ -321,32 +601,69 @@ function StudentRegisterScreen({ onLogin }: { onLogin: () => void }) {
 
         <div className="register-accent" />
 
-        <form className="register-form" onSubmit={(event) => event.preventDefault()}>
+        <form className="register-form" onSubmit={handleSubmit}>
+          {error && (
+            <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+              {error}
+            </div>
+          )}
           <div className="field-group">
             <label htmlFor="fullName">Full Name</label>
-            <input id="fullName" name="fullName" type="text" placeholder="Enter your full name" />
+            <input
+              id="fullName"
+              name="fullName"
+              type="text"
+              placeholder="Enter your full name"
+              value={formData.fullName}
+              onChange={handleChange}
+              required
+              disabled={isLoading}
+            />
           </div>
 
           <div className="field-group">
             <label htmlFor="usn">USN (Unique Student Number)</label>
-            <input id="usn" name="usn" type="text" placeholder="e.g. 1US20CS001" />
+            <input
+              id="usn"
+              name="usn"
+              type="text"
+              placeholder="e.g. 1US20CS001"
+              value={formData.usn}
+              onChange={handleChange}
+              required
+              disabled={isLoading}
+            />
           </div>
 
           <div className="register-grid-two">
             <div className="field-group">
               <label htmlFor="programme">Programme</label>
-              <select id="programme" name="programme" defaultValue="">
+              <select
+                id="programme"
+                name="programme"
+                value={formData.programme}
+                onChange={handleChange}
+                required
+                disabled={isLoading}
+              >
                 <option value="">Select Programme</option>
-                <option value="be">B.E. / B.Tech</option>
-                <option value="mtech">M.Tech</option>
-                <option value="mca">MCA</option>
-                <option value="mba">MBA</option>
+                <option value="Computer Science & Engineering">B.E. / B.Tech</option>
+                <option value="M.Tech">M.Tech</option>
+                <option value="MCA">MCA</option>
+                <option value="MBA">MBA</option>
               </select>
             </div>
 
             <div className="field-group">
               <label htmlFor="semester">Semester</label>
-              <select id="semester" name="semester" defaultValue="">
+              <select
+                id="semester"
+                name="semester"
+                value={formData.semester}
+                onChange={handleChange}
+                required
+                disabled={isLoading}
+              >
                 <option value="">Select</option>
                 <option value="1">1st Sem</option>
                 <option value="2">2nd Sem</option>
@@ -362,25 +679,68 @@ function StudentRegisterScreen({ onLogin }: { onLogin: () => void }) {
 
           <div className="field-group">
             <label htmlFor="registerEmail">Educational Email</label>
-            <input id="registerEmail" name="email" type="email" placeholder="student@university.edu" />
+            <input
+              id="registerEmail"
+              name="email"
+              type="email"
+              placeholder="student@university.edu"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              disabled={isLoading}
+            />
             <p className="register-helper">Use your official college email</p>
           </div>
 
           <div className="register-grid-two register-password-grid">
             <div className="field-group">
               <label htmlFor="createPassword">Create Password</label>
-              <input id="createPassword" name="password" type="password" />
+              <div className="password-wrap">
+                <input
+                  id="createPassword"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  <span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
             </div>
 
             <div className="field-group">
               <label htmlFor="confirmPassword">Confirm Password</label>
-              <input id="confirmPassword" name="confirmPassword" type="password" />
+              <div className="password-wrap">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  <span className="material-symbols-outlined">{showConfirmPassword ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
           <div className="register-actions">
-            <button type="submit" className="student-primary-btn">
-              Create Account
+            <button type="submit" className="student-primary-btn" disabled={isLoading}>
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </button>
           </div>
 
@@ -399,6 +759,28 @@ function StudentRegisterScreen({ onLogin }: { onLogin: () => void }) {
 }
 
 function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      await login(email, password, 'faculty')
+      onLogin()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <>
       <main className="student-login-card" aria-label="Faculty login">
@@ -416,17 +798,24 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
 
           <div className="student-accent faculty-accent" />
 
-          <form
-            className="student-form faculty-form"
-            noValidate
-            onSubmit={(event) => {
-              event.preventDefault()
-              onLogin()
-            }}
-          >
+          <form className="student-form faculty-form" noValidate onSubmit={handleSubmit}>
+            {error && (
+              <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                {error}
+              </div>
+            )}
             <div className="field-group">
               <label htmlFor="facultyEmail">Faculty Email</label>
-              <input id="facultyEmail" name="facultyEmail" type="email" placeholder="faculty@college.edu" />
+              <input
+                id="facultyEmail"
+                name="facultyEmail"
+                type="email"
+                placeholder="faculty@college.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+              />
             </div>
 
             <div className="field-group">
@@ -435,19 +824,28 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
                 <input
                   id="facultyPassword"
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
                 />
-                <button type="button" className="password-toggle" aria-label="Toggle password visibility">
-                  <span className="material-symbols-outlined">visibility</span>
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label="Toggle password visibility"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  <span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
               <p className="field-help">Contact administrator if you do not have credentials.</p>
             </div>
 
             <div className="student-actions">
-              <button type="submit" className="student-primary-btn">
-                Login
+              <button type="submit" className="student-primary-btn" disabled={isLoading}>
+                {isLoading ? 'Logging in...' : 'Login'}
               </button>
             </div>
           </form>
@@ -462,6 +860,28 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
 }
 
 function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      await login(email, password, 'admin')
+      onLogin()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <>
       <main className="student-login-card" aria-label="Admin login">
@@ -479,33 +899,54 @@ function AdminLoginScreen({ onLogin }: { onLogin: () => void }) {
 
           <div className="student-accent faculty-accent" />
 
-          <form
-            className="student-form faculty-form"
-            noValidate
-            onSubmit={(event) => {
-              event.preventDefault()
-              onLogin()
-            }}
-          >
+          <form className="student-form faculty-form" noValidate onSubmit={handleSubmit}>
+            {error && (
+              <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                {error}
+              </div>
+            )}
             <div className="field-group">
               <label htmlFor="adminEmail">Admin Email</label>
-              <input id="adminEmail" name="adminEmail" type="email" placeholder="admin@domain.com" />
+              <input
+                id="adminEmail"
+                name="adminEmail"
+                type="email"
+                placeholder="admin@domain.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+              />
             </div>
 
             <div className="field-group">
               <label htmlFor="adminPassword">Password</label>
               <div className="password-wrap">
-                <input id="adminPassword" name="password" type="password" placeholder="••••••••" />
-                <button type="button" className="password-toggle" aria-label="Toggle password visibility">
-                  <span className="material-symbols-outlined">visibility</span>
+                <input
+                  id="adminPassword"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label="Toggle password visibility"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  <span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
               <p className="field-help">Super admin credentials required.</p>
             </div>
 
             <div className="student-actions">
-              <button type="submit" className="student-primary-btn">
-                Login
+              <button type="submit" className="student-primary-btn" disabled={isLoading}>
+                {isLoading ? 'Logging in...' : 'Login'}
               </button>
             </div>
           </form>
@@ -524,12 +965,17 @@ function AdminHeader({
   onNavigateDashboard,
   onNavigateFacultyAccounts,
   onNavigateAssignSubjects,
+  onNavigateCirculars,
 }: {
-  active: 'dashboard' | 'faculty' | 'subjects'
+  active: 'dashboard' | 'faculty' | 'subjects' | 'circulars'
   onNavigateDashboard: () => void
   onNavigateFacultyAccounts: () => void
   onNavigateAssignSubjects: () => void
+  onNavigateCirculars: () => void
 }) {
+  const { user } = useAuth()
+  const displayName = user?.name || user?.fullName || 'Admin User'
+  const roleText = user?.role ? `${user.role[0].toUpperCase()}${user.role.slice(1)} Access` : 'Super Administrator'
   return (
     <header className="admin-header">
       <div className="admin-container admin-header-row">
@@ -540,8 +986,8 @@ function AdminHeader({
           </button>
           <div className="admin-user">
             <div>
-              <p>Admin User</p>
-              <p>Super Administrator</p>
+              <p>{displayName}</p>
+              <p>{roleText}</p>
             </div>
             <div>AU</div>
           </div>
@@ -560,6 +1006,10 @@ function AdminHeader({
         <button type="button" onClick={onNavigateAssignSubjects} className={active === 'subjects' ? 'active' : ''}>
           <span className="material-symbols-outlined">assignment_ind</span>
           Assign Subjects
+        </button>
+        <button type="button" onClick={onNavigateCirculars} className={active === 'circulars' ? 'active' : ''}>
+          <span className="material-symbols-outlined">campaign</span>
+          Circulars
         </button>
         <button type="button">
           <span className="material-symbols-outlined">book</span>
@@ -591,10 +1041,16 @@ function AdminDashboardScreen({
   onAddFaculty,
   onAssignSubjects,
   onStudentAccounts,
+  onEnrollStudents,
+  onCirculars,
+  onReviewUploads,
 }: {
   onAddFaculty: () => void
   onAssignSubjects: () => void
   onStudentAccounts: () => void
+  onEnrollStudents?: () => void
+  onCirculars: () => void
+  onReviewUploads: () => void
 }) {
   return (
     <div className="admin-page" aria-label="Global admin dashboard">
@@ -603,6 +1059,7 @@ function AdminDashboardScreen({
         onNavigateDashboard={() => {}}
         onNavigateFacultyAccounts={onAddFaculty}
         onNavigateAssignSubjects={onAssignSubjects}
+        onNavigateCirculars={onCirculars}
       />
 
       <main className="admin-container admin-main">
@@ -661,17 +1118,23 @@ function AdminDashboardScreen({
               <span className="material-symbols-outlined">assignment_ind</span>
               Assign Subjects
             </button>
-            <button type="button">
-              <span className="material-symbols-outlined">account_tree</span>
-              Manage Programmes
+            <button type="button" onClick={onReviewUploads}>
+              <span className="material-symbols-outlined">rule</span>
+              Review Uploads
             </button>
             <button type="button" onClick={onStudentAccounts}>
               <span className="material-symbols-outlined">school</span>
               Student Accounts
             </button>
-            <button type="button">
-              <span className="material-symbols-outlined">monitoring</span>
-              System Reports
+            {onEnrollStudents && (
+              <button type="button" onClick={onEnrollStudents}>
+                <span className="material-symbols-outlined">person_add</span>
+                Enroll Students
+              </button>
+            )}
+            <button type="button" onClick={onCirculars}>
+              <span className="material-symbols-outlined">campaign</span>
+              Manage Circulars
             </button>
           </div>
         </section>
@@ -766,14 +1229,228 @@ function AdminDashboardScreen({
   )
 }
 
-function AdminStudentAccountsScreen({
+function AdminCircularsScreen({
+  notices,
+  onCreateNotice,
   onBackDashboard,
   onFacultyAccounts,
   onAssignSubjects,
 }: {
+  notices: DepartmentNotice[]
+  onCreateNotice: (input: { title: string; content: string }) => void
   onBackDashboard: () => void
   onFacultyAccounts: () => void
   onAssignSubjects: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!title.trim() || !content.trim()) {
+      return
+    }
+    onCreateNotice({ title: title.trim(), content: content.trim() })
+    setTitle('')
+    setContent('')
+  }
+
+  return (
+    <div className="admin-page" aria-label="Department circulars management">
+      <AdminHeader
+        active="circulars"
+        onNavigateDashboard={onBackDashboard}
+        onNavigateFacultyAccounts={onFacultyAccounts}
+        onNavigateAssignSubjects={onAssignSubjects}
+        onNavigateCirculars={() => {}}
+      />
+
+      <main className="admin-container admin-main">
+        <section className="admin-circulars-head">
+          <h2>Department Circulars</h2>
+          <p>Create and publish notices for students and faculty.</p>
+        </section>
+
+        <section className="admin-circulars-grid">
+          <article className="admin-circulars-form-card">
+            <h3>Publish Notice</h3>
+            <form onSubmit={handleSubmit}>
+              <div className="field-group">
+                <label htmlFor="notice-title">Title</label>
+                <input
+                  id="notice-title"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter circular title"
+                />
+              </div>
+              <div className="field-group">
+                <label htmlFor="notice-content">Notice Content</label>
+                <textarea
+                  id="notice-content"
+                  rows={5}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Write details for students and faculty..."
+                />
+              </div>
+              <button type="submit">
+                <span className="material-symbols-outlined">campaign</span>
+                Publish Circular
+              </button>
+            </form>
+          </article>
+
+          <article className="admin-circulars-list-card">
+            <div>
+              <h3>Recent Notices</h3>
+              <p>{notices.length} total</p>
+            </div>
+            <div className="admin-circulars-list">
+              {notices.map((notice) => (
+                <article key={notice.id} className="admin-circular-item">
+                  <div>
+                    <h4>{notice.title}</h4>
+                    {isNoticeNew(notice.createdAt) ? <span>New</span> : null}
+                  </div>
+                  <p>{notice.content}</p>
+                  <small>
+                    {new Date(notice.createdAt).toLocaleString()} • {notice.author}
+                  </small>
+                </article>
+              ))}
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminReviewUploadsScreen({
+  onBackDashboard,
+  onFacultyAccounts,
+  onAssignSubjects,
+  onCirculars,
+}: {
+  onBackDashboard: () => void
+  onFacultyAccounts: () => void
+  onAssignSubjects: () => void
+  onCirculars: () => void
+}) {
+  const [statusById, setStatusById] = useState<Record<string, 'pending' | 'approved' | 'rejected'>>({
+    'upload-1': 'pending',
+    'upload-2': 'pending',
+    'upload-3': 'approved',
+  })
+
+  const handleAction = (id: string, status: 'approved' | 'rejected') => {
+    setStatusById((current) => ({ ...current, [id]: status }))
+  }
+
+  const uploads = [
+    { id: 'upload-1', student: 'Aditi Sharma', usn: '1RV21CS001', title: 'OS Unit 3 Notes', format: 'PDF', date: 'Oct 24, 2023' },
+    { id: 'upload-2', student: 'Rahul Jayaram', usn: '1RV21IS045', title: 'DBMS Normalization Guide', format: 'DOCX', date: 'Oct 23, 2023' },
+    { id: 'upload-3', student: 'Priya Kapoor', usn: '1RV20EC112', title: 'Network Topology Diagrams', format: 'PNG', date: 'Oct 20, 2023' },
+  ]
+
+  return (
+    <div className="admin-page" aria-label="Admin review uploads">
+      <AdminHeader
+        active="dashboard"
+        onNavigateDashboard={onBackDashboard}
+        onNavigateFacultyAccounts={onFacultyAccounts}
+        onNavigateAssignSubjects={onAssignSubjects}
+        onNavigateCirculars={onCirculars}
+      />
+
+      <main className="admin-container admin-main">
+        <section className="admin-review-head">
+          <h2>Review Uploads</h2>
+          <p>HOD/Admin moderation queue for student-contributed resources.</p>
+        </section>
+
+        <section className="admin-review-table-card">
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>USN</th>
+                  <th>Title</th>
+                  <th>Format</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th className="align-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {uploads.map((upload) => {
+                  const status = statusById[upload.id]
+                  return (
+                    <tr key={upload.id}>
+                      <td>{upload.student}</td>
+                      <td className="mono">{upload.usn}</td>
+                      <td>{upload.title}</td>
+                      <td>{upload.format}</td>
+                      <td className="muted">{upload.date}</td>
+                      <td>
+                        <span className={`admin-review-status ${status}`}>{status}</span>
+                      </td>
+                      <td className="align-right">
+                        <div className={`admin-review-actions ${status !== 'pending' ? 'disabled' : ''}`}>
+                          <button type="button" className="view">
+                            <span className="material-symbols-outlined">visibility</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="approve"
+                            onClick={() => handleAction(upload.id, 'approved')}
+                            disabled={status !== 'pending'}
+                          >
+                            <span className="material-symbols-outlined">check_circle</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="reject"
+                            onClick={() => handleAction(upload.id, 'rejected')}
+                            disabled={status !== 'pending'}
+                          >
+                            <span className="material-symbols-outlined">block</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminStudentAccountsScreen({
+  onBackDashboard,
+  onFacultyAccounts,
+  onAssignSubjects,
+  onCirculars,
+  onEnrollStudents,
+  onViewStudentDetails,
+}: {
+  onBackDashboard: () => void
+  onFacultyAccounts: () => void
+  onAssignSubjects: () => void
+  onCirculars: () => void
+  onEnrollStudents?: () => void
+  onViewStudentDetails?: () => void
 }) {
   return (
     <div className="admin-page" aria-label="Student accounts management">
@@ -782,6 +1459,7 @@ function AdminStudentAccountsScreen({
         onNavigateDashboard={onBackDashboard}
         onNavigateFacultyAccounts={onFacultyAccounts}
         onNavigateAssignSubjects={onAssignSubjects}
+        onNavigateCirculars={onCirculars}
       />
 
       <main className="admin-container admin-main">
@@ -794,6 +1472,12 @@ function AdminStudentAccountsScreen({
             </nav>
             <h2>Student Accounts Management</h2>
           </div>
+          {onEnrollStudents && (
+            <button type="button" className="admin-faculty-add-btn" onClick={onEnrollStudents}>
+              <span className="material-symbols-outlined">person_add</span>
+              Enroll Students
+            </button>
+          )}
         </section>
 
         <section className="admin-students-filter-card">
@@ -894,7 +1578,7 @@ function AdminStudentAccountsScreen({
                   </td>
                   <td className="align-right">
                     <div className="admin-student-actions">
-                      <button type="button" className="view" aria-label="View details">
+                      <button type="button" className="view" aria-label="View details" onClick={onViewStudentDetails}>
                         <span className="material-symbols-outlined">visibility</span>
                       </button>
                       <button type="button" className="reset" aria-label="Reset password">
@@ -925,7 +1609,7 @@ function AdminStudentAccountsScreen({
                   </td>
                   <td className="align-right">
                     <div className="admin-student-actions">
-                      <button type="button" className="view" aria-label="View details">
+                      <button type="button" className="view" aria-label="View details" onClick={onViewStudentDetails}>
                         <span className="material-symbols-outlined">visibility</span>
                       </button>
                       <button type="button" className="reset" aria-label="Reset password">
@@ -1000,9 +1684,13 @@ function AdminStudentAccountsScreen({
 function AdminFacultyAccountsScreen({
   onBackDashboard,
   onAssignSubjects,
+  onCirculars,
+  onViewFacultyDetails,
 }: {
   onBackDashboard: () => void
   onAssignSubjects: () => void
+  onCirculars: () => void
+  onViewFacultyDetails?: () => void
 }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [tempPassword, setTempPassword] = useState('UNIV-8x2K-99LP')
@@ -1019,6 +1707,7 @@ function AdminFacultyAccountsScreen({
         onNavigateDashboard={onBackDashboard}
         onNavigateFacultyAccounts={() => {}}
         onNavigateAssignSubjects={onAssignSubjects}
+        onNavigateCirculars={onCirculars}
       />
 
       <main className="admin-container admin-main">
@@ -1064,8 +1753,8 @@ function AdminFacultyAccountsScreen({
                   </td>
                   <td className="align-right">
                     <div className="admin-faculty-actions">
-                      <button type="button" aria-label="Edit faculty">
-                        <span className="material-symbols-outlined">edit</span>
+                      <button type="button" aria-label="View faculty details" onClick={onViewFacultyDetails}>
+                        <span className="material-symbols-outlined">visibility</span>
                       </button>
                       <button type="button" aria-label="Block faculty">
                         <span className="material-symbols-outlined">block</span>
@@ -1090,8 +1779,8 @@ function AdminFacultyAccountsScreen({
                   </td>
                   <td className="align-right">
                     <div className="admin-faculty-actions">
-                      <button type="button" aria-label="Edit faculty">
-                        <span className="material-symbols-outlined">edit</span>
+                      <button type="button" aria-label="View faculty details" onClick={onViewFacultyDetails}>
+                        <span className="material-symbols-outlined">visibility</span>
                       </button>
                       <button type="button" aria-label="Block faculty">
                         <span className="material-symbols-outlined">block</span>
@@ -1224,11 +1913,21 @@ function AdminFacultyAccountsScreen({
 function AdminAssignSubjectsScreen({
   onBackDashboard,
   onFacultyAccounts,
+  onCirculars,
 }: {
   onBackDashboard: () => void
   onFacultyAccounts: () => void
+  onCirculars: () => void
 }) {
   const [selectedSubjectCodes, setSelectedSubjectCodes] = useState<string[]>(['CS-401', 'CS-405'])
+  const [isAssigned, setIsAssigned] = useState(false)
+
+  const handleAssign = () => {
+    setIsAssigned(true)
+    setTimeout(() => {
+      setIsAssigned(false)
+    }, 3000)
+  }
 
   const toggleSubject = (code: string) => {
     setSelectedSubjectCodes((current) =>
@@ -1251,6 +1950,7 @@ function AdminAssignSubjectsScreen({
         onNavigateDashboard={onBackDashboard}
         onNavigateFacultyAccounts={onFacultyAccounts}
         onNavigateAssignSubjects={() => {}}
+        onNavigateCirculars={onCirculars}
       />
 
       <main className="admin-container admin-main">
@@ -1346,14 +2046,23 @@ function AdminAssignSubjectsScreen({
             </div>
 
             <div className="admin-assign-actions">
-              <button type="button">
-                <span className="material-symbols-outlined">assignment_turned_in</span>
-                Assign Selected Subjects
-              </button>
-              <p>
-                <span className="material-symbols-outlined">info</span>
-                Faculty can manage only assigned subjects.
-              </p>
+              {isAssigned ? (
+                <div style={{ padding: '0.75rem', textAlign: 'center', color: '#059669', width: '100%' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '2rem', display: 'block', marginBottom: '0.5rem' }}>check_circle</span>
+                  <p style={{ margin: 0, fontWeight: '600' }}>Subjects Assigned Successfully!</p>
+                </div>
+              ) : (
+                <>
+                  <button type="button" onClick={handleAssign}>
+                    <span className="material-symbols-outlined">assignment_turned_in</span>
+                    Assign Selected Subjects ({selectedSubjectCodes.length})
+                  </button>
+                  <p>
+                    <span className="material-symbols-outlined">info</span>
+                    Faculty can manage only assigned subjects.
+                  </p>
+                </>
+              )}
             </div>
           </article>
         </section>
@@ -1375,7 +2084,10 @@ function FacultyDashboardScreen({
   onCreateAssignment: () => void
   onViewAssignment: () => void
 }) {
+  const { user } = useAuth()
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const displayName = user?.name || user?.fullName || 'Faculty User'
+  const department = user?.department || 'Department'
 
   return (
     <div className="faculty-page" aria-label="Faculty management dashboard">
@@ -1389,8 +2101,8 @@ function FacultyDashboardScreen({
           </div>
           <div className="dashboard-user">
             <div className="dashboard-user-info">
-              <p>Dr. Sarah Jenkins</p>
-              <p>Senior Professor • CS Dept</p>
+              <p>{displayName}</p>
+              <p>{department}</p>
             </div>
             <div className="dashboard-avatar">
               <span className="material-symbols-outlined">account_circle</span>
@@ -1673,12 +2385,12 @@ function FacultyDashboardScreen({
                   Upload File
                 </label>
                 <label className="faculty-upload-dropzone">
-                  <input type="file" />
+                  <input type="file" accept={SUPPORTED_UPLOAD_ACCEPT} />
                   <div>
                     <span className="material-symbols-outlined">cloud_upload</span>
                   </div>
                   <p>Click to upload or drag and drop</p>
-                  <p>PDF, DOCX, PPTX, JPG or PNG (Max 25MB)</p>
+                  <p>{SUPPORTED_UPLOAD_LABEL} (Max 25MB)</p>
                 </label>
               </div>
 
@@ -1714,11 +2426,20 @@ function StudentDashboardScreen({
   onViewBrief,
   onViewResult,
   onUnofficialNotes,
+  onSearchResources,
+  onBrowseRepository,
 }: {
   onViewBrief: () => void
   onViewResult: () => void
   onUnofficialNotes: () => void
+  onSearchResources: () => void
+  onBrowseRepository: () => void
 }) {
+  const { user } = useAuth()
+  const displayName = user?.fullName || user?.name || 'Student User'
+  const semester = user?.semester ? `Semester ${user.semester}` : 'Semester'
+  const programme = user?.programme || 'Programme'
+
   return (
     <div className="dashboard-page" aria-label="Student dashboard">
       <header className="dashboard-header">
@@ -1726,8 +2447,8 @@ function StudentDashboardScreen({
           <h1>Student Dashboard</h1>
           <div className="dashboard-user">
             <div className="dashboard-user-info">
-              <p>Alex Thompson</p>
-              <p>Semester 5 • Computer Science</p>
+              <p>{displayName}</p>
+              <p>{semester} • {programme}</p>
             </div>
             <div className="dashboard-avatar">
               <span className="material-symbols-outlined">account_circle</span>
@@ -1778,10 +2499,16 @@ function StudentDashboardScreen({
               </button>
             </div>
 
-            <button type="button" className="dashboard-upload-btn">
-              <span className="material-symbols-outlined">upload</span>
-              Upload Notes
-            </button>
+            <div className="dashboard-top-actions">
+              <button type="button" className="dashboard-upload-btn" onClick={onSearchResources}>
+                <span className="material-symbols-outlined">search</span>
+                Search Repository
+              </button>
+              <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onBrowseRepository}>
+                <span className="material-symbols-outlined">folder_open</span>
+                Browse Repository
+              </button>
+            </div>
           </div>
 
           <div className="dashboard-table-wrap">
@@ -1905,6 +2632,9 @@ function StudentDashboardScreen({
                   <p className="status-success-text">Completed</p>
                   <span className="pill success">Submitted</span>
                 </div>
+                <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onViewResult}>
+                  View Result
+                </button>
               </div>
             </article>
 
@@ -1946,7 +2676,55 @@ function StudentDashboardScreen({
   )
 }
 
-function FacultyVerificationScreen() {
+function FacultyVerificationScreen({
+  onBackToDashboard,
+}: {
+  onBackToDashboard?: () => void
+}) {
+  const [verifiedNotes, setVerifiedNotes] = useState<Set<string>>(new Set())
+  const [rejectedNotes, setRejectedNotes] = useState<Set<string>>(new Set())
+  const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
+
+  const handleApprove = async (noteId: string) => {
+    setIsLoading((prev) => ({ ...prev, [noteId]: true }))
+    try {
+      await facultyService.verifyNote(noteId, 'approve')
+      setVerifiedNotes((prev) => new Set([...prev, noteId]))
+      setRejectedNotes((prev) => {
+        const next = new Set(prev)
+        next.delete(noteId)
+        return next
+      })
+    } catch (error) {
+      console.error('Failed to approve note:', error)
+    } finally {
+      setIsLoading((prev) => ({ ...prev, [noteId]: false }))
+    }
+  }
+
+  const handleReject = async (noteId: string) => {
+    setIsLoading((prev) => ({ ...prev, [noteId]: true }))
+    try {
+      await facultyService.verifyNote(noteId, 'reject')
+      setRejectedNotes((prev) => new Set([...prev, noteId]))
+      setVerifiedNotes((prev) => {
+        const next = new Set(prev)
+        next.delete(noteId)
+        return next
+      })
+    } catch (error) {
+      console.error('Failed to reject note:', error)
+    } finally {
+      setIsLoading((prev) => ({ ...prev, [noteId]: false }))
+    }
+  }
+
+  const getStatus = (noteId: string) => {
+    if (verifiedNotes.has(noteId)) return 'verified'
+    if (rejectedNotes.has(noteId)) return 'rejected'
+    return 'pending'
+  }
+
   return (
     <div className="faculty-page" aria-label="Student notes verification panel">
       <header className="faculty-header">
@@ -1974,7 +2752,27 @@ function FacultyVerificationScreen() {
 
       <main className="faculty-container faculty-main">
         <div className="faculty-verify-page-title">
-          <h2>Student Notes Verification</h2>
+          <div>
+            <button
+              type="button"
+              onClick={onBackToDashboard}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#1e3a8a',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                marginBottom: '0.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>arrow_back</span>
+              Back to Dashboard
+            </button>
+            <h2>Student Notes Verification</h2>
+          </div>
           <div />
         </div>
 
@@ -2027,18 +2825,30 @@ function FacultyVerificationScreen() {
                   <td className="muted">Unit 3</td>
                   <td className="muted">Oct 24, 2023</td>
                   <td>
-                    <span className="faculty-status-badge pending">Pending</span>
+                    <span className={`faculty-status-badge ${getStatus('note-1')}`}>
+                      {getStatus('note-1') === 'verified' ? 'Verified' : getStatus('note-1') === 'rejected' ? 'Rejected' : 'Pending'}
+                    </span>
                   </td>
                   <td className="align-right">
-                    <div className="faculty-row-actions">
-                      <button type="button" className="faculty-preview-btn">
+                    <div className={`faculty-row-actions ${getStatus('note-1') !== 'pending' ? 'disabled' : ''}`}>
+                      <button type="button" className="faculty-preview-btn" disabled={getStatus('note-1') !== 'pending'}>
                         Preview
                       </button>
-                      <button type="button" className="faculty-approve-btn">
-                        Approve
+                      <button
+                        type="button"
+                        className="faculty-approve-btn"
+                        onClick={() => handleApprove('note-1')}
+                        disabled={getStatus('note-1') !== 'pending' || isLoading['note-1']}
+                      >
+                        {isLoading['note-1'] ? 'Processing...' : 'Approve'}
                       </button>
-                      <button type="button" className="faculty-reject-btn">
-                        Reject
+                      <button
+                        type="button"
+                        className="faculty-reject-btn"
+                        onClick={() => handleReject('note-1')}
+                        disabled={getStatus('note-1') !== 'pending' || isLoading['note-1']}
+                      >
+                        {isLoading['note-1'] ? 'Processing...' : 'Reject'}
                       </button>
                     </div>
                   </td>
@@ -2055,18 +2865,30 @@ function FacultyVerificationScreen() {
                   <td className="muted">Unit 2</td>
                   <td className="muted">Oct 23, 2023</td>
                   <td>
-                    <span className="faculty-status-badge pending">Pending</span>
+                    <span className={`faculty-status-badge ${getStatus('note-2')}`}>
+                      {getStatus('note-2') === 'verified' ? 'Verified' : getStatus('note-2') === 'rejected' ? 'Rejected' : 'Pending'}
+                    </span>
                   </td>
                   <td className="align-right">
-                    <div className="faculty-row-actions">
-                      <button type="button" className="faculty-preview-btn">
+                    <div className={`faculty-row-actions ${getStatus('note-2') !== 'pending' ? 'disabled' : ''}`}>
+                      <button type="button" className="faculty-preview-btn" disabled={getStatus('note-2') !== 'pending'}>
                         Preview
                       </button>
-                      <button type="button" className="faculty-approve-btn">
-                        Approve
+                      <button
+                        type="button"
+                        className="faculty-approve-btn"
+                        onClick={() => handleApprove('note-2')}
+                        disabled={getStatus('note-2') !== 'pending' || isLoading['note-2']}
+                      >
+                        {isLoading['note-2'] ? 'Processing...' : 'Approve'}
                       </button>
-                      <button type="button" className="faculty-reject-btn">
-                        Reject
+                      <button
+                        type="button"
+                        className="faculty-reject-btn"
+                        onClick={() => handleReject('note-2')}
+                        disabled={getStatus('note-2') !== 'pending' || isLoading['note-2']}
+                      >
+                        {isLoading['note-2'] ? 'Processing...' : 'Reject'}
                       </button>
                     </div>
                   </td>
@@ -2155,6 +2977,62 @@ function FacultyVerificationScreen() {
 
 function FacultyTextbookUploadScreen() {
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    title: '',
+    author: '',
+    edition: '',
+    subjectId: '',
+  })
+  const [file, setFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0]
+      try {
+        enforceSupportedUploadFile(selectedFile, 50 * 1024 * 1024)
+        setFile(selectedFile)
+        setError(null)
+      } catch (err) {
+        setError(err instanceof FileUploadError ? err.message : 'Invalid file')
+      }
+    }
+  }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+
+    if (!formData.title || !formData.author || !file) {
+      setError('Please fill in all required fields and select a file')
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      await facultyService.uploadTextbook({
+        file,
+        title: formData.title,
+        author: formData.author,
+        edition: formData.edition,
+        subjectId: formData.subjectId || undefined,
+      })
+      setIsModalOpen(false)
+      setFormData({ title: '', author: '', edition: '', subjectId: '' })
+      setFile(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="textbook-page" aria-label="Textbook management panel">
@@ -2271,21 +3149,50 @@ function FacultyTextbookUploadScreen() {
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <form className="textbook-modal-form" onSubmit={(event) => event.preventDefault()}>
+            <form className="textbook-modal-form" onSubmit={handleSubmit}>
+              {error && (
+                <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                  {error}
+                </div>
+              )}
               <div>
                 <label htmlFor="book-title">Book Title</label>
-                <input id="book-title" type="text" placeholder="e.g. Modern Operating Systems" />
+                <input
+                  id="book-title"
+                  name="title"
+                  type="text"
+                  placeholder="e.g. Modern Operating Systems"
+                  value={formData.title}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                />
               </div>
               <div className="textbook-modal-grid">
                 <div>
                   <label htmlFor="author">Author Name</label>
-                  <input id="author" type="text" placeholder="e.g. Andrew S. Tanenbaum" />
+                  <input
+                    id="author"
+                    name="author"
+                    type="text"
+                    placeholder="e.g. Andrew S. Tanenbaum"
+                    value={formData.author}
+                    onChange={handleChange}
+                    required
+                    disabled={isLoading}
+                  />
                 </div>
                 <div>
                   <label htmlFor="edition">
                     Edition <span className="field-optional">(Optional)</span>
                   </label>
-                  <select id="edition" defaultValue="">
+                  <select
+                    id="edition"
+                    name="edition"
+                    value={formData.edition}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                  >
                     <option value="">Select Edition</option>
                     <option value="1st">1st Edition</option>
                     <option value="2nd">2nd Edition</option>
@@ -2296,22 +3203,33 @@ function FacultyTextbookUploadScreen() {
                 </div>
               </div>
               <div>
-                <label>Book Document (PDF)</label>
-                <label className="textbook-file-dropzone">
-                  <input type="file" />
+                <label>Book Document</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={SUPPORTED_UPLOAD_ACCEPT}
+                  onChange={handleFileSelect}
+                  style={{ display: 'none' }}
+                />
+                <label
+                  className="textbook-file-dropzone"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div>
                     <span className="material-symbols-outlined">picture_as_pdf</span>
                   </div>
-                  <p>Click or drag PDF to upload</p>
+                  <p>Click or drag file to upload</p>
+                  {file && <p style={{ color: '#059669', fontWeight: '600' }}>{file.name} ({formatFileSize(file.size)})</p>}
                   <p>Files will be encrypted and stored securely</p>
                 </label>
-                <p className="textbook-file-help">Maximum file size: 50MB. Only PDF format supported.</p>
+                <p className="textbook-file-help">Maximum file size: 50MB. Supported: {SUPPORTED_UPLOAD_LABEL}.</p>
               </div>
               <div className="textbook-modal-actions">
-                <button type="submit" className="textbook-publish-btn">
-                  Upload &amp; Publish
+                <button type="submit" className="textbook-publish-btn" disabled={isLoading || !file}>
+                  {isLoading ? 'Uploading...' : 'Upload &amp; Publish'}
                 </button>
-                <button type="button" className="textbook-cancel-btn" onClick={() => setIsModalOpen(false)}>
+                <button type="button" className="textbook-cancel-btn" onClick={() => setIsModalOpen(false)} disabled={isLoading}>
                   Cancel
                 </button>
               </div>
@@ -2334,7 +3252,79 @@ function FacultyTextbookUploadScreen() {
   )
 }
 
-function FacultyCreateAssignmentScreen() {
+function FacultyCreateAssignmentScreen({
+  onBackToDashboard,
+}: {
+  onBackToDashboard?: () => void
+}) {
+  const [isCreated, setIsCreated] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    title: '',
+    subjectId: '',
+    instructions: '',
+    totalMarks: '',
+    dueDate: '',
+    allowLateSubmission: false,
+  })
+  const [resourceFiles, setResourceFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value
+    setFormData({ ...formData, [e.target.name]: value })
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files)
+      try {
+        newFiles.forEach((file) => {
+          enforceSupportedUploadFile(file, 50 * 1024 * 1024)
+        })
+        setResourceFiles((prev) => [...prev, ...newFiles])
+        setError(null)
+      } catch (err) {
+        setError(err instanceof FileUploadError ? err.message : 'Invalid file')
+      }
+    }
+  }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+
+    if (!formData.title || !formData.subjectId || !formData.instructions || !formData.totalMarks || !formData.dueDate) {
+      setError('Please fill in all required fields')
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      await assignmentService.createAssignment({
+        title: formData.title,
+        subjectId: formData.subjectId,
+        instructions: formData.instructions,
+        totalMarks: parseInt(formData.totalMarks),
+        dueDate: formData.dueDate,
+        allowLateSubmission: formData.allowLateSubmission,
+        resources: resourceFiles,
+      })
+      setIsCreated(true)
+      setTimeout(() => {
+        if (onBackToDashboard) {
+          onBackToDashboard()
+        }
+      }, 1500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create assignment')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="create-assignment-page" aria-label="Create assignment">
       <header className="create-assignment-header">
@@ -2346,7 +3336,9 @@ function FacultyCreateAssignmentScreen() {
             <h1>UniRepo</h1>
           </div>
           <nav className="create-assignment-nav">
-            <a href="#">Dashboard</a>
+            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit' }}>
+              Dashboard
+            </button>
             <a href="#" className="active">
               Assignments
             </a>
@@ -2370,7 +3362,12 @@ function FacultyCreateAssignmentScreen() {
           <div />
         </div>
 
-        <form className="create-assignment-form" onSubmit={(event) => event.preventDefault()}>
+        <form className="create-assignment-form" onSubmit={handleSubmit}>
+          {error && (
+            <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+              {error}
+            </div>
+          )}
           <section className="create-assignment-card">
             <div className="create-assignment-section-title">
               <span className="material-symbols-outlined">info</span>
@@ -2379,14 +3376,28 @@ function FacultyCreateAssignmentScreen() {
             <div className="create-assignment-fields">
               <div>
                 <label htmlFor="assignment-title">Assignment Title</label>
-                <input id="assignment-title" type="text" placeholder="e.g., Introduction to Algorithms" />
+                <input
+                  id="assignment-title"
+                  name="title"
+                  type="text"
+                  placeholder="e.g., Introduction to Algorithms"
+                  value={formData.title}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                />
               </div>
               <div>
                 <label htmlFor="assignment-instructions">Instructions</label>
                 <textarea
                   id="assignment-instructions"
+                  name="instructions"
                   rows={6}
                   placeholder="Provide detailed steps for students..."
+                  value={formData.instructions}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -2401,13 +3412,30 @@ function FacultyCreateAssignmentScreen() {
               <div>
                 <label htmlFor="assignment-marks">Total Marks</label>
                 <div className="create-assignment-marks-wrap">
-                  <input id="assignment-marks" type="number" placeholder="100" />
+                  <input
+                    id="assignment-marks"
+                    name="totalMarks"
+                    type="number"
+                    placeholder="100"
+                    value={formData.totalMarks}
+                    onChange={handleChange}
+                    required
+                    disabled={isLoading}
+                  />
                   <span>pts</span>
                 </div>
               </div>
               <div>
                 <label htmlFor="assignment-due">Due Date &amp; Time</label>
-                <input id="assignment-due" type="datetime-local" />
+                <input
+                  id="assignment-due"
+                  name="dueDate"
+                  type="datetime-local"
+                  value={formData.dueDate}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                />
               </div>
             </div>
           </section>
@@ -2417,15 +3445,31 @@ function FacultyCreateAssignmentScreen() {
               <span className="material-symbols-outlined">attach_file</span>
               <h3>Resources</h3>
             </div>
-            <label className="create-assignment-dropzone">
-              <input type="file" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={SUPPORTED_UPLOAD_ACCEPT}
+              multiple
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+            />
+            <label
+              className="create-assignment-dropzone"
+              onClick={() => fileInputRef.current?.click()}
+              style={{ cursor: 'pointer' }}
+            >
               <div>
                 <span className="material-symbols-outlined">upload_file</span>
               </div>
               <p>
                 <span>Click to upload</span> or drag and drop reference files
               </p>
-              <p>PDF, DOCX, or ZIP (max. 50MB)</p>
+              {resourceFiles.length > 0 && (
+                <p style={{ color: '#059669', fontWeight: '600', marginTop: '0.5rem' }}>
+                  {resourceFiles.length} file(s) selected
+                </p>
+              )}
+              <p>{SUPPORTED_UPLOAD_LABEL} (max. 50MB)</p>
             </label>
           </section>
 
@@ -2436,21 +3480,42 @@ function FacultyCreateAssignmentScreen() {
                 <p>Students can submit after the deadline with a penalty</p>
               </div>
               <label className="create-assignment-switch">
-                <input type="checkbox" />
+                <input
+                  type="checkbox"
+                  name="allowLateSubmission"
+                  checked={formData.allowLateSubmission}
+                  onChange={(e) => setFormData({ ...formData, allowLateSubmission: e.target.checked })}
+                  disabled={isLoading}
+                />
                 <span />
               </label>
             </div>
           </section>
 
           <div className="create-assignment-actions">
-            <button type="submit" className="create-assignment-publish">
-              <span className="material-symbols-outlined">publish</span>
-              Publish Assignment
-            </button>
-            <div>
-              <span className="material-symbols-outlined">info</span>
-              <p>This assignment will be visible to students under this subject.</p>
-            </div>
+            {error && (
+              <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem', width: '100%' }}>
+                {error}
+              </div>
+            )}
+            {isCreated ? (
+              <div style={{ padding: '1rem', textAlign: 'center', color: '#059669', width: '100%' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '3rem' }}>check_circle</span>
+                <p style={{ marginTop: '0.5rem', fontWeight: '600' }}>Assignment Created Successfully!</p>
+                <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>Redirecting to dashboard...</p>
+              </div>
+            ) : (
+              <>
+                <button type="submit" className="create-assignment-publish" disabled={isLoading}>
+                  <span className="material-symbols-outlined">publish</span>
+                  {isLoading ? 'Creating...' : 'Publish Assignment'}
+                </button>
+                <div>
+                  <span className="material-symbols-outlined">info</span>
+                  <p>This assignment will be visible to students under this subject.</p>
+                </div>
+              </>
+            )}
           </div>
         </form>
       </main>
@@ -2462,7 +3527,13 @@ function FacultyCreateAssignmentScreen() {
   )
 }
 
-function FacultyAssignmentSubmissionsScreen({ onGrade }: { onGrade: () => void }) {
+function FacultyAssignmentSubmissionsScreen({
+  onGrade,
+  onBackToDashboard,
+}: {
+  onGrade: () => void
+  onBackToDashboard?: () => void
+}) {
   return (
     <div className="faculty-submissions-page" aria-label="Assignment submissions overview">
       <header className="faculty-submissions-header">
@@ -2472,7 +3543,9 @@ function FacultyAssignmentSubmissionsScreen({ onGrade }: { onGrade: () => void }
             <h2>EduRepo</h2>
           </div>
           <nav className="faculty-submissions-nav">
-            <a href="#">Dashboard</a>
+            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit' }}>
+              Dashboard
+            </button>
             <a href="#" className="active">
               Courses
             </a>
@@ -2493,9 +3566,13 @@ function FacultyAssignmentSubmissionsScreen({ onGrade }: { onGrade: () => void }
       <main className="faculty-submissions-container faculty-submissions-main">
         <div className="faculty-submissions-top">
           <nav className="faculty-submissions-breadcrumb">
-            <a href="#">Courses</a>
+            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
+              Courses
+            </button>
             <span className="material-symbols-outlined">chevron_right</span>
-            <a href="#">CS301: Computer Architecture</a>
+            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
+              CS301: Computer Architecture
+            </button>
             <span className="material-symbols-outlined">chevron_right</span>
             <span>Submissions</span>
           </nav>
@@ -2901,6 +3978,7 @@ function FacultyGradeSubmissionScreen() {
 
 function UnofficialNotesScreen() {
   const [uploadedNotes, setUploadedNotes] = useState<UploadedNote[]>(initialUploadedNotes)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleOpenUploadPicker = () => {
@@ -2914,18 +3992,35 @@ function UnofficialNotesScreen() {
     }
 
     const now = new Date()
-    const newNotes: UploadedNote[] = Array.from(files).map((file) => ({
-      id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
-      title: file.name,
-      uploadedOn: formatUploadDate(now),
-      fileInfo: `${file.name.split('.').pop()?.toUpperCase() || 'FILE'} • ${formatFileSize(file.size)}`,
-      status: 'pending',
-      canDownload: true,
-      downloadUrl: URL.createObjectURL(file),
-      fileName: file.name,
-    }))
+    const newNotes: UploadedNote[] = []
+    let rejectedCount = 0
 
-    setUploadedNotes((current) => [...newNotes, ...current])
+    Array.from(files).forEach((file) => {
+      try {
+        enforceSupportedUploadFile(file, 25 * 1024 * 1024)
+        newNotes.push({
+          id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+          title: file.name,
+          uploadedOn: formatUploadDate(now),
+          fileInfo: `${file.name.split('.').pop()?.toUpperCase() || 'FILE'} • ${formatFileSize(file.size)}`,
+          status: 'pending',
+          canDownload: true,
+          downloadUrl: URL.createObjectURL(file),
+          fileName: file.name,
+        })
+      } catch {
+        rejectedCount += 1
+      }
+    })
+
+    if (newNotes.length > 0) {
+      setUploadedNotes((current) => [...newNotes, ...current])
+    }
+    setUploadError(
+      rejectedCount > 0
+        ? `${rejectedCount} file(s) rejected. Use only ${SUPPORTED_UPLOAD_LABEL} under 25MB.`
+        : null,
+    )
     event.target.value = ''
   }
 
@@ -2958,10 +4053,14 @@ function UnofficialNotesScreen() {
             <input
               ref={fileInputRef}
               type="file"
+              accept={SUPPORTED_UPLOAD_ACCEPT}
               multiple
               className="visually-hidden-input"
               onChange={handleFilesSelected}
             />
+            {uploadError ? (
+              <p style={{ margin: '0.5rem 0 0', color: '#b91c1c', fontSize: '0.8125rem' }}>{uploadError}</p>
+            ) : null}
             <div className="dashboard-user">
               <div className="dashboard-user-info">
                 <p>Alex Thompson</p>
@@ -3134,15 +4233,409 @@ function UnofficialNotesScreen() {
   )
 }
 
-function AssignmentReviewScreen() {
+type SearchResource = {
+  id: string
+  title: string
+  subjectCode: string
+  semester: string
+  unit: string
+  professor: string
+  status: 'approved' | 'pending' | 'rejected'
+  format: 'PDF' | 'PPTX' | 'DOCX' | 'JPG' | 'PNG'
+  size: string
+  uploadedAt: string
+}
+
+const searchResourceData: SearchResource[] = [
+  {
+    id: 'res-1',
+    title: 'Memory Management Overview',
+    subjectCode: 'CS501',
+    semester: 'Semester 5',
+    unit: 'Unit 4',
+    professor: 'Dr. Robert Wilson',
+    status: 'approved',
+    format: 'PDF',
+    size: '1.2 MB',
+    uploadedAt: 'Oct 12, 2023',
+  },
+  {
+    id: 'res-2',
+    title: 'Process Synchronization Slides',
+    subjectCode: 'CS501',
+    semester: 'Semester 5',
+    unit: 'Unit 3',
+    professor: 'Dr. Robert Wilson',
+    status: 'approved',
+    format: 'PPTX',
+    size: '3.8 MB',
+    uploadedAt: 'Oct 05, 2023',
+  },
+  {
+    id: 'res-3',
+    title: 'Normalization Cheat Sheet',
+    subjectCode: 'CS502',
+    semester: 'Semester 5',
+    unit: 'Unit 2',
+    professor: 'Dr. Sarah Jenkins',
+    status: 'pending',
+    format: 'DOCX',
+    size: '420 KB',
+    uploadedAt: 'Sep 29, 2023',
+  },
+  {
+    id: 'res-4',
+    title: 'OSI Model Diagram',
+    subjectCode: 'CS503',
+    semester: 'Semester 5',
+    unit: 'Unit 1',
+    professor: 'Dr. Alan Green',
+    status: 'approved',
+    format: 'PNG',
+    size: '760 KB',
+    uploadedAt: 'Oct 08, 2023',
+  },
+  {
+    id: 'res-5',
+    title: 'Database ER Model',
+    subjectCode: 'CS502',
+    semester: 'Semester 5',
+    unit: 'Unit 1',
+    professor: 'Dr. Sarah Jenkins',
+    status: 'rejected',
+    format: 'JPG',
+    size: '540 KB',
+    uploadedAt: 'Oct 01, 2023',
+  },
+]
+
+function SearchResultsScreen({ onBackDashboard }: { onBackDashboard: () => void }) {
+  const [subjectCode, setSubjectCode] = useState('All Subjects')
+  const [semester, setSemester] = useState('All Semesters')
+  const [professor, setProfessor] = useState('All Professors')
+  const [query, setQuery] = useState('')
+
+  const results = searchResourceData.filter((resource) => {
+    const isVisible = resource.status === 'approved'
+    const subjectMatch = subjectCode === 'All Subjects' || resource.subjectCode === subjectCode
+    const semesterMatch = semester === 'All Semesters' || resource.semester === semester
+    const professorMatch = professor === 'All Professors' || resource.professor === professor
+    const queryMatch =
+      query.trim() === '' ||
+      resource.title.toLowerCase().includes(query.toLowerCase()) ||
+      resource.subjectCode.toLowerCase().includes(query.toLowerCase()) ||
+      resource.professor.toLowerCase().includes(query.toLowerCase())
+
+    return isVisible && subjectMatch && semesterMatch && professorMatch && queryMatch
+  })
+
+  return (
+    <div className="search-page" aria-label="Search repository results">
+      <header className="search-header">
+        <div className="dashboard-container search-header-content">
+          <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
+            <button type="button" className="search-breadcrumb-btn" onClick={onBackDashboard}>
+              Dashboard
+            </button>
+            <span className="material-symbols-outlined">chevron_right</span>
+            <span>Search Results</span>
+          </nav>
+          <div className="search-title-row">
+            <h1>Repository Search</h1>
+            <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onBackDashboard}>
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+        <div className="assignment-header-accent" />
+      </header>
+
+      <main className="dashboard-container search-main">
+        <section className="dashboard-card">
+          <div className="dashboard-section-title">
+            <span className="material-symbols-outlined">filter_alt</span>
+            <h2>Advanced Filters</h2>
+          </div>
+          <div className="search-filter-grid">
+            <div className="field-group">
+              <label htmlFor="search-keyword">Keyword</label>
+              <input
+                id="search-keyword"
+                type="text"
+                placeholder="Title, subject code, or professor"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <div className="field-group">
+              <label htmlFor="search-subject-code">Subject Code</label>
+              <select id="search-subject-code" value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)}>
+                <option>All Subjects</option>
+                <option>CS501</option>
+                <option>CS502</option>
+                <option>CS503</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="search-semester">Semester</label>
+              <select id="search-semester" value={semester} onChange={(e) => setSemester(e.target.value)}>
+                <option>All Semesters</option>
+                <option>Semester 5</option>
+                <option>Semester 6</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="search-professor">Professor</label>
+              <select id="search-professor" value={professor} onChange={(e) => setProfessor(e.target.value)}>
+                <option>All Professors</option>
+                <option>Dr. Robert Wilson</option>
+                <option>Dr. Sarah Jenkins</option>
+                <option>Dr. Alan Green</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section className="dashboard-card search-results-card">
+          <div className="search-results-head">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">travel_explore</span>
+              <h2>Search Results</h2>
+            </div>
+            <p>
+              <span>{results.length}</span> files found
+            </p>
+          </div>
+
+          {results.length === 0 ? (
+            <div className="search-empty-state">
+              <span className="material-symbols-outlined">search_off</span>
+              <p>No matching files found. Try changing your filters.</p>
+            </div>
+          ) : (
+            <div className="search-results-grid">
+              {results.map((resource) => (
+                <article key={resource.id} className="search-result-item">
+                  <div>
+                    <h3>{resource.title}</h3>
+                    <p>
+                      {resource.subjectCode} • {resource.semester} • {resource.unit}
+                    </p>
+                  </div>
+                  <div className="search-result-meta">
+                    <span>{resource.professor}</span>
+                    <span>
+                      {resource.format} • {resource.size}
+                    </span>
+                    <span>{resource.uploadedAt}</span>
+                  </div>
+                  <div className="search-result-actions">
+                    <button type="button" className="dashboard-btn-secondary dashboard-btn-small">
+                      <span className="material-symbols-outlined">visibility</span>
+                      View
+                    </button>
+                    <button type="button" className="dashboard-btn-primary dashboard-btn-small">
+                      <span className="material-symbols-outlined">download</span>
+                      Download
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+
+      <footer className="dashboard-footer dashboard-container">
+        <div>
+          <p>© 2024 University Academic Digital Repository</p>
+        </div>
+        <nav aria-label="Footer links">
+          <a href="#">Help Center</a>
+          <a href="#">Privacy Policy</a>
+          <a href="#">Support</a>
+        </nav>
+      </footer>
+    </div>
+  )
+}
+
+function StudentRepositoryScreen({ onBackDashboard }: { onBackDashboard: () => void }) {
+  const [semester, setSemester] = useState('Semester 5')
+  const [subjectCode, setSubjectCode] = useState('All Subjects')
+  const [unit, setUnit] = useState('All Units')
+
+  const resources = searchResourceData.filter((resource) => {
+    const semesterMatch = semester === 'All Semesters' || resource.semester === semester
+    const subjectMatch = subjectCode === 'All Subjects' || resource.subjectCode === subjectCode
+    const unitMatch = unit === 'All Units' || resource.unit === unit
+    return resource.status === 'approved' && semesterMatch && subjectMatch && unitMatch
+  })
+
+  return (
+    <div className="search-page" aria-label="Structured repository browser">
+      <header className="search-header">
+        <div className="dashboard-container search-header-content">
+          <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
+            <button type="button" className="search-breadcrumb-btn" onClick={onBackDashboard}>
+              Dashboard
+            </button>
+            <span className="material-symbols-outlined">chevron_right</span>
+            <span>Repository</span>
+          </nav>
+          <div className="search-title-row">
+            <h1>Repository Browser</h1>
+            <button type="button" className="dashboard-btn-secondary dashboard-btn-small" onClick={onBackDashboard}>
+              Back
+            </button>
+          </div>
+        </div>
+        <div className="assignment-header-accent" />
+      </header>
+
+      <main className="dashboard-container search-main">
+        <section className="dashboard-card">
+          <div className="dashboard-section-title">
+            <span className="material-symbols-outlined">account_tree</span>
+            <h2>Semester → Subject → Unit</h2>
+          </div>
+          <div className="search-filter-grid">
+            <div className="field-group">
+              <label htmlFor="repository-semester">Semester</label>
+              <select id="repository-semester" value={semester} onChange={(e) => setSemester(e.target.value)}>
+                <option>All Semesters</option>
+                <option>Semester 5</option>
+                <option>Semester 6</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="repository-subject">Subject</label>
+              <select id="repository-subject" value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)}>
+                <option>All Subjects</option>
+                <option>CS501</option>
+                <option>CS502</option>
+                <option>CS503</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="repository-unit">Unit</label>
+              <select id="repository-unit" value={unit} onChange={(e) => setUnit(e.target.value)}>
+                <option>All Units</option>
+                <option>Unit 1</option>
+                <option>Unit 2</option>
+                <option>Unit 3</option>
+                <option>Unit 4</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section className="dashboard-card search-results-card">
+          <div className="search-results-head">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">folder_open</span>
+              <h2>Approved Resources</h2>
+            </div>
+            <p>
+              <span>{resources.length}</span> approved files
+            </p>
+          </div>
+          <div className="search-results-grid">
+            {resources.map((resource) => (
+              <article key={resource.id} className="search-result-item">
+                <div>
+                  <h3>{resource.title}</h3>
+                  <p>
+                    {resource.semester} • {resource.subjectCode} • {resource.unit}
+                  </p>
+                </div>
+                <div className="search-result-meta">
+                  <span>{resource.professor}</span>
+                  <span>{resource.format}</span>
+                  <span>{resource.size}</span>
+                </div>
+                <div className="search-result-actions">
+                  <button type="button" className="dashboard-btn-secondary dashboard-btn-small">
+                    <span className="material-symbols-outlined">visibility</span>
+                    View
+                  </button>
+                  <button type="button" className="dashboard-btn-primary dashboard-btn-small">
+                    <span className="material-symbols-outlined">download</span>
+                    Download
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </main>
+    </div>
+  )
+}
+
+function AssignmentReviewScreen({ onBackToDashboard }: { onBackToDashboard?: () => void }) {
+  const [files, setFiles] = useState<File[]>([])
+  const [comment, setComment] = useState('')
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files)
+      try {
+        newFiles.forEach((file) => {
+          enforceSupportedUploadFile(file, 25 * 1024 * 1024)
+        })
+        setFiles((prev) => [...prev, ...newFiles])
+        setError(null)
+      } catch (err) {
+        setError(err instanceof FileUploadError ? err.message : 'Invalid file')
+      }
+    }
+  }
+
+  const handleRemoveFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSubmit = async () => {
+    if (files.length === 0) {
+      setError('Please upload at least one file')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      await assignmentService.submitAssignment('assign-1', files, comment)
+      setIsSubmitted(true)
+      setTimeout(() => {
+        if (onBackToDashboard) {
+          onBackToDashboard()
+        }
+      }, 1500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Submission failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="assignment-page" aria-label="Assignment submission details">
       <header className="assignment-header">
         <div className="dashboard-container assignment-header-content">
           <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
-            <a href="#">Assignments</a>
+            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
+              Assignments
+            </button>
             <span className="material-symbols-outlined">chevron_right</span>
-            <a href="#">CS501</a>
+            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
+              CS501
+            </button>
             <span className="material-symbols-outlined">chevron_right</span>
             <span>Assignment 2</span>
           </nav>
@@ -3226,28 +4719,78 @@ function AssignmentReviewScreen() {
             <section className="assignment-card">
               <div className="assignment-sidebar-head">
                 <h2>Your Work</h2>
-                <span>Not Submitted</span>
+                <span>{isSubmitted ? 'Submitted' : 'Not Submitted'}</span>
               </div>
-              <div className="assignment-uploaded-item">
-                <div>
-                  <span className="material-symbols-outlined">database</span>
-                  <p>sql_joins_solution.sql</p>
+              {error && (
+                <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                  {error}
                 </div>
-                <button type="button" aria-label="Remove file">
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-              </div>
+              )}
+              {!isSubmitted && (
+                <>
+                  {files.map((file, index) => (
+                    <div key={index} className="assignment-uploaded-item">
+                      <div>
+                        <span className="material-symbols-outlined">description</span>
+                        <p>{file.name} ({formatFileSize(file.size)})</p>
+                      </div>
+                      <button type="button" aria-label="Remove file" onClick={() => handleRemoveFile(index)}>
+                        <span className="material-symbols-outlined">close</span>
+                      </button>
+                    </div>
+                  ))}
 
-              <button type="button" className="assignment-dropzone">
-                <span className="material-symbols-outlined">upload_file</span>
-                <p>Add or create</p>
-                <p>Drag and drop or click to upload</p>
-              </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={SUPPORTED_UPLOAD_ACCEPT}
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={handleFileSelect}
+                  />
+                  <button
+                    type="button"
+                    className="assignment-dropzone"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <span className="material-symbols-outlined">upload_file</span>
+                    <p>Add or create</p>
+                    <p>Drag and drop or click to upload ({SUPPORTED_UPLOAD_LABEL})</p>
+                  </button>
 
-              <button type="button" className="assignment-submit-btn">
-                Submit Assignment
-              </button>
-              <p className="assignment-note">Submission will be timestamped and logged.</p>
+                  <div className="assignment-comments">
+                    <h4>
+                      <span className="material-symbols-outlined">forum</span>
+                      Private comments
+                    </h4>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Add a comment to faculty..."
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="assignment-submit-btn"
+                    onClick={handleSubmit}
+                    disabled={isLoading || files.length === 0}
+                  >
+                    {isLoading ? 'Submitting...' : 'Submit Assignment'}
+                  </button>
+                  <p className="assignment-note">Submission will be timestamped and logged.</p>
+                </>
+              )}
+              {isSubmitted && (
+                <div style={{ padding: '1rem', textAlign: 'center', color: '#059669' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '3rem' }}>check_circle</span>
+                  <p style={{ marginTop: '0.5rem', fontWeight: '600' }}>Assignment Submitted Successfully!</p>
+                  <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>Redirecting to dashboard...</p>
+                </div>
+              )}
             </section>
 
             <section className="assignment-comments">
@@ -3280,15 +4823,23 @@ function AssignmentReviewScreen() {
   )
 }
 
-function AssignmentResultScreen() {
+function AssignmentResultScreen({
+  onBackToDashboard,
+}: {
+  onBackToDashboard?: () => void
+}) {
   return (
     <div className="assignment-page" aria-label="Submission and grade status">
       <header className="assignment-header">
         <div className="dashboard-container result-header-content">
           <nav className="assignment-breadcrumb" aria-label="Breadcrumb">
-            <a href="#">Assignments</a>
+            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
+              Assignments
+            </button>
             <span className="result-breadcrumb-divider">/</span>
-            <a href="#">CS501</a>
+            <button type="button" onClick={onBackToDashboard} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
+              CS501
+            </button>
             <span className="result-breadcrumb-divider">/</span>
             <span>Lab Report</span>
           </nav>
@@ -3430,8 +4981,768 @@ function AssignmentResultScreen() {
   )
 }
 
+function AdminEnrollStudentsScreen({
+  onBackDashboard,
+  onBackToAccounts,
+}: {
+  onBackDashboard: () => void
+  onBackToAccounts: () => void
+}) {
+  const [selectedSubject, setSelectedSubject] = useState('CS-401')
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(['1', '2'])
+  const [programmeFilter, setProgrammeFilter] = useState('All Programmes')
+  const [semesterFilter, setSemesterFilter] = useState('All Semesters')
+
+  const toggleStudent = (id: string) => {
+    setSelectedStudentIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    )
+  }
+
+  const toggleAllStudents = () => {
+    if (selectedStudentIds.length === 3) {
+      setSelectedStudentIds([])
+    } else {
+      setSelectedStudentIds(['1', '2', '3'])
+    }
+  }
+
+  const subjects = [
+    { code: 'CS-401', name: 'Advanced Algorithms', programme: 'B.Tech CSE', semester: 'Sem IV' },
+    { code: 'CS-405', name: 'Machine Learning Fundamentals', programme: 'B.Tech CSE', semester: 'Sem IV' },
+    { code: 'CS-402', name: 'Distributed Systems', programme: 'B.Tech CSE', semester: 'Sem IV' },
+  ]
+
+  const students = [
+    { id: '1', name: 'Aditi Sharma', usn: '1RV21CS001', programme: 'Computer Science', semester: '6th Sem', email: 'aditi.s@univ.edu.in' },
+    { id: '2', name: 'Rahul Jayaram', usn: '1RV21IS045', programme: 'Info. Science', semester: '4th Sem', email: 'rahul.j@univ.edu.in' },
+    { id: '3', name: 'Nikhil Kumar', usn: '1RV22ME088', programme: 'Mechanical', semester: '2nd Sem', email: 'nikhil.k@univ.edu.in' },
+  ]
+
+  return (
+    <div className="admin-page" aria-label="Enroll students in subjects">
+      <AdminHeader
+        active="subjects"
+        onNavigateDashboard={onBackDashboard}
+        onNavigateFacultyAccounts={() => {}}
+        onNavigateAssignSubjects={() => {}}
+        onNavigateCirculars={() => {}}
+      />
+
+      <main className="admin-container admin-main">
+        <section className="admin-assign-head">
+          <nav aria-label="Breadcrumb">
+            <button type="button" onClick={onBackDashboard} className="admin-breadcrumb-link">
+              Dashboard
+            </button>
+            <span>/</span>
+            <button type="button" onClick={onBackToAccounts} className="admin-breadcrumb-link">
+              Student Accounts
+            </button>
+            <span>/</span>
+            <span>Enroll Students</span>
+          </nav>
+          <h2>Enroll Students in Subjects</h2>
+          <p>Select a subject and enroll students to grant them access to assignments and resources.</p>
+        </section>
+
+        <section className="admin-assign-layout">
+          <article className="admin-assign-faculty-card">
+            <label htmlFor="enroll-subject-select">Select Subject</label>
+            <select
+              id="enroll-subject-select"
+              value={selectedSubject}
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              className="admin-assign-search"
+            >
+              {subjects.map((subject) => (
+                <option key={subject.code} value={subject.code}>
+                  {subject.code} - {subject.name}
+                </option>
+              ))}
+            </select>
+
+            <div className="admin-assign-profile">
+              <div>
+                <span className="material-symbols-outlined">book</span>
+              </div>
+              <div>
+                <h3>{subjects.find((s) => s.code === selectedSubject)?.name}</h3>
+                <p>{subjects.find((s) => s.code === selectedSubject)?.programme} • {subjects.find((s) => s.code === selectedSubject)?.semester}</p>
+              </div>
+            </div>
+
+            <div className="admin-assign-meta">
+              <div>
+                <span>Currently Enrolled</span>
+                <strong>24 Students</strong>
+              </div>
+              <div>
+                <span>Capacity</span>
+                <strong>60 Students</strong>
+              </div>
+            </div>
+          </article>
+
+          <article className="admin-assign-subjects-card">
+            <div className="admin-assign-toolbar">
+              <div>
+                <select value={programmeFilter} onChange={(e) => setProgrammeFilter(e.target.value)}>
+                  <option>All Programmes</option>
+                  <option>Computer Science &amp; Engineering</option>
+                  <option>Information Science</option>
+                  <option>Electronics &amp; Communication</option>
+                  <option>Mechanical Engineering</option>
+                </select>
+                <select value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)}>
+                  <option>All Semesters</option>
+                  <option>1st Semester</option>
+                  <option>2nd Semester</option>
+                  <option>3rd Semester</option>
+                  <option>4th Semester</option>
+                  <option>5th Semester</option>
+                  <option>6th Semester</option>
+                </select>
+              </div>
+              <p>
+                Showing <span>{students.length}</span> students
+              </p>
+            </div>
+
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        checked={selectedStudentIds.length === students.length}
+                        onChange={toggleAllStudents}
+                        aria-label="Select all students"
+                      />
+                    </th>
+                    <th>Student Name</th>
+                    <th>USN</th>
+                    <th>Programme</th>
+                    <th>Semester</th>
+                    <th>Email</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((student) => {
+                    const isSelected = selectedStudentIds.includes(student.id)
+                    return (
+                      <tr key={student.id} className={isSelected ? 'admin-assign-row-selected' : ''}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleStudent(student.id)}
+                            aria-label={`Select ${student.name}`}
+                          />
+                        </td>
+                        <td>
+                          <div className="admin-student-person">
+                            <span className="gray">{student.name.split(' ').map(n => n[0]).join('')}</span>
+                            <p>{student.name}</p>
+                          </div>
+                        </td>
+                        <td className="mono">{student.usn}</td>
+                        <td>{student.programme}</td>
+                        <td>{student.semester}</td>
+                        <td className="muted">{student.email}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="admin-assign-actions">
+              <button type="button">
+                <span className="material-symbols-outlined">person_add</span>
+                Enroll Selected Students ({selectedStudentIds.length})
+              </button>
+              <p>
+                <span className="material-symbols-outlined">info</span>
+                Enrolled students will have access to assignments, notes, and resources for this subject.
+              </p>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminStudentDetailsScreen({
+  onBack,
+}: {
+  onBack: () => void
+}) {
+  return (
+    <div className="admin-page" aria-label="Student details">
+      <AdminHeader
+        active="dashboard"
+        onNavigateDashboard={onBack}
+        onNavigateFacultyAccounts={() => {}}
+        onNavigateAssignSubjects={() => {}}
+        onNavigateCirculars={() => {}}
+      />
+
+      <main className="admin-container admin-main">
+        <section className="admin-assign-head">
+          <nav aria-label="Breadcrumb">
+            <button type="button" onClick={onBack} className="admin-breadcrumb-link">
+              Student Accounts
+            </button>
+            <span>/</span>
+            <span>Student Details</span>
+          </nav>
+          <h2>Student Details</h2>
+        </section>
+
+        <section className="admin-content-grid">
+          <article className="dashboard-card">
+            <div className="admin-assign-profile" style={{ marginBottom: '2rem' }}>
+              <div style={{ width: '4rem', height: '4rem', fontSize: '1.5rem' }}>
+                <span className="material-symbols-outlined">account_circle</span>
+              </div>
+              <div>
+                <h3>Aditi Sharma</h3>
+                <p>USN: 1RV21CS001</p>
+              </div>
+            </div>
+
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <tbody>
+                  <tr>
+                    <td><strong>Full Name</strong></td>
+                    <td>Aditi Sharma</td>
+                  </tr>
+                  <tr>
+                    <td><strong>USN</strong></td>
+                    <td className="mono">1RV21CS001</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Email</strong></td>
+                    <td>aditi.s@univ.edu.in</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Programme</strong></td>
+                    <td>Computer Science &amp; Engineering</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Semester</strong></td>
+                    <td>6th Semester</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Account Status</strong></td>
+                    <td><span className="admin-student-status active">Active</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Registration Date</strong></td>
+                    <td className="muted">Oct 15, 2023</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className="dashboard-card">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">book</span>
+              <h2>Enrolled Subjects</h2>
+            </div>
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Subject Code</th>
+                    <th>Subject Name</th>
+                    <th>Faculty</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>CS501</td>
+                    <td>Operating Systems</td>
+                    <td className="muted">Dr. Robert Wilson</td>
+                    <td><span className="admin-student-status active">Active</span></td>
+                  </tr>
+                  <tr>
+                    <td>CS502</td>
+                    <td>Database Management</td>
+                    <td className="muted">Dr. Sarah Jenkins</td>
+                    <td><span className="admin-student-status active">Active</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className="dashboard-card">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">assignment</span>
+              <h2>Assignment Submissions</h2>
+            </div>
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Assignment</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th>Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Memory Mapping Lab</td>
+                    <td className="muted">CS501</td>
+                    <td><span className="pill success">Submitted</span></td>
+                    <td>A+</td>
+                  </tr>
+                  <tr>
+                    <td>SQL Joins</td>
+                    <td className="muted">CS502</td>
+                    <td><span className="pill">Pending</span></td>
+                    <td>-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <AdminFooter />
+    </div>
+  )
+}
+
+function AdminFacultyDetailsScreen({
+  onBack,
+}: {
+  onBack: () => void
+}) {
+  return (
+    <div className="admin-page" aria-label="Faculty details">
+      <AdminHeader
+        active="faculty"
+        onNavigateDashboard={() => {}}
+        onNavigateFacultyAccounts={onBack}
+        onNavigateAssignSubjects={() => {}}
+        onNavigateCirculars={() => {}}
+      />
+
+      <main className="admin-container admin-main">
+        <section className="admin-assign-head">
+          <nav aria-label="Breadcrumb">
+            <button type="button" onClick={onBack} className="admin-breadcrumb-link">
+              Faculty Accounts
+            </button>
+            <span>/</span>
+            <span>Faculty Details</span>
+          </nav>
+          <h2>Faculty Details</h2>
+        </section>
+
+        <section className="admin-content-grid">
+          <article className="dashboard-card">
+            <div className="admin-assign-profile" style={{ marginBottom: '2rem' }}>
+              <div style={{ width: '4rem', height: '4rem', fontSize: '1.5rem' }}>
+                <span className="material-symbols-outlined">badge</span>
+              </div>
+              <div>
+                <h3>Dr. David Anderson</h3>
+                <p>Senior Professor • Computer Science</p>
+              </div>
+            </div>
+
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <tbody>
+                  <tr>
+                    <td><strong>Full Name</strong></td>
+                    <td>Dr. David Anderson</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Email</strong></td>
+                    <td>d.anderson@university.edu</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Department</strong></td>
+                    <td>Computer Science</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Designation</strong></td>
+                    <td>Senior Professor</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Account Status</strong></td>
+                    <td><span className="admin-faculty-status active">Active</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Join Date</strong></td>
+                    <td className="muted">Jan 15, 2020</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className="dashboard-card">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">book</span>
+              <h2>Assigned Subjects</h2>
+            </div>
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Subject Code</th>
+                    <th>Subject Name</th>
+                    <th>Programme</th>
+                    <th>Enrolled Students</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>CS-401</td>
+                    <td>Advanced Algorithms</td>
+                    <td className="muted">B.Tech CSE</td>
+                    <td>45</td>
+                  </tr>
+                  <tr>
+                    <td>CS-405</td>
+                    <td>Machine Learning Fundamentals</td>
+                    <td className="muted">B.Tech CSE</td>
+                    <td>38</td>
+                  </tr>
+                  <tr>
+                    <td>CS-402</td>
+                    <td>Distributed Systems</td>
+                    <td className="muted">B.Tech CSE</td>
+                    <td>42</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className="dashboard-card">
+            <div className="dashboard-section-title">
+              <span className="material-symbols-outlined">assignment</span>
+              <h2>Created Assignments</h2>
+            </div>
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Assignment</th>
+                    <th>Subject</th>
+                    <th>Due Date</th>
+                    <th>Submissions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Memory Mapping Lab</td>
+                    <td className="muted">CS-401</td>
+                    <td className="muted">Nov 12, 2023</td>
+                    <td>45/60</td>
+                  </tr>
+                  <tr>
+                    <td>Algorithm Analysis</td>
+                    <td className="muted">CS-401</td>
+                    <td className="muted">Nov 20, 2023</td>
+                    <td>12/60</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <AdminFooter />
+    </div>
+  )
+}
+
+function ForgotPasswordScreen({
+  onBack,
+  onResetPassword,
+}: {
+  onBack: () => void
+  onResetPassword: () => void
+}) {
+  const [email, setEmail] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      await authService.forgotPassword(email)
+      setSuccess(true)
+      setTimeout(() => {
+        onResetPassword()
+      }, 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send reset link')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <>
+      <main className="student-login-card" aria-label="Forgot password">
+        <div className="student-card-content">
+          <button type="button" className="back-link" onClick={onBack}>
+            <span className="material-symbols-outlined">arrow_back</span>
+            <span>Back</span>
+          </button>
+
+          <div className="student-logo-wrap">
+            <div className="student-logo-shell">
+              <span className="material-symbols-outlined icon-school">lock_reset</span>
+            </div>
+          </div>
+
+          <div className="student-heading">
+            <h1 className="student-title">Forgot Password</h1>
+            <p>Enter your email to receive a password reset link</p>
+          </div>
+
+          <div className="student-accent" />
+
+          <form className="student-form" onSubmit={handleSubmit}>
+            {error && (
+              <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                {error}
+              </div>
+            )}
+            {success && (
+              <div style={{ padding: '0.75rem', background: '#d1fae5', color: '#065f46', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                Reset link sent! Check your email.
+              </div>
+            )}
+            <div className="field-group">
+              <label htmlFor="resetEmail">Educational Email</label>
+              <input
+                id="resetEmail"
+                type="email"
+                placeholder="name@college.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading || success}
+              />
+            </div>
+
+            <div className="student-actions">
+              <button type="submit" className="student-primary-btn" disabled={isLoading || success}>
+                {isLoading ? 'Sending...' : success ? 'Link Sent!' : 'Send Reset Link'}
+              </button>
+            </div>
+          </form>
+
+          <div className="student-register-cta">
+            <p>
+              Remember your password?{' '}
+              <button type="button" className="inline-link" onClick={onBack}>
+                Back to Login
+              </button>
+            </p>
+          </div>
+        </div>
+      </main>
+
+      <footer className="page-footer">
+        <p>© 2024 University Digital Repository</p>
+      </footer>
+    </>
+  )
+}
+
+function ResetPasswordScreen({
+  onBack,
+  onLogin,
+}: {
+  onBack: () => void
+  onLogin: () => void
+}) {
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
+  // Get token from URL query params (mock - in real app, extract from URL)
+  const token = 'mock-reset-token'
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      await authService.resetPassword(token, password)
+      setSuccess(true)
+      setTimeout(() => {
+        onLogin()
+      }, 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset password')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <>
+      <main className="student-login-card" aria-label="Reset password">
+        <div className="student-card-content">
+          <button type="button" className="back-link" onClick={onBack}>
+            <span className="material-symbols-outlined">arrow_back</span>
+            <span>Back</span>
+          </button>
+
+          <div className="student-logo-wrap">
+            <div className="student-logo-shell">
+              <span className="material-symbols-outlined icon-school">lock</span>
+            </div>
+          </div>
+
+          <div className="student-heading">
+            <h1 className="student-title">Reset Password</h1>
+            <p>Enter your new password</p>
+          </div>
+
+          <div className="student-accent" />
+
+          <form className="student-form" onSubmit={handleSubmit}>
+            {error && (
+              <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                {error}
+              </div>
+            )}
+            {success && (
+              <div style={{ padding: '0.75rem', background: '#d1fae5', color: '#065f46', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                Password reset successful! Redirecting...
+              </div>
+            )}
+            <div className="field-group">
+              <label htmlFor="newPassword">New Password</label>
+              <div className="password-wrap">
+                <input
+                  id="newPassword"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading || success}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label="Toggle password visibility"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  <span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="field-group">
+              <label htmlFor="confirmNewPassword">Confirm New Password</label>
+              <div className="password-wrap">
+                <input
+                  id="confirmNewPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={isLoading || success}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label="Toggle password visibility"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  <span className="material-symbols-outlined">{showConfirmPassword ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="student-actions">
+              <button type="submit" className="student-primary-btn" disabled={isLoading || success}>
+                {isLoading ? 'Resetting...' : success ? 'Success!' : 'Reset Password'}
+              </button>
+            </div>
+          </form>
+
+          <div className="student-register-cta">
+            <p>
+              Remember your password?{' '}
+              <button type="button" className="inline-link" onClick={onBack}>
+                Back to Login
+              </button>
+            </p>
+          </div>
+        </div>
+      </main>
+
+      <footer className="page-footer">
+        <p>© 2024 University Digital Repository</p>
+      </footer>
+    </>
+  )
+}
+
 function App() {
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const [path, setPath] = useState<RoutePath>(() => normalizePath(window.location.pathname))
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null)
+  const [notices, setNotices] = useState<DepartmentNotice[]>(() => {
+    const raw = localStorage.getItem('department_notices')
+    if (!raw) {
+      return defaultDepartmentNotices
+    }
+    try {
+      const parsed = JSON.parse(raw) as DepartmentNotice[]
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultDepartmentNotices
+    } catch {
+      return defaultDepartmentNotices
+    }
+  })
 
   useEffect(() => {
     const normalized = normalizePath(window.location.pathname)
@@ -3444,10 +5755,70 @@ function App() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
+  useEffect(() => {
+    localStorage.setItem('department_notices', JSON.stringify(notices))
+  }, [notices])
+
+  useEffect(() => {
+    if (!sessionNotice) {
+      return
+    }
+    const timer = window.setTimeout(() => setSessionNotice(null), 4500)
+    return () => window.clearTimeout(timer)
+  }, [sessionNotice])
+
   const navigate = (nextPath: RoutePath) => {
     window.history.pushState({}, '', nextPath)
     setPath(nextPath)
   }
+
+  const createNotice = ({ title, content }: { title: string; content: string }) => {
+    const newNotice: DepartmentNotice = {
+      id: `notice-${Date.now()}`,
+      title,
+      content,
+      createdAt: new Date().toISOString(),
+      author: user?.name || user?.fullName || 'Admin User',
+    }
+    setNotices((current) => [newNotice, ...current])
+  }
+
+  useEffect(() => {
+    if (isAuthLoading) {
+      return
+    }
+
+    const requiredRole = getRequiredRole(path)
+    let nextPath: RoutePath | null = null
+    let shouldShowExpiredNotice = false
+
+    if (requiredRole && (!isAuthenticated || !user)) {
+      const token = localStorage.getItem('auth_token')
+      const expiresAt = Number(localStorage.getItem('auth_expires_at') ?? '0')
+      if (token && expiresAt > 0 && Date.now() > expiresAt) {
+        shouldShowExpiredNotice = true
+      }
+      nextPath = roleLoginRoute[requiredRole]
+    }
+
+    if (!nextPath && requiredRole && user && user.role !== requiredRole) {
+      nextPath = roleHomeRoute[user.role]
+    }
+
+    if (!nextPath && isAuthenticated && user && (path === '/student_login' || path === '/faculty_login' || path === '/admin_login')) {
+      nextPath = roleHomeRoute[user.role]
+    }
+
+    if (nextPath && path !== nextPath) {
+      if (shouldShowExpiredNotice) {
+        window.setTimeout(() => {
+          setSessionNotice('Session expired. Please login again.')
+        }, 0)
+      }
+      window.history.replaceState({}, '', nextPath)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }
+  }, [path, isAuthenticated, user, isAuthLoading])
 
   const isAuthRoute =
     path === '/' ||
@@ -3458,6 +5829,13 @@ function App() {
 
   return (
     <div className={isAuthRoute ? 'app-shell auth-shell' : 'app-shell'}>
+      {sessionNotice ? (
+        <div className="app-session-notice" role="alert">
+          <span className="material-symbols-outlined">info</span>
+          <p>{sessionNotice}</p>
+        </div>
+      ) : null}
+
       <div className="background-pattern" aria-hidden="true">
         <div className="orb orb-top" />
         <div className="orb orb-bottom" />
@@ -3468,6 +5846,7 @@ function App() {
           onBack={() => navigate('/')}
           onRegister={() => navigate('/student_register')}
           onLogin={() => navigate('/student_dashboard')}
+          onForgotPassword={() => navigate('/forgot_password')}
         />
       ) : null}
 
@@ -3482,6 +5861,9 @@ function App() {
           onAddFaculty={() => navigate('/admin_faculty_accounts')}
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
           onStudentAccounts={() => navigate('/admin_student_accounts')}
+          onEnrollStudents={() => navigate('/admin_enroll_students')}
+          onCirculars={() => navigate('/admin_circulars')}
+          onReviewUploads={() => navigate('/admin_review_uploads')}
         />
       ) : null}
 
@@ -3489,6 +5871,8 @@ function App() {
         <AdminFacultyAccountsScreen
           onBackDashboard={() => navigate('/admin_dashboard')}
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
+          onCirculars={() => navigate('/admin_circulars')}
+          onViewFacultyDetails={() => navigate('/admin_faculty_details')}
         />
       ) : null}
 
@@ -3496,6 +5880,7 @@ function App() {
         <AdminAssignSubjectsScreen
           onBackDashboard={() => navigate('/admin_dashboard')}
           onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
+          onCirculars={() => navigate('/admin_circulars')}
         />
       ) : null}
 
@@ -3504,6 +5889,57 @@ function App() {
           onBackDashboard={() => navigate('/admin_dashboard')}
           onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
           onAssignSubjects={() => navigate('/admin_assign_subjects')}
+          onCirculars={() => navigate('/admin_circulars')}
+          onEnrollStudents={() => navigate('/admin_enroll_students')}
+          onViewStudentDetails={() => navigate('/admin_student_details')}
+        />
+      ) : null}
+
+      {path === '/admin_circulars' ? (
+        <AdminCircularsScreen
+          notices={notices}
+          onCreateNotice={createNotice}
+          onBackDashboard={() => navigate('/admin_dashboard')}
+          onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
+          onAssignSubjects={() => navigate('/admin_assign_subjects')}
+        />
+      ) : null}
+
+      {path === '/admin_enroll_students' ? (
+        <AdminEnrollStudentsScreen
+          onBackDashboard={() => navigate('/admin_dashboard')}
+          onBackToAccounts={() => navigate('/admin_student_accounts')}
+        />
+      ) : null}
+
+      {path === '/admin_review_uploads' ? (
+        <AdminReviewUploadsScreen
+          onBackDashboard={() => navigate('/admin_dashboard')}
+          onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
+          onAssignSubjects={() => navigate('/admin_assign_subjects')}
+          onCirculars={() => navigate('/admin_circulars')}
+        />
+      ) : null}
+
+      {path === '/admin_student_details' ? (
+        <AdminStudentDetailsScreen onBack={() => navigate('/admin_student_accounts')} />
+      ) : null}
+
+      {path === '/admin_faculty_details' ? (
+        <AdminFacultyDetailsScreen onBack={() => navigate('/admin_faculty_accounts')} />
+      ) : null}
+
+      {path === '/forgot_password' ? (
+        <ForgotPasswordScreen
+          onBack={() => navigate('/student_login')}
+          onResetPassword={() => navigate('/reset_password')}
+        />
+      ) : null}
+
+      {path === '/reset_password' ? (
+        <ResetPasswordScreen
+          onBack={() => navigate('/forgot_password')}
+          onLogin={() => navigate('/student_login')}
         />
       ) : null}
 
@@ -3516,14 +5952,21 @@ function App() {
         />
       ) : null}
 
-      {path === '/faculty_verification' ? <FacultyVerificationScreen /> : null}
+      {path === '/faculty_verification' ? (
+        <FacultyVerificationScreen onBackToDashboard={() => navigate('/faculty_dashboard')} />
+      ) : null}
 
       {path === '/faculty_textbook_upload' ? <FacultyTextbookUploadScreen /> : null}
 
-      {path === '/faculty_create_assignment' ? <FacultyCreateAssignmentScreen /> : null}
+      {path === '/faculty_create_assignment' ? (
+        <FacultyCreateAssignmentScreen onBackToDashboard={() => navigate('/faculty_dashboard')} />
+      ) : null}
 
       {path === '/faculty_assignment_submissions' ? (
-        <FacultyAssignmentSubmissionsScreen onGrade={() => navigate('/faculty_grade_submission')} />
+        <FacultyAssignmentSubmissionsScreen
+          onGrade={() => navigate('/faculty_grade_submission')}
+          onBackToDashboard={() => navigate('/faculty_dashboard')}
+        />
       ) : null}
 
       {path === '/faculty_grade_submission' ? <FacultyGradeSubmissionScreen /> : null}
@@ -3533,12 +5976,22 @@ function App() {
           onViewBrief={() => navigate('/assignment_review')}
           onViewResult={() => navigate('/assignment_result')}
           onUnofficialNotes={() => navigate('/unofficial_notes')}
+          onSearchResources={() => navigate('/search_results')}
+          onBrowseRepository={() => navigate('/repository')}
         />
       ) : null}
 
-      {path === '/assignment_review' ? <AssignmentReviewScreen /> : null}
+      {path === '/search_results' ? <SearchResultsScreen onBackDashboard={() => navigate('/student_dashboard')} /> : null}
 
-      {path === '/assignment_result' ? <AssignmentResultScreen /> : null}
+      {path === '/repository' ? <StudentRepositoryScreen onBackDashboard={() => navigate('/student_dashboard')} /> : null}
+
+      {path === '/assignment_review' ? (
+        <AssignmentReviewScreen onBackToDashboard={() => navigate('/student_dashboard')} />
+      ) : null}
+
+      {path === '/assignment_result' ? (
+        <AssignmentResultScreen onBackToDashboard={() => navigate('/student_dashboard')} />
+      ) : null}
 
       {path === '/unofficial_notes' ? <UnofficialNotesScreen /> : null}
 
@@ -3547,6 +6000,7 @@ function App() {
           onStudentLogin={() => navigate('/student_login')}
           onFacultyLogin={() => navigate('/faculty_login')}
           onAdminLogin={() => navigate('/admin_login')}
+          notices={notices}
         />
       ) : null}
     </div>
