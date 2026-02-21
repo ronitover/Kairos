@@ -1,11 +1,15 @@
-﻿import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import './App.css'
+import backgroundImage from './assets/background.png'
 import { useAuth } from './contexts/AuthContext'
 import { authService } from './services/auth'
 import { studentService } from './services/students'
 import { assignmentService } from './services/assignments'
 import { adminService, adminPendingUploadsService } from './services/admin'
+import { communicationsService } from './services/communications'
 import { facultyService } from './services/faculty'
+import { filesService } from './services/files'
+import { apiClient } from './services/api'
 import { validateFile, FileUploadError } from './utils/fileUpload'
 
 type RoutePath =
@@ -94,6 +98,31 @@ type AcademicEvent = {
   createdBy: string
   createdByRole: 'faculty' | 'admin'
   targetAudience: 'students' | 'faculty' | 'both'
+}
+
+function noticeDtoToNotice(d: { id: string; title: string; content: string; created_at: string; author_name: string; created_by_role: 'admin' | 'faculty'; urgent: boolean }): DepartmentNotice {
+  return {
+    id: d.id,
+    title: d.title,
+    content: d.content,
+    createdAt: d.created_at,
+    author: d.author_name,
+    authorRole: d.created_by_role,
+    urgent: d.urgent,
+  }
+}
+
+function eventDtoToEvent(d: { id: string; title: string; event_date: string; event_type: AcademicEventType; details: string; created_by_role: 'admin' | 'faculty'; target_audience: 'students' | 'faculty' | 'both'; created_by_name?: string }): AcademicEvent {
+  return {
+    id: d.id,
+    title: d.title,
+    date: d.event_date,
+    type: d.event_type,
+    details: d.details,
+    createdBy: d.created_by_name ?? (d.created_by_role === 'admin' ? 'Admin' : 'Faculty'),
+    createdByRole: d.created_by_role,
+    targetAudience: d.target_audience,
+  }
 }
 
 type PdfPreviewLine = {
@@ -331,23 +360,12 @@ function CommonDashboardHeader({
   )
 }
 
-function CommonDashboardFooter({
-  containerClassName,
-  caption,
-}: {
-  containerClassName: string
-  caption: string
-}) {
+function CommonDashboardFooter({ containerClassName }: { containerClassName: string }) {
   return (
     <footer className={`dashboard-footer ${containerClassName}`}>
       <div>
-        <p>{caption}</p>
+        <p>©  StudySync, Made by Kairos with ❤️</p>
       </div>
-      <nav aria-label="Footer links">
-        <a href="#">Help Center</a>
-        <a href="#">Privacy Policy</a>
-        <a href="#">Support</a>
-      </nav>
     </footer>
   )
 }
@@ -379,19 +397,23 @@ function PdfPreviewModal({
 
   useEffect(() => {
     if (!isOpen || !isPdfFile || !readableUrl) {
-      setPdfPages([])
-      setIsPdfLoading(false)
-      setPdfError(null)
-      return
+      const tid = setTimeout(() => {
+        setPdfPages([])
+        setIsPdfLoading(false)
+        setPdfError(null)
+      }, 0)
+      return () => clearTimeout(tid)
     }
 
     let active = true
     const authToken = localStorage.getItem('auth_token')
     const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined
 
-    setIsPdfLoading(true)
-    setPdfError(null)
-    setPdfPages([])
+    const tid = setTimeout(() => {
+      setIsPdfLoading(true)
+      setPdfError(null)
+      setPdfPages([])
+    }, 0)
 
     extractPdfPagesTextFromUrl(readableUrl, headers, 40)
       .then((pages) => {
@@ -413,6 +435,7 @@ function PdfPreviewModal({
 
     return () => {
       active = false
+      clearTimeout(tid)
     }
   }, [isOpen, isPdfFile, readableUrl])
 
@@ -1501,7 +1524,7 @@ function HomeScreen({
       </main>
 
       <footer className="page-footer">
-        <p>© 2024 University Digital Repository. All rights reserved.</p>
+        <p>©  StudySync, Made by Kairos with ❤️</p>
       </footer>
     </>
   )
@@ -1630,7 +1653,7 @@ function StudentLoginScreen({
       </main>
 
       <footer className="page-footer">
-        <p>© 2024 University Digital Repository</p>
+        <p>©  StudySync, Made by Kairos with ❤️</p>
       </footer>
     </>
   )
@@ -2204,12 +2227,7 @@ function AdminHeader({
 function AdminFooter() {
   return (
     <footer className="admin-footer admin-container">
-      <p>© 2024 University Digital Repository. Global Administrative Control.</p>
-      <nav aria-label="Admin footer links">
-        <a href="#">System Status</a>
-        <a href="#">Privacy Policy</a>
-        <a href="#">User Audit Log</a>
-      </nav>
+      <p>©  StudySync, Made by Kairos with ❤️</p>
     </footer>
   )
 }
@@ -2435,10 +2453,7 @@ function AdminDashboardScreen({
         </section>
       </main>
 
-      <CommonDashboardFooter
-        containerClassName="admin-container"
-        caption="© 2024 University Digital Repository. Global Administrative Control."
-      />
+      <CommonDashboardFooter containerClassName="admin-container" />
     </div>
   )
 }
@@ -2542,9 +2557,11 @@ function AdminCircularsScreen({
       />
 
       <main className="admin-container admin-main">
-        <section className="admin-circulars-head">
-          <h2>Department Circulars</h2>
-          <p>Create and publish notices for students and faculty.</p>
+        <section className="screen-head">
+          <div>
+            <h2>Department Circulars</h2>
+            <p className="screen-head-subtitle">Create and publish notices for students and faculty.</p>
+          </div>
         </section>
 
         <section className="admin-circulars-grid">
@@ -2802,8 +2819,20 @@ function AdminReviewUploadsScreen({
     return () => { active = false }
   }, [])
 
-  const handleAction = (id: string, status: 'approved' | 'rejected') => {
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const handleAction = async (id: string, status: 'approved' | 'rejected') => {
+    setActionError(null)
     setStatusById((current) => ({ ...current, [id]: status }))
+    try {
+      await facultyService.verifyNote(id, status === 'approved' ? 'approve' : 'reject')
+      const list = await adminPendingUploadsService.getPendingUploads()
+      setUploads(list.map((u) => ({ id: u.id, student: u.student, usn: u.usn, title: u.title, format: u.format, date: u.date })))
+      setStatusById(Object.fromEntries(list.map((u) => [u.id, u.status])))
+    } catch (e) {
+      setStatusById((current) => ({ ...current, [id]: 'pending' }))
+      setActionError(e instanceof Error ? e.message : 'Action failed')
+    }
   }
 
   return (
@@ -2820,9 +2849,12 @@ function AdminReviewUploadsScreen({
       />
 
       <main className="admin-container admin-main">
-        <section className="admin-review-head">
-          <h2>Review Uploads</h2>
-          <p>HOD/Admin moderation queue for student-contributed resources.</p>
+        <section className="screen-head">
+          <div>
+            <h2>Review Uploads</h2>
+            <p className="screen-head-subtitle">Moderation queue for student-contributed resources.</p>
+            {actionError && <p className="error-message" style={{ marginTop: '0.5rem' }}>{actionError}</p>}
+          </div>
         </section>
 
         <section className="admin-review-table-card">
@@ -2941,6 +2973,7 @@ function AdminStudentAccountsScreen({
 }) {
   const [studentList, setStudentList] = useState<Awaited<ReturnType<typeof adminService.getStudents>>>([])
   const [studentError, setStudentError] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [programmeFilter, setProgrammeFilter] = useState('All Programmes')
   const [semesterFilter, setSemesterFilter] = useState('All Semesters')
@@ -2956,6 +2989,12 @@ function AdminStudentAccountsScreen({
   useEffect(() => {
     fetchStudents()
   }, [])
+
+  useEffect(() => {
+    if (!actionMessage) return
+    const t = window.setTimeout(() => setActionMessage(null), 5000)
+    return () => window.clearTimeout(t)
+  }, [actionMessage])
 
   const applyFilters = () => {
     fetchStudents({
@@ -3013,20 +3052,16 @@ function AdminStudentAccountsScreen({
       />
 
       <main className="admin-container admin-main">
-        <section className="admin-students-head">
+        <section className="screen-head">
           <div>
-            <nav aria-label="Student account breadcrumbs">
-              <span>Dashboard</span>
-              <span>/</span>
-              <span>Student Accounts</span>
-            </nav>
             <h2>Student Accounts Management</h2>
           </div>
           {onEnrollStudents && (
-            <button type="button" className="admin-faculty-add-btn" onClick={onEnrollStudents}>
-              <span className="material-symbols-outlined">person_add</span>
-              Enroll Students
-            </button>
+            <div className="screen-head-actions">
+              <button type="button" className="dashboard-btn-primary" onClick={onEnrollStudents}>
+                Enroll Students
+              </button>
+            </div>
           )}
         </section>
 
@@ -3080,6 +3115,19 @@ function AdminStudentAccountsScreen({
             {studentError}
           </div>
         ) : null}
+        {actionMessage ? (
+          <div
+            style={{
+              padding: '1rem',
+              background: actionMessage.startsWith('Password reset') ? '#f0fdf4' : '#fef2f2',
+              color: actionMessage.startsWith('Password reset') ? '#166534' : '#991b1b',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+            }}
+          >
+            {actionMessage}
+          </div>
+        ) : null}
         <section className="admin-students-bulk">
           <div>
             <button type="button" className="deactivate" onClick={() => selectedIds.size > 0 && window.alert('Deactivate selected requires backend integration.')}>
@@ -3108,9 +3156,9 @@ function AdminStudentAccountsScreen({
                   <th>USN</th>
                   <th>Programme</th>
                   <th>Semester</th>
-                  <th>Email</th>
+                  <th className="admin-students-email-col">Email</th>
                   <th>Status</th>
-                  <th className="align-right">Actions</th>
+                  <th className="align-right" aria-label="Actions"></th>
                 </tr>
               </thead>
               <tbody>
@@ -3135,7 +3183,7 @@ function AdminStudentAccountsScreen({
                       <td className="mono">{s.usn}</td>
                       <td>{s.programme}</td>
                       <td>{s.semester}</td>
-                      <td className="muted">{s.email}</td>
+                      <td className="admin-students-email-col muted">{s.email ?? '—'}</td>
                       <td>
                         <span className={`admin-student-status ${s.status === 'active' ? 'active' : 'disabled'}`}>
                           {s.status === 'active' ? 'Active' : 'Disabled'}
@@ -3146,7 +3194,20 @@ function AdminStudentAccountsScreen({
                           <button type="button" className="view" aria-label="View details" onClick={() => onViewStudentDetails?.(s.id)}>
                             <span className="material-symbols-outlined">visibility</span>
                           </button>
-                          <button type="button" className="reset" aria-label="Reset password" onClick={() => window.alert('Reset password requires backend integration.')}>
+                          <button
+                            type="button"
+                            className="reset"
+                            aria-label="Reset password"
+                            onClick={async () => {
+                              setActionMessage(null)
+                              try {
+                                await adminService.sendStudentPasswordResetEmail(s.id)
+                                setActionMessage('Password reset email sent to the student.')
+                              } catch (e) {
+                                setActionMessage(e instanceof Error ? e.message : 'Failed to send reset email.')
+                              }
+                            }}
+                          >
                             <span className="material-symbols-outlined">password</span>
                           </button>
                           <button type="button" className="disable" aria-label="Disable account" onClick={() => window.alert('Disable account requires backend integration.')}>
@@ -3279,15 +3340,15 @@ function AdminFacultyAccountsScreen({
       />
 
       <main className="admin-container admin-main">
-        <section className="admin-faculty-head">
+        <section className="screen-head">
           <div>
             <h2>Faculty Accounts</h2>
-            <div />
           </div>
-          <button type="button" className="admin-faculty-add-btn" onClick={() => setIsAddModalOpen(true)}>
-            <span className="material-symbols-outlined">person_add</span>
-            Add Faculty
-          </button>
+          <div className="screen-head-actions">
+            <button type="button" className="dashboard-btn-primary" onClick={() => setIsAddModalOpen(true)}>
+              Add Faculty
+            </button>
+          </div>
         </section>
 
         {facultyError ? (
@@ -3530,9 +3591,11 @@ function AdminAssignSubjectsScreen({
       />
 
       <main className="admin-container admin-main">
-        <section className="admin-assign-head">
-          <h2>Assign Subjects to Faculty</h2>
-          <p>Select a faculty member and map their academic responsibilities.</p>
+        <section className="screen-head">
+          <div>
+            <h2>Assign Subjects to Faculty</h2>
+            <p className="screen-head-subtitle">Select a faculty member and map their academic responsibilities.</p>
+          </div>
         </section>
 
         {assignError ? (
@@ -4374,10 +4437,7 @@ function FacultyDashboardScreen({
         </div>
       ) : null}
 
-      <CommonDashboardFooter
-        containerClassName="faculty-container"
-        caption="University Digital Repository • Faculty Portal"
-      />
+      <CommonDashboardFooter containerClassName="faculty-container" />
     </div>
   )
 }
@@ -4472,6 +4532,7 @@ function StudentDashboardScreen({
       }
     }
 
+    // eslint-disable-next-line react-hooks/purity -- Date.now() for "due in X days" is intentional
     const dueInDays = Math.ceil((new Date(dueDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
     return {
       icon: 'warning',
@@ -4744,10 +4805,7 @@ function StudentDashboardScreen({
         </section>
       </main>
 
-      <CommonDashboardFooter
-        containerClassName="dashboard-container"
-        caption="© 2024 University Academic Digital Repository"
-      />
+      <CommonDashboardFooter containerClassName="dashboard-container" />
       <PdfPreviewModal
         isOpen={isPreviewOpen}
         title={previewTitle}
@@ -5038,13 +5096,8 @@ function FacultyVerificationScreen({
 
       <footer className="dashboard-footer faculty-container">
         <div>
-          <p>University Digital Repository • Faculty Portal</p>
+          <p>©  StudySync, Made by Kairos with ❤️</p>
         </div>
-        <nav aria-label="Footer links">
-          <a href="#">Internal Guidelines</a>
-          <a href="#">Faculty Support</a>
-          <a href="#">System Status</a>
-        </nav>
       </footer>
       <PdfPreviewModal
         isOpen={isPreviewOpen}
@@ -5356,13 +5409,8 @@ function FacultyTextbookUploadScreen({
 
       <footer className="dashboard-footer faculty-container">
         <div>
-          <p>University Digital Repository • Faculty Portal</p>
+          <p>©  StudySync, Made by Kairos with ❤️</p>
         </div>
-        <nav aria-label="Footer links">
-          <a href="#">Internal Guidelines</a>
-          <a href="#">Faculty Support</a>
-          <a href="#">System Status</a>
-        </nav>
       </footer>
     </div>
   )
@@ -5674,7 +5722,7 @@ function FacultyCreateAssignmentScreen({
       </main>
 
       <footer className="create-assignment-footer">
-        <p>© 2024 University Digital Repository Platform. All faculty rights reserved.</p>
+        <p>©  StudySync, Made by Kairos with ❤️</p>
       </footer>
     </div>
   )
@@ -5686,11 +5734,82 @@ function FacultyAssignmentSubmissionsScreen({
   onNavigate,
   onLogout,
 }: {
-  onGrade: () => void
+  onGrade: (assignmentId: string, submissionId: string) => void
   currentPath: RoutePath
   onNavigate: (path: RoutePath) => void
   onLogout: () => void
 }) {
+  const [assignments, setAssignments] = useState<Array<{ id: string; title: string; subjectCode: string }>>([])
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('')
+  const [submissionsData, setSubmissionsData] = useState<{
+    assignment: { id: string; title: string; subjectCode: string; totalMarks: number }
+    submissions: Array<{
+      id: string
+      student: { id: string; name: string; usn: string }
+      submittedAt: string
+      status: string
+      isLate: boolean
+      grade?: { marks: number; grade: string }
+    }>
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [submissionsLoading, setSubmissionsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const tid = setTimeout(() => { if (!cancelled) setLoading(true); setError(null) }, 0)
+    assignmentService
+      .getAssignments()
+      .then((list) => {
+        if (cancelled) return
+        setAssignments(list.map((a) => ({ id: a.id, title: a.title, subjectCode: a.subjectCode })))
+        if (list.length > 0 && !selectedAssignmentId) setSelectedAssignmentId(list[0].id)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load assignments')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true; clearTimeout(tid) }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedAssignmentId) {
+      const id = setTimeout(() => setSubmissionsData(null), 0)
+      return () => clearTimeout(id)
+    }
+    let cancelled = false
+    const tid = setTimeout(() => { if (!cancelled) setSubmissionsLoading(true) }, 0)
+    assignmentService
+      .getAssignmentSubmissions(selectedAssignmentId)
+      .then((data) => {
+        if (cancelled) return
+        setSubmissionsData({
+          assignment: {
+            id: data.assignment.id,
+            title: data.assignment.title,
+            subjectCode: data.assignment.subjectCode,
+            totalMarks: data.assignment.totalMarks,
+          },
+          submissions: data.submissions.map((s) => ({
+            id: s.id,
+            student: s.student,
+            submittedAt: s.submittedAt,
+            status: s.status,
+            isLate: s.isLate,
+            grade: s.grade,
+          })),
+        })
+      })
+      .catch(() => { if (!cancelled) setSubmissionsData(null) })
+      .finally(() => { if (!cancelled) setSubmissionsLoading(false) })
+    return () => { cancelled = true; clearTimeout(tid) }
+  }, [selectedAssignmentId])
+
+  const submittedCount = submissionsData?.submissions.filter((s) => s.status === 'submitted' || s.status === 'late').length ?? 0
+  const pendingCount = submissionsData?.submissions.filter((s) => s.status === 'pending').length ?? 0
+  const lateCount = submissionsData?.submissions.filter((s) => s.isLate).length ?? 0
+
   return (
     <div className="faculty-submissions-page" aria-label="Assignment submissions overview">
       <CommonDashboardHeader
@@ -5709,224 +5828,295 @@ function FacultyAssignmentSubmissionsScreen({
       />
 
       <main className="faculty-submissions-container faculty-submissions-main">
-        <div className="faculty-submissions-top">
-          <div className="faculty-submissions-actions">
-            <button type="button" className="faculty-submissions-outline-btn">
-              <span className="material-symbols-outlined">download</span>
-              Export CSV
-            </button>
-            <button type="button" className="faculty-submissions-primary-btn">
-              <span className="material-symbols-outlined">publish</span>
-              Release Grades
-            </button>
-          </div>
-        </div>
-
         <section className="faculty-submissions-title-block">
-          <h1>Assignment Submissions - Memory Mapping Lab</h1>
-          <div />
-          <p>
-            Review and grade student submissions for the CS301 Laboratory Session 4. Ensure all late submissions are
-            marked before final grade release.
-          </p>
+          <h1>Assignment Submissions</h1>
+          <div className="faculty-submissions-actions">
+            <label htmlFor="faculty-assignment-select">Assignment</label>
+            <select
+              id="faculty-assignment-select"
+              value={selectedAssignmentId}
+              onChange={(e) => setSelectedAssignmentId(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">Select assignment</option>
+              {assignments.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.subjectCode} – {a.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          {submissionsData && (
+            <p>
+              Review and grade student submissions for {submissionsData.assignment.title}.
+            </p>
+          )}
         </section>
 
-        <section className="faculty-submissions-stats">
-          <article className="faculty-submissions-stat-card">
-            <div>
-              <p>Total Students</p>
-              <span className="material-symbols-outlined">group</span>
-            </div>
-            <h3>60</h3>
-            <small>Enrolled</small>
-          </article>
-          <article className="faculty-submissions-stat-card">
-            <div>
-              <p>Submitted</p>
-              <span className="material-symbols-outlined text-success">check_circle</span>
-            </div>
-            <h3 className="text-success">45</h3>
-            <small className="text-success">+75% Complete</small>
-          </article>
-          <article className="faculty-submissions-stat-card">
-            <div>
-              <p>Pending</p>
-              <span className="material-symbols-outlined">hourglass_empty</span>
-            </div>
-            <h3 className="text-muted">10</h3>
-            <small>In progress</small>
-          </article>
-          <article className="faculty-submissions-stat-card">
-            <div>
-              <p>Late</p>
-              <span className="material-symbols-outlined text-warning">error</span>
-            </div>
-            <h3 className="text-warning">5</h3>
-            <small>After Oct 12</small>
-          </article>
-        </section>
-
-        <section className="faculty-submissions-table-card">
-          <div className="faculty-submissions-table-head">
-            <div className="faculty-submissions-search">
-              <span className="material-symbols-outlined">search</span>
-              <input type="text" placeholder="Search by name or USN..." />
-            </div>
-            <div className="faculty-submissions-table-controls">
-              <button type="button">
-                <span className="material-symbols-outlined">filter_list</span>
-              </button>
-              <select defaultValue="All Submissions">
-                <option>All Submissions</option>
-                <option>Submitted</option>
-                <option>Late</option>
-                <option>Pending</option>
-              </select>
-            </div>
+        {error && (
+          <div className="search-empty-state">
+            <span className="material-symbols-outlined">error_outline</span>
+            <p>{error}</p>
           </div>
+        )}
 
-          <div className="dashboard-table-wrap">
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th>Student Name</th>
-                  <th>USN</th>
-                  <th>Submission Time</th>
-                  <th>Status</th>
-                  <th className="align-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <div className="faculty-submissions-student">
-                      <span>AM</span>
-                      <strong>Aditi Mishra</strong>
-                    </div>
-                  </td>
-                  <td className="muted">1RV21CS001</td>
-                  <td className="muted">Oct 12, 2023 10:45 AM</td>
-                  <td>
-                    <span className="faculty-submissions-badge submitted">Submitted</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="faculty-submissions-row-actions">
-                      <button type="button" className="faculty-submissions-view-btn">
-                        View Submission
-                      </button>
-                      <button type="button" className="faculty-submissions-grade-btn" onClick={onGrade}>
-                        Grade
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="faculty-submissions-student">
-                      <span>RJ</span>
-                      <strong>Rahul Jain</strong>
-                    </div>
-                  </td>
-                  <td className="muted">1RV21CS042</td>
-                  <td className="muted">Oct 12, 2023 11:15 PM</td>
-                  <td>
-                    <span className="faculty-submissions-badge late">Late</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="faculty-submissions-row-actions">
-                      <button type="button" className="faculty-submissions-view-btn">
-                        View Submission
-                      </button>
-                      <button type="button" className="faculty-submissions-grade-btn" onClick={onGrade}>
-                        Grade
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="faculty-submissions-student">
-                      <span>SK</span>
-                      <strong>Sneha Kapoor</strong>
-                    </div>
-                  </td>
-                  <td className="muted">1RV21CS085</td>
-                  <td className="muted">Oct 12, 2023 09:30 AM</td>
-                  <td>
-                    <span className="faculty-submissions-badge submitted">Submitted</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="faculty-submissions-row-actions">
-                      <button type="button" className="faculty-submissions-view-btn">
-                        View Submission
-                      </button>
-                      <button type="button" className="faculty-submissions-grade-btn" onClick={onGrade}>
-                        Grade
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="faculty-submissions-student">
-                      <span>VP</span>
-                      <strong>Vikram Patil</strong>
-                    </div>
-                  </td>
-                  <td className="muted">1RV21CS102</td>
-                  <td className="muted">No submission</td>
-                  <td>
-                    <span className="faculty-submissions-badge pending">Pending</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="faculty-submissions-row-actions disabled">
-                      <button type="button" className="faculty-submissions-view-btn" disabled>
-                        View Submission
-                      </button>
-                      <button type="button" className="faculty-submissions-grade-btn" disabled>
-                        Grade
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        {submissionsData && (
+          <>
+            <section className="faculty-submissions-stats">
+              <article className="faculty-submissions-stat-card">
+                <div>
+                  <p>Total Submissions</p>
+                  <span className="material-symbols-outlined">group</span>
+                </div>
+                <h3>{submissionsData.submissions.length}</h3>
+                <small>Enrolled</small>
+              </article>
+              <article className="faculty-submissions-stat-card">
+                <div>
+                  <p>Submitted</p>
+                  <span className="material-symbols-outlined text-success">check_circle</span>
+                </div>
+                <h3 className="text-success">{submittedCount}</h3>
+                <small className="text-success">Complete</small>
+              </article>
+              <article className="faculty-submissions-stat-card">
+                <div>
+                  <p>Pending</p>
+                  <span className="material-symbols-outlined">hourglass_empty</span>
+                </div>
+                <h3 className="text-muted">{pendingCount}</h3>
+                <small>No submission yet</small>
+              </article>
+              <article className="faculty-submissions-stat-card">
+                <div>
+                  <p>Late</p>
+                  <span className="material-symbols-outlined text-warning">error</span>
+                </div>
+                <h3 className="text-warning">{lateCount}</h3>
+                <small>After deadline</small>
+              </article>
+            </section>
 
-          <div className="faculty-submissions-pagination">
-            <p>Showing 1 to 5 of 60 students</p>
-            <div>
-              <button type="button">
-                <span className="material-symbols-outlined">chevron_left</span>
-              </button>
-              <button type="button" className="active">
-                1
-              </button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <span>...</span>
-              <button type="button">12</button>
-              <button type="button">
-                <span className="material-symbols-outlined">chevron_right</span>
-              </button>
-            </div>
+            <section className="faculty-submissions-table-card">
+              <div className="faculty-submissions-table-head">
+                <h2>{submissionsData.assignment.title}</h2>
+              </div>
+              {submissionsLoading ? (
+                <p>Loading submissions…</p>
+              ) : (
+                <div className="dashboard-table-wrap">
+                  <table className="dashboard-table">
+                    <thead>
+                      <tr>
+                        <th>Student Name</th>
+                        <th>USN</th>
+                        <th>Submission Time</th>
+                        <th>Status</th>
+                        <th className="align-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {submissionsData.submissions.map((sub) => {
+                        const hasSubmission = sub.status === 'submitted' || sub.status === 'late'
+                        const initials = sub.student.name.split(/\s+/).map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+                        return (
+                          <tr key={sub.id}>
+                            <td>
+                              <div className="faculty-submissions-student">
+                                <span>{initials}</span>
+                                <strong>{sub.student.name}</strong>
+                              </div>
+                            </td>
+                            <td className="muted">{sub.student.usn}</td>
+                            <td className="muted">
+                              {hasSubmission ? new Date(sub.submittedAt).toLocaleString() : 'No submission'}
+                            </td>
+                            <td>
+                              <span
+                                className={`faculty-submissions-badge ${
+                                  sub.status === 'pending' ? 'pending' : sub.isLate ? 'late' : 'submitted'
+                                }`}
+                              >
+                                {sub.status === 'pending' ? 'Pending' : sub.isLate ? 'Late' : 'Submitted'}
+                              </span>
+                            </td>
+                            <td className="align-right">
+                              <div className="faculty-submissions-row-actions">
+                                <button type="button" className="faculty-submissions-view-btn" disabled={!hasSubmission}>
+                                  View Submission
+                                </button>
+                                <button
+                                  type="button"
+                                  className="faculty-submissions-grade-btn"
+                                  disabled={!hasSubmission}
+                                  onClick={() => hasSubmission && onGrade(submissionsData.assignment.id, sub.id)}
+                                >
+                                  Grade
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {!loading && !error && assignments.length === 0 && (
+          <div className="search-empty-state">
+            <span className="material-symbols-outlined">assignment</span>
+            <p>No assignments yet. Create one from the dashboard.</p>
           </div>
-        </section>
+        )}
       </main>
 
       <footer className="faculty-submissions-footer faculty-submissions-container">
         <div>
-          <p>© 2023 University Digital Repository</p>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Support</a>
+          <p>©  StudySync, Made by Kairos with ❤️</p>
         </div>
-        <p>Platform version 2.4.1-stable</p>
       </footer>
     </div>
   )
 }
 
-function FacultyGradeSubmissionScreen() {
+const GRADING_STORAGE_KEY = 'kairos_grading_submission'
+
+function FacultyGradeSubmissionScreen({
+  onBack,
+}: {
+  onBack: () => void
+}) {
+  const [assignmentId, setAssignmentId] = useState<string | null>(null)
+  const [submissionId, setSubmissionId] = useState<string | null>(null)
+  const [assignment, setAssignment] = useState<{ title: string; subjectCode: string; totalMarks: number } | null>(null)
+  const [submission, setSubmission] = useState<{
+    student: { name: string; usn: string }
+    submittedAt: string
+    files: Array<{ fileName: string; fileUrl: string; fileSize?: number }>
+    grade?: { marks: number; grade: string; feedback: string }
+  } | null>(null)
+  const [marks, setMarks] = useState('')
+  const [gradeLetter, setGradeLetter] = useState('')
+  const [feedback, setFeedback] = useState('')
+  const [isReleased, setIsReleased] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const tid = setTimeout(() => {
+      try {
+        const raw = sessionStorage.getItem(GRADING_STORAGE_KEY)
+        if (raw) {
+          const { assignmentId: aid, submissionId: sid } = JSON.parse(raw) as { assignmentId: string; submissionId: string }
+          setAssignmentId(aid)
+          setSubmissionId(sid)
+        }
+      } catch {
+        setAssignmentId(null)
+        setSubmissionId(null)
+      }
+    }, 0)
+    return () => clearTimeout(tid)
+  }, [])
+
+  useEffect(() => {
+    if (!assignmentId || !submissionId) {
+      const tid = setTimeout(() => setLoading(false), 0)
+      return () => clearTimeout(tid)
+    }
+    let cancelled = false
+    const tid = setTimeout(() => { if (!cancelled) setLoading(true) }, 0)
+    assignmentService
+      .getAssignmentSubmissions(assignmentId)
+      .then((data) => {
+        if (cancelled) return
+        const sub = data.submissions.find((s) => s.id === submissionId)
+        if (data.assignment && sub) {
+          setAssignment({
+            title: data.assignment.title,
+            subjectCode: data.assignment.subjectCode,
+            totalMarks: data.assignment.totalMarks,
+          })
+          setSubmission({
+            student: sub.student,
+            submittedAt: sub.submittedAt,
+            files: (sub.files ?? []).map((f) => ({ fileName: f.fileName, fileUrl: f.fileUrl, fileSize: f.fileSize })),
+            grade: sub.grade,
+          })
+          if (sub.grade) {
+            setMarks(String(sub.grade.marks))
+            setGradeLetter(sub.grade.grade)
+            setFeedback(sub.grade.feedback ?? '')
+          }
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true; clearTimeout(tid) }
+  }, [assignmentId, submissionId])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!submissionId) return
+    const numMarks = Number(marks)
+    if (Number.isNaN(numMarks) || numMarks < 0) {
+      setSaveError('Enter valid marks')
+      return
+    }
+    if (assignment && numMarks > assignment.totalMarks) {
+      setSaveError(`Marks cannot exceed ${assignment.totalMarks}`)
+      return
+    }
+    setSaving(true)
+    setSaveError(null)
+    assignmentService
+      .gradeSubmission(submissionId, {
+        marks: numMarks,
+        grade: gradeLetter || undefined,
+        feedback: feedback || undefined,
+        isReleased,
+      })
+      .then(() => {
+        setSaveSuccess(true)
+        sessionStorage.removeItem(GRADING_STORAGE_KEY)
+      })
+      .catch((err) => setSaveError(err instanceof Error ? err.message : 'Failed to save grade'))
+      .finally(() => setSaving(false))
+  }
+
+  if (!assignmentId || !submissionId) {
+    return (
+      <div className="faculty-grade-page" aria-label="Faculty grading">
+        <main className="faculty-grade-container faculty-grade-main">
+          <div className="search-empty-state">
+            <span className="material-symbols-outlined">assignment</span>
+            <p>Select a submission from the Assignment Submissions list to grade.</p>
+            <button type="button" className="dashboard-btn-primary" onClick={onBack}>
+              Back to Submissions
+            </button>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (loading || !assignment || !submission) {
+    return (
+      <div className="faculty-grade-page">
+        <main className="faculty-grade-container faculty-grade-main">
+          <p>Loading…</p>
+        </main>
+      </div>
+    )
+  }
+
+  const maxMarks = assignment.totalMarks
+
   return (
     <div className="faculty-grade-page" aria-label="Faculty grading and feedback">
       <header className="faculty-grade-header">
@@ -5938,34 +6128,28 @@ function FacultyGradeSubmissionScreen() {
             <h2>Institutional Grading Portal</h2>
           </div>
           <nav className="faculty-grade-nav">
-            <a href="#">Dashboard</a>
-            <a href="#" className="active">
-              Courses
-            </a>
-            <a href="#">Students</a>
-            <a href="#">Reports</a>
+            <button type="button" className="faculty-grade-nav-link" onClick={onBack}>
+              Back to Submissions
+            </button>
           </nav>
-          <div className="faculty-grade-avatar">
-            <span className="material-symbols-outlined">account_circle</span>
-          </div>
         </div>
       </header>
 
       <main className="faculty-grade-container faculty-grade-main">
-        <div className="faculty-grade-success">
-          <span className="material-symbols-outlined">check_circle</span>
-          <p>Grade saved successfully</p>
-        </div>
+        {saveSuccess && (
+          <div className="faculty-grade-success">
+            <span className="material-symbols-outlined">check_circle</span>
+            <p>Grade saved successfully</p>
+          </div>
+        )}
 
         <section className="faculty-grade-title">
           <div className="faculty-grade-breadcrumb">
-            <a href="#">Courses</a>
+            <span>{assignment.subjectCode}</span>
             <span className="material-symbols-outlined">chevron_right</span>
-            <a href="#">Advanced Algorithms</a>
-            <span className="material-symbols-outlined">chevron_right</span>
-            <span>Project Phase 1</span>
+            <span>{assignment.title}</span>
           </div>
-          <h1>Grade Submission: Arjun Mehra</h1>
+          <h1>Grade Submission: {submission.student.name}</h1>
           <div className="faculty-grade-title-accent" />
         </section>
 
@@ -5979,19 +6163,15 @@ function FacultyGradeSubmissionScreen() {
               <div className="faculty-grade-details-grid">
                 <div>
                   <p>Student Name</p>
-                  <strong>Arjun Mehra</strong>
+                  <strong>{submission.student.name}</strong>
                 </div>
                 <div>
                   <p>USN / Student ID</p>
-                  <strong>1MS20CS042</strong>
+                  <strong>{submission.student.usn}</strong>
                 </div>
                 <div>
                   <p>Submitted On</p>
-                  <strong>Oct 24, 2023 • 11:42 AM</strong>
-                </div>
-                <div>
-                  <p>Attempt Number</p>
-                  <strong>1 (Final)</strong>
+                  <strong>{new Date(submission.submittedAt).toLocaleString()}</strong>
                 </div>
               </div>
             </article>
@@ -6002,109 +6182,95 @@ function FacultyGradeSubmissionScreen() {
                 Submitted Files
               </h3>
               <div className="faculty-grade-file-list">
-                <div className="faculty-grade-file-item">
-                  <div className="faculty-grade-file-meta">
-                    <span className="material-symbols-outlined">description</span>
-                    <div>
-                      <p>Project_Phase1_Report.pdf</p>
-                      <p>2.4 MB • PDF Document</p>
+                {submission.files.length === 0 ? (
+                  <p className="muted">No files</p>
+                ) : (
+                  submission.files.map((f) => (
+                    <div key={f.fileName} className="faculty-grade-file-item">
+                      <div className="faculty-grade-file-meta">
+                        <span className="material-symbols-outlined">description</span>
+                        <div>
+                          <p>{f.fileName}</p>
+                          <p>{f.fileSize != null ? formatFileSize(f.fileSize) : ''}</p>
+                        </div>
+                      </div>
+                      <a
+                        href={f.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="faculty-grade-download-icon-btn"
+                        aria-label={`Download ${f.fileName}`}
+                      >
+                        <span className="material-symbols-outlined">download</span>
+                      </a>
                     </div>
-                  </div>
-                  <button type="button" className="faculty-grade-download-icon-btn" aria-label="Download PDF file">
-                    <span className="material-symbols-outlined">download</span>
-                  </button>
-                </div>
-                <div className="faculty-grade-file-item">
-                  <div className="faculty-grade-file-meta">
-                    <span className="material-symbols-outlined">folder_zip</span>
-                    <div>
-                      <p>Algorithm_Source_Code.zip</p>
-                      <p>14.8 MB • Compressed Archive</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="faculty-grade-download-icon-btn"
-                    aria-label="Download ZIP file"
-                  >
-                    <span className="material-symbols-outlined">download</span>
-                  </button>
-                </div>
-                <div className="faculty-grade-file-item">
-                  <div className="faculty-grade-file-meta">
-                    <span className="material-symbols-outlined">table</span>
-                    <div>
-                      <p>Data_Analysis_Results.xlsx</p>
-                      <p>842 KB • Excel Spreadsheet</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="faculty-grade-download-icon-btn"
-                    aria-label="Download spreadsheet file"
-                  >
-                    <span className="material-symbols-outlined">download</span>
-                  </button>
-                </div>
+                  ))
+                )}
               </div>
             </article>
-
-            <div className="faculty-grade-preview">
-              <span className="material-symbols-outlined">visibility</span>
-              <p>Select a file to preview it here.</p>
-            </div>
           </section>
 
           <aside className="faculty-grade-right">
             <article className="faculty-grade-card faculty-grade-panel">
               <h3>Grading Panel</h3>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                }}
-              >
+              <form onSubmit={handleSubmit}>
                 <div className="faculty-grade-field">
                   <label htmlFor="marks-secured">Marks Secured</label>
                   <div className="faculty-grade-marks-wrap">
-                    <input id="marks-secured" type="number" step="0.5" defaultValue="85.5" />
-                    <span>/ 100</span>
+                    <input
+                      id="marks-secured"
+                      type="number"
+                      step="0.5"
+                      min={0}
+                      max={maxMarks}
+                      value={marks}
+                      onChange={(e) => setMarks(e.target.value)}
+                    />
+                    <span>/ {maxMarks}</span>
                   </div>
                 </div>
-
                 <div className="faculty-grade-field">
-                  <label>Submission Status</label>
-                  <div className="faculty-grade-toggle">
-                    <button type="button" className="active">
-                      Graded
-                    </button>
-                    <button type="button">Needs Revision</button>
-                  </div>
+                  <label htmlFor="grade-letter">Grade (optional)</label>
+                  <input
+                    id="grade-letter"
+                    type="text"
+                    placeholder="e.g. A+"
+                    value={gradeLetter}
+                    onChange={(e) => setGradeLetter(e.target.value)}
+                  />
                 </div>
-
-                <button type="submit" className="faculty-grade-save">
+                <div className="faculty-grade-field">
+                  <label htmlFor="feedback">Feedback (optional)</label>
+                  <textarea
+                    id="feedback"
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <div className="faculty-grade-field">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={isReleased}
+                      onChange={(e) => setIsReleased(e.target.checked)}
+                    />
+                    Release grade to student
+                  </label>
+                </div>
+                {saveError && <p className="faculty-grade-error">{saveError}</p>}
+                <button type="submit" className="faculty-grade-save" disabled={saving}>
                   <span className="material-symbols-outlined">save</span>
-                  Save Grade
+                  {saving ? 'Saving…' : 'Save Grade'}
                 </button>
-                <p>Last autosaved at 12:04 PM</p>
               </form>
-            </article>
-
-            <article className="faculty-grade-help">
-              <span className="material-symbols-outlined">info</span>
-              <div>
-                <h4>Grading Rubric Active</h4>
-                <p>
-                  This assignment follows the &quot;Engineering Phase 1&quot; rubric. Hover over marks to see
-                  breakdown.
-                </p>
-              </div>
             </article>
           </aside>
         </div>
       </main>
 
       <footer className="faculty-grade-footer">
-        <p>© 2023 Institutional Learning Management System. All rights reserved.</p>
+        <p>©  StudySync, Made by Kairos with ❤️</p>
       </footer>
     </div>
   )
@@ -6169,9 +6335,12 @@ function UnofficialNotesScreen({
   }
 
   useEffect(() => {
-    loadUnofficialData().catch((error) => {
-      setUploadError(error instanceof Error ? error.message : 'Failed to load notes.')
-    })
+    const tid = setTimeout(() => {
+      loadUnofficialData().catch((error) => {
+        setUploadError(error instanceof Error ? error.message : 'Failed to load notes.')
+      })
+    }, 0)
+    return () => clearTimeout(tid)
   }, [])
 
   useEffect(() => {
@@ -6483,7 +6652,7 @@ function UnofficialNotesScreen({
         </div>
       </main>
 
-      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
+      <CommonDashboardFooter containerClassName="dashboard-container" />
       <PdfPreviewModal
         isOpen={isPreviewOpen}
         title={previewTitle}
@@ -6588,11 +6757,68 @@ function StudentRepositoryScreen({
   const [professor, setProfessor] = useState('All Professors')
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewTitle, setPreviewTitle] = useState('Document.pdf')
+  const [apiFiles, setApiFiles] = useState<Array<{ id: string; name: string; mimeType?: string; size?: number; createdTime?: string; webViewLink?: string; webContentLink?: string; appProperties?: Record<string, string> }>>([])
+  const [filesLoading, setFilesLoading] = useState(true)
+  const [filesError, setFilesError] = useState<string | null>(null)
+  const [subjects, setSubjects] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [category, setCategory] = useState('All Categories')
+
+  useEffect(() => {
+    let cancelled = false
+    apiClient
+      .get<{ subjects: Array<{ id: string; code: string; name: string }> }>('/subjects')
+      .then((res) => {
+        if (!cancelled && res.data?.subjects) setSubjects(res.data.subjects)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const tid = setTimeout(() => { if (!cancelled) setFilesLoading(true); setFilesError(null) }, 0)
+    const params: { subjectName?: string; category?: string } = {}
+    if (subjectCode !== 'All Subjects') {
+      const sub = subjects.find((s) => s.code === subjectCode || s.name === subjectCode)
+      params.subjectName = sub?.name ?? subjectCode
+    }
+    if (category !== 'All Categories') params.category = category
+    filesService
+      .listFiles(Object.keys(params).length ? params : undefined)
+      .then((files) => {
+        if (!cancelled) setApiFiles(files)
+      })
+      .catch((err) => {
+        if (!cancelled) setFilesError(err instanceof Error ? err.message : 'Failed to load files')
+      })
+      .finally(() => {
+        if (!cancelled) setFilesLoading(false)
+      })
+    return () => { cancelled = true; clearTimeout(tid) }
+  }, [subjectCode, category, subjects])
 
   const subtitle = user?.semester ? `Semester ${user.semester}` : ''
   const programme = user?.programme || ''
 
-  const resources = searchResourceData.filter((resource) => {
+  const apiResources: SearchResource[] = apiFiles.map((f) => {
+    const ext = f.name.split('.').pop()?.toUpperCase() ?? 'PDF'
+    const format = (['PDF', 'PPTX', 'DOCX', 'JPG', 'PNG'].includes(ext) ? ext : 'PDF') as SearchResource['format']
+    return {
+      id: f.id,
+      title: f.name.replace(/\.[^/.]+$/, ''),
+      subjectCode: f.appProperties?.subjectName ?? '-',
+      semester: 'Semester',
+      unit: '-',
+      professor: f.appProperties?.uploadedBy ?? '-',
+      status: 'approved',
+      format,
+      size: f.size != null ? formatFileSize(f.size) : '-',
+      uploadedAt: f.createdTime ? new Date(f.createdTime).toLocaleDateString() : '-',
+    }
+  })
+  const sourceData = apiResources.length > 0 ? apiResources : searchResourceData
+  const resources = sourceData.filter((resource) => {
+    if (sourceData === apiResources) return true
     if (resource.status !== 'approved') return false
     const q = query.trim().toLowerCase()
     const queryMatch =
@@ -6607,8 +6833,8 @@ function StudentRepositoryScreen({
     return queryMatch && semesterMatch && subjectMatch && unitMatch && professorMatch
   })
 
-  const approvedResources = searchResourceData.filter((resource) => resource.status === 'approved')
-  const professorOptions = Array.from(new Set(approvedResources.map((resource) => resource.professor)))
+  const approvedResources = sourceData === apiResources ? apiResources : searchResourceData.filter((r) => r.status === 'approved')
+  const professorOptions = Array.from(new Set(approvedResources.map((r) => r.professor)))
 
   return (
     <div className="dashboard-page" aria-label="Repository">
@@ -6653,9 +6879,20 @@ function StudentRepositoryScreen({
               <label htmlFor="repository-subject">Subject</label>
               <select id="repository-subject" value={subjectCode} onChange={(e) => setSubjectCode(e.target.value)}>
                 <option>All Subjects</option>
-                <option>CS501</option>
-                <option>CS502</option>
-                <option>CS503</option>
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.code}>
+                    {s.code} – {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="repository-category">Category</label>
+              <select id="repository-category" value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option>All Categories</option>
+                <option value="textbook">Textbook</option>
+                <option value="notes">Notes</option>
+                <option value="assignment">Assignment</option>
               </select>
             </div>
             <div className="field-group">
@@ -6691,10 +6928,15 @@ function StudentRepositoryScreen({
               <h2>Approved Resources</h2>
             </div>
             <p>
-              <span>{resources.length}</span> approved files
+              {filesLoading ? 'Loading...' : <><span>{resources.length}</span> approved files</>}
             </p>
           </div>
-          {resources.length === 0 ? (
+          {filesError ? (
+            <div className="search-empty-state">
+              <span className="material-symbols-outlined">error_outline</span>
+              <p>{filesError}</p>
+            </div>
+          ) : resources.length === 0 ? (
             <div className="search-empty-state">
               <span className="material-symbols-outlined">search_off</span>
               <p>No matching files. Try changing your keyword or filters.</p>
@@ -6737,7 +6979,7 @@ function StudentRepositoryScreen({
           )}
         </section>
       </main>
-      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
+      <CommonDashboardFooter containerClassName="dashboard-container" />
       <PdfPreviewModal
         isOpen={isPreviewOpen}
         title={previewTitle}
@@ -6976,7 +7218,7 @@ function AssignmentReviewScreen({
         </div>
       </main>
 
-      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
+      <CommonDashboardFooter containerClassName="dashboard-container" />
     </div>
   )
 }
@@ -7122,7 +7364,7 @@ function AssignmentResultScreen({
         </section>
       </main>
 
-      <CommonDashboardFooter containerClassName="dashboard-container" caption="© StudySync • Departmental Digital Resource & Knowledge Hub" />
+      <CommonDashboardFooter containerClassName="dashboard-container" />
     </div>
   )
 }
@@ -7208,20 +7450,18 @@ function AdminEnrollStudentsScreen({
       />
 
       <main className="admin-container admin-main">
-        <section className="admin-assign-head">
-          <nav aria-label="Breadcrumb">
-            <button type="button" onClick={onBackDashboard} className="admin-breadcrumb-link">
-              Dashboard
-            </button>
-            <span>/</span>
-            <button type="button" onClick={onBackToAccounts} className="admin-breadcrumb-link">
-              Student Accounts
-            </button>
-            <span>/</span>
-            <span>Enroll Students</span>
-          </nav>
-          <h2>Enroll Students in Subjects</h2>
-          <p>Select a subject and enroll students to grant them access to assignments and resources.</p>
+        <section className="screen-head">
+          <div>
+            <nav className="screen-head-breadcrumb" aria-label="Breadcrumb">
+              <button type="button" onClick={onBackDashboard} className="admin-breadcrumb-link">Dashboard</button>
+              <span>/</span>
+              <button type="button" onClick={onBackToAccounts} className="admin-breadcrumb-link">Student Accounts</button>
+              <span>/</span>
+              <span>Enroll Students</span>
+            </nav>
+            <h2>Enroll Students in Subjects</h2>
+            <p className="screen-head-subtitle">Select a subject and enroll students.</p>
+          </div>
         </section>
 
         {enrollError ? (
@@ -7369,8 +7609,8 @@ function AdminStudentDetailsScreen({
     let active = true
     const id = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('admin_selected_student_id') : null
     if (!id) {
-      if (active) setLoading(false)
-      return
+      const tid = setTimeout(() => { if (active) setLoading(false) }, 0)
+      return () => clearTimeout(tid)
     }
     adminService.getStudent(id).then((s) => {
       if (active) setStudent(s)
@@ -7392,15 +7632,15 @@ function AdminStudentDetailsScreen({
       />
 
       <main className="admin-container admin-main">
-        <section className="admin-assign-head">
-          <nav aria-label="Breadcrumb">
-            <button type="button" onClick={onBack} className="admin-breadcrumb-link">
-              Student Accounts
-            </button>
-            <span>/</span>
-            <span>Student Details</span>
-          </nav>
-          <h2>Student Details</h2>
+        <section className="screen-head">
+          <div>
+            <nav className="screen-head-breadcrumb" aria-label="Breadcrumb">
+              <button type="button" onClick={onBack} className="admin-breadcrumb-link">Student Accounts</button>
+              <span>/</span>
+              <span>Student Details</span>
+            </nav>
+            <h2>Student Details</h2>
+          </div>
         </section>
 
         {loading ? (
@@ -7548,8 +7788,8 @@ function AdminFacultyDetailsScreen({
     let active = true
     const id = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('admin_selected_faculty_id') : null
     if (!id) {
-      if (active) setLoading(false)
-      return
+      const tid = setTimeout(() => { if (active) setLoading(false) }, 0)
+      return () => clearTimeout(tid)
     }
     adminService.getFacultyById(id).then((f) => {
       if (active) setFaculty(f)
@@ -7571,15 +7811,15 @@ function AdminFacultyDetailsScreen({
       />
 
       <main className="admin-container admin-main">
-        <section className="admin-assign-head">
-          <nav aria-label="Breadcrumb">
-            <button type="button" onClick={onBack} className="admin-breadcrumb-link">
-              Faculty Accounts
-            </button>
-            <span>/</span>
-            <span>Faculty Details</span>
-          </nav>
-          <h2>Faculty Details</h2>
+        <section className="screen-head">
+          <div>
+            <nav className="screen-head-breadcrumb" aria-label="Breadcrumb">
+              <button type="button" onClick={onBack} className="admin-breadcrumb-link">Faculty Accounts</button>
+              <span>/</span>
+              <span>Faculty Details</span>
+            </nav>
+            <h2>Faculty Details</h2>
+          </div>
         </section>
 
         {loading ? (
@@ -7711,7 +7951,43 @@ function AdminFacultyDetailsScreen({
   )
 }
 
-function AdminDepartmentsPlaceholder({ navigate }: { navigate: (path: RoutePath) => void }) {
+function AdminDepartmentsScreen({ navigate }: { navigate: (path: RoutePath) => void }) {
+  const [departments, setDepartments] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [newName, setNewName] = useState('')
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    adminService
+      .getFaculty()
+      .then((list) => {
+        if (!active) return
+        const unique = [...new Set(list.map((f) => f.department).filter(Boolean))].sort()
+        setDepartments(unique)
+      })
+      .catch((e) => {
+        if (active) setError(e instanceof Error ? e.message : 'Failed to load departments')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [])
+
+  const addDepartment = () => {
+    const name = newName.trim()
+    if (!name) return
+    if (departments.includes(name)) {
+      setMessage('Department already exists.')
+      return
+    }
+    setDepartments((prev) => [...prev, name].sort())
+    setNewName('')
+    setMessage('Department added. Assign it to faculty when creating or editing accounts.')
+  }
+
   return (
     <div className="admin-page" aria-label="Departments">
       <AdminHeader
@@ -7725,9 +8001,53 @@ function AdminDepartmentsPlaceholder({ navigate }: { navigate: (path: RoutePath)
         onNavigateSettings={() => navigate('/admin_settings')}
       />
       <main className="admin-container admin-main">
-        <section className="admin-assign-head">
-          <h2>Departments</h2>
-          <p>Department management coming soon.</p>
+        <section className="screen-head">
+          <div>
+            <h2>Departments</h2>
+            <p className="screen-head-subtitle">Departments in use by faculty. Add a new name below to use when creating faculty accounts.</p>
+          </div>
+        </section>
+        {error ? (
+          <div style={{ padding: '1rem', background: '#fef2f2', color: '#991b1b', borderRadius: '8px', marginBottom: '1rem' }}>
+            {error}
+          </div>
+        ) : null}
+        {message ? (
+          <div style={{ padding: '1rem', background: '#f0fdf4', color: '#166534', borderRadius: '8px', marginBottom: '1rem' }}>
+            {message}
+          </div>
+        ) : null}
+        <section className="admin-settings-card" style={{ marginBottom: '1.5rem' }}>
+          <div className="field-group">
+            <label htmlFor="new-department">Add department name</label>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                id="new-department"
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Computer Science"
+                style={{ maxWidth: '20rem', flex: 1, minWidth: '10rem' }}
+              />
+              <button type="button" className="dashboard-btn-primary" onClick={addDepartment}>
+                Add
+              </button>
+            </div>
+          </div>
+        </section>
+        <section className="admin-settings-card">
+          <h3 style={{ margin: '0 0 1rem', fontSize: '1rem' }}>Current departments</h3>
+          {loading ? (
+            <p className="muted">Loading…</p>
+          ) : departments.length === 0 ? (
+            <p className="muted">No departments yet. Add one above or create a faculty account to create a department.</p>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              {departments.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          )}
         </section>
       </main>
       <AdminFooter />
@@ -7735,7 +8055,39 @@ function AdminDepartmentsPlaceholder({ navigate }: { navigate: (path: RoutePath)
   )
 }
 
-function AdminSettingsPlaceholder({ navigate }: { navigate: (path: RoutePath) => void }) {
+const SETTINGS_STORAGE_KEY = 'study_sync_settings'
+
+function AdminSettingsScreen({ navigate }: { navigate: (path: RoutePath) => void }) {
+  const [appName, setAppName] = useState('StudySync')
+  const [supportEmail, setSupportEmail] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as { appName?: string; supportEmail?: string }
+        if (parsed.appName) setAppName(parsed.appName)
+        if (parsed.supportEmail != null) setSupportEmail(parsed.supportEmail)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const save = () => {
+    try {
+      localStorage.setItem(
+        SETTINGS_STORAGE_KEY,
+        JSON.stringify({ appName: appName.trim() || 'StudySync', supportEmail: supportEmail.trim() })
+      )
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch {
+      setSaved(false)
+    }
+  }
+
   return (
     <div className="admin-page" aria-label="System Settings">
       <AdminHeader
@@ -7749,9 +8101,41 @@ function AdminSettingsPlaceholder({ navigate }: { navigate: (path: RoutePath) =>
         onNavigateSettings={() => navigate('/admin_settings')}
       />
       <main className="admin-container admin-main">
-        <section className="admin-assign-head">
-          <h2>System Settings</h2>
-          <p>System settings coming soon.</p>
+        <section className="screen-head">
+          <div>
+            <h2>System Settings</h2>
+            <p className="screen-head-subtitle">Configure application-wide settings. Stored in your browser.</p>
+          </div>
+        </section>
+        <section className="admin-settings-card">
+          <div className="field-group" style={{ marginBottom: '1rem' }}>
+            <label htmlFor="settings-app-name">Application name</label>
+            <input
+              id="settings-app-name"
+              type="text"
+              value={appName}
+              onChange={(e) => setAppName(e.target.value)}
+              placeholder="StudySync"
+              style={{ maxWidth: '20rem' }}
+            />
+          </div>
+          <div className="field-group" style={{ marginBottom: '1rem' }}>
+            <label htmlFor="settings-support-email">Support email</label>
+            <input
+              id="settings-support-email"
+              type="email"
+              value={supportEmail}
+              onChange={(e) => setSupportEmail(e.target.value)}
+              placeholder="support@example.com"
+              style={{ maxWidth: '20rem' }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button type="button" className="dashboard-btn-primary" onClick={save}>
+              Save settings
+            </button>
+            {saved ? <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Saved.</span> : null}
+          </div>
         </section>
       </main>
       <AdminFooter />
@@ -7854,7 +8238,7 @@ function ForgotPasswordScreen({
       </main>
 
       <footer className="page-footer">
-        <p>© 2024 University Digital Repository</p>
+        <p>©  StudySync, Made by Kairos with ❤️</p>
       </footer>
     </>
   )
@@ -7875,12 +8259,20 @@ function ResetPasswordScreen({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Get token from URL query params (mock - in real app, extract from URL)
-  const token = 'mock-reset-token'
+  const token = (() => {
+    const hash = window.location.hash?.slice(1) || ''
+    const params = new URLSearchParams(hash)
+    return params.get('access_token') || params.get('token') || ''
+  })()
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
+
+    if (!token) {
+      setError('Invalid or expired reset link. Please request a new one from the Forgot Password page.')
+      return
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match')
@@ -7930,6 +8322,11 @@ function ResetPasswordScreen({
           <div className="student-accent" />
 
           <form className="student-form" onSubmit={handleSubmit}>
+            {!token && (
+              <div style={{ padding: '0.75rem', background: '#fef3c7', color: '#92400e', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                No reset token found. Use the link from your email or request a new one below.
+              </div>
+            )}
             {error && (
               <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
                 {error}
@@ -7950,7 +8347,7 @@ function ResetPasswordScreen({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  disabled={isLoading || success}
+                  disabled={isLoading || success || !token}
                 />
                 <button
                   type="button"
@@ -7973,7 +8370,7 @@ function ResetPasswordScreen({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  disabled={isLoading || success}
+                  disabled={isLoading || success || !token}
                 />
                 <button
                   type="button"
@@ -7987,7 +8384,7 @@ function ResetPasswordScreen({
             </div>
 
             <div className="student-actions">
-              <button type="submit" className="student-primary-btn" disabled={isLoading || success}>
+              <button type="submit" className="student-primary-btn" disabled={isLoading || success || !token}>
                 {isLoading ? 'Resetting...' : success ? 'Success!' : 'Reset Password'}
               </button>
             </div>
@@ -8005,7 +8402,7 @@ function ResetPasswordScreen({
       </main>
 
       <footer className="page-footer">
-        <p>© 2024 University Digital Repository</p>
+        <p>©  StudySync, Made by Kairos with ❤️</p>
       </footer>
     </>
   )
@@ -8335,6 +8732,25 @@ function App() {
   }, [calendarEvents])
 
   useEffect(() => {
+    if (!isAuthenticated) return
+    const fetchComms = async () => {
+      try {
+        const [noticeList, eventList] = await Promise.all([
+          communicationsService.getNotices(),
+          communicationsService.getAcademicEvents(),
+        ])
+        setNotices(noticeList.map(noticeDtoToNotice))
+        setCalendarEvents(eventList.map(eventDtoToEvent))
+      } catch {
+        // keep existing state on fetch error
+      }
+    }
+    fetchComms()
+    const interval = window.setInterval(fetchComms, 50000)
+    return () => window.clearInterval(interval)
+  }, [isAuthenticated])
+
+  useEffect(() => {
     if (!sessionNotice) {
       return
     }
@@ -8347,20 +8763,17 @@ function App() {
     setPath(nextPath)
   }
 
-  const createNotice = ({ title, content, urgent = false }: { title: string; content: string; urgent?: boolean }) => {
-    const newNotice: DepartmentNotice = {
-      id: `notice-${Date.now()}`,
-      title,
-      content,
-      createdAt: new Date().toISOString(),
-      author: user?.name || user?.fullName || 'Admin User',
-      authorRole: user?.role === 'faculty' ? 'faculty' : 'admin',
-      urgent,
+  const createNotice = async ({ title, content, urgent = false }: { title: string; content: string; urgent?: boolean }) => {
+    try {
+      const dto = await communicationsService.createNotice({ title, content, urgent })
+      setNotices((current) => [noticeDtoToNotice(dto), ...current])
+      setSessionNotice('Notice published.')
+    } catch (e) {
+      setSessionNotice(e instanceof Error ? e.message : 'Failed to publish notice')
     }
-    setNotices((current) => [newNotice, ...current])
   }
 
-  const createCalendarEvent = ({
+  const createCalendarEvent = async ({
     title,
     date,
     type,
@@ -8373,21 +8786,29 @@ function App() {
     details: string
     targetAudience?: 'students' | 'faculty' | 'both'
   }) => {
-    const event: AcademicEvent = {
-      id: `event-${Date.now()}`,
-      title,
-      date,
-      type,
-      details,
-      createdBy: user?.name || user?.fullName || 'Faculty User',
-      createdByRole: user?.role === 'admin' ? 'admin' : 'faculty',
-      targetAudience: targetAudience || (user?.role === 'admin' ? 'students' : 'both'),
+    try {
+      const dto = await communicationsService.createAcademicEvent({
+        title,
+        date,
+        type,
+        details,
+        targetAudience: targetAudience || (user?.role === 'admin' ? 'students' : 'both'),
+      })
+      setCalendarEvents((current) => [eventDtoToEvent(dto), ...current])
+      setSessionNotice('Event added.')
+    } catch (e) {
+      setSessionNotice(e instanceof Error ? e.message : 'Failed to add event')
     }
-    setCalendarEvents((current) => [event, ...current])
   }
 
-  const deleteNoticeAsAdmin = (id: string) => {
-    setNotices((current) => current.filter((notice) => notice.id !== id))
+  const deleteNoticeAsAdmin = async (id: string) => {
+    try {
+      await communicationsService.deleteNotice(id)
+      setNotices((current) => current.filter((notice) => notice.id !== id))
+      setSessionNotice('Notice removed.')
+    } catch (e) {
+      setSessionNotice(e instanceof Error ? e.message : 'Failed to delete notice')
+    }
   }
 
   const updateNotice = (id: string, payload: { title: string; content: string; urgent: boolean }) => {
@@ -8396,22 +8817,27 @@ function App() {
     )
   }
 
-  const deleteCalendarEvent = (id: string) => {
-    setCalendarEvents((current) => current.filter((e) => e.id !== id))
+  const deleteCalendarEvent = async (id: string) => {
+    try {
+      await communicationsService.deleteAcademicEvent(id)
+      setCalendarEvents((current) => current.filter((e) => e.id !== id))
+      setSessionNotice('Event removed.')
+    } catch (e) {
+      setSessionNotice(e instanceof Error ? e.message : 'Failed to delete event')
+    }
   }
 
-  const deleteNoticeAsFaculty = (id: string) => {
+  const deleteNoticeAsFaculty = async (id: string) => {
     const currentFacultyName = user?.name || user?.fullName || 'Faculty User'
-    setNotices((current) =>
-      current.filter(
-        (notice) =>
-          !(
-            notice.id === id &&
-            notice.authorRole === 'faculty' &&
-            notice.author === currentFacultyName
-          ),
-      ),
-    )
+    const notice = notices.find((n) => n.id === id && n.authorRole === 'faculty' && n.author === currentFacultyName)
+    if (!notice) return
+    try {
+      await communicationsService.deleteNotice(id)
+      setNotices((current) => current.filter((n) => n.id !== id))
+      setSessionNotice('Notice removed.')
+    } catch (e) {
+      setSessionNotice(e instanceof Error ? e.message : 'Failed to delete notice')
+    }
   }
 
   useEffect(() => {
@@ -8470,10 +8896,12 @@ function App() {
 
   return (
     <div className={isAuthRoute ? 'app-shell auth-shell' : 'app-shell'}>
-      {isAuthRoute && path !== '/' ? (
-        <div className="auth-top-brand">
-          <BrandIdentity />
-        </div>
+      {isAuthRoute ? (
+        <div
+          className="auth-backdrop"
+          aria-hidden="true"
+          style={{ backgroundImage: `url(${backgroundImage})` }}
+        />
       ) : null}
 
       {sessionNotice ? (
@@ -8483,10 +8911,12 @@ function App() {
         </div>
       ) : null}
 
-      <div className="background-pattern" aria-hidden="true">
-        <div className="orb orb-top" />
-        <div className="orb orb-bottom" />
-      </div>
+      {isAuthRoute ? (
+        <div className="background-pattern" aria-hidden="true">
+          <div className="orb orb-top" />
+          <div className="orb orb-bottom" />
+        </div>
+      ) : null}
 
       {path === '/student_login' ? (
         <StudentLoginScreen
@@ -8628,11 +9058,11 @@ function App() {
       ) : null}
 
       {path === '/admin_departments' ? (
-        <AdminDepartmentsPlaceholder navigate={navigate} />
+        <AdminDepartmentsScreen navigate={navigate} />
       ) : null}
 
       {path === '/admin_settings' ? (
-        <AdminSettingsPlaceholder navigate={navigate} />
+        <AdminSettingsScreen navigate={navigate} />
       ) : null}
 
       {path === '/forgot_password' ? (
@@ -8697,7 +9127,10 @@ function App() {
 
       {path === '/faculty_assignment_submissions' ? (
         <FacultyAssignmentSubmissionsScreen
-          onGrade={() => navigate('/faculty_grade_submission')}
+          onGrade={(assignmentId, submissionId) => {
+            sessionStorage.setItem(GRADING_STORAGE_KEY, JSON.stringify({ assignmentId, submissionId }))
+            navigate('/faculty_grade_submission')
+          }}
           currentPath={path}
           onNavigate={navigate}
           onLogout={async () => {
@@ -8707,7 +9140,9 @@ function App() {
         />
       ) : null}
 
-      {path === '/faculty_grade_submission' ? <FacultyGradeSubmissionScreen /> : null}
+      {path === '/faculty_grade_submission' ? (
+        <FacultyGradeSubmissionScreen onBack={() => navigate('/faculty_assignment_submissions')} />
+      ) : null}
 
       {path === '/student_dashboard' ? (
         <StudentDashboardScreen

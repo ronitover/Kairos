@@ -21,7 +21,7 @@ export interface Student {
   usn: string
   programme: string
   semester: string
-  email: string
+  email: string | null
   status: 'active' | 'disabled'
   registeredAt: string
 }
@@ -29,7 +29,7 @@ export interface Student {
 export interface Faculty {
   id: string
   name: string
-  email: string
+  email: string | null
   department: string
   designation: string
   assignedSubjectsCount: number
@@ -47,32 +47,10 @@ export interface Subject {
 
 class AdminService {
   async getDashboard(): Promise<AdminDashboard> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<AdminDashboard>('/admin/dashboard')
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          stats: {
-            totalStudents: 12482,
-            totalFaculty: 845,
-            totalSubjects: 312,
-            pendingVerifications: 58,
-          },
-          recentActivities: [
-            {
-              id: 'act-1',
-              type: 'student_registered',
-              description: 'David Smith (ID: ST2024001) has completed the portal registration.',
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        })
-      }, 500)
-    })
+    const response = await apiClient.get<AdminDashboard>('/admin/dashboard')
+    if (response.error) throw new Error(response.error.message)
+    if (!response.data) throw new Error('Failed to load dashboard')
+    return response.data
   }
 
   async getStudents(filters?: {
@@ -81,29 +59,10 @@ class AdminService {
     semester?: string
     status?: string
   }): Promise<Student[]> {
-    void filters
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<Student[]>('/admin/students', { params: filters })
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            id: 'stud-1',
-            fullName: 'Aditi Sharma',
-            usn: '1RV21CS001',
-            programme: 'Computer Science & Engineering',
-            semester: '6',
-            email: 'aditi.s@univ.edu.in',
-            status: 'active',
-            registeredAt: new Date().toISOString(),
-          },
-        ])
-      }, 500)
-    })
+    const response = await apiClient.get<{ students: Student[] }>('/admin/students', filters)
+    if (response.error) throw new Error(response.error.message)
+    const list = response.data?.students ?? []
+    return list.map((s) => ({ ...s, email: s.email ?? '' }))
   }
 
   async getFaculty(filters?: {
@@ -111,29 +70,10 @@ class AdminService {
     department?: string
     status?: string
   }): Promise<Faculty[]> {
-    void filters
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<Faculty[]>('/admin/faculty', { params: filters })
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            id: 'fac-1',
-            name: 'Dr. David Anderson',
-            email: 'd.anderson@university.edu',
-            department: 'Computer Science',
-            designation: 'Senior Professor',
-            assignedSubjectsCount: 4,
-            status: 'active',
-            joinDate: new Date().toISOString(),
-          },
-        ])
-      }, 500)
-    })
+    const response = await apiClient.get<{ faculty: Faculty[] }>('/admin/faculty', filters)
+    if (response.error) throw new Error(response.error.message)
+    const list = response.data?.faculty ?? []
+    return list.map((f) => ({ ...f, email: f.email ?? '' }))
   }
 
   async getSubjects(filters?: {
@@ -180,15 +120,28 @@ class AdminService {
     return list.find((f) => f.id === id) ?? null
   }
 
-  async createFaculty(_data: {
+  async createFaculty(data: {
     name: string
     email: string
     department: string
     designation?: string
     temporaryPassword: string
   }): Promise<void> {
-    await new Promise((r) => setTimeout(r, 500))
-    throw new Error('Create faculty is not implemented. Connect to backend to create faculty accounts.')
+    const response = await apiClient.post('/auth/faculty/register', {
+      name: data.name,
+      email: data.email,
+      department: data.department,
+      designation: data.designation,
+      temporaryPassword: data.temporaryPassword,
+    })
+    if (response.error) throw new Error(response.error.message)
+  }
+
+  async sendStudentPasswordResetEmail(studentId: string): Promise<void> {
+    const response = await apiClient.post<{ message: string }>(
+      `/admin/students/${encodeURIComponent(studentId)}/send-reset-password`
+    )
+    if (response.error) throw new Error(response.error.message)
   }
 }
 
@@ -204,17 +157,13 @@ export interface PendingUpload {
 
 class AdminPendingUploadsService {
   async getPendingUploads(): Promise<PendingUpload[]> {
-    return new Promise((resolve) => {
-      setTimeout(
-        () =>
-          resolve([
-            { id: 'upload-1', student: 'Aditi Sharma', usn: '1RV21CS001', title: 'OS Unit 3 Notes', format: 'PDF', date: 'Oct 24, 2023', status: 'pending' },
-            { id: 'upload-2', student: 'Rahul Jayaram', usn: '1RV21IS045', title: 'DBMS Normalization Guide', format: 'DOCX', date: 'Oct 23, 2023', status: 'pending' },
-            { id: 'upload-3', student: 'Priya Kapoor', usn: '1RV20EC112', title: 'Network Topology Diagrams', format: 'PNG', date: 'Oct 20, 2023', status: 'pending' },
-          ]),
-        300
-      )
-    })
+    const response = await apiClient.get<{ pending: PendingUpload[] }>('/admin/pending-notes')
+    if (response.error || !response.data) throw new Error(response.error?.message ?? 'Failed to load pending uploads')
+    const list = response.data.pending ?? []
+    return list.map((p) => ({
+      ...p,
+      date: typeof p.date === 'string' && p.date.includes('T') ? new Date(p.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : p.date,
+    }))
   }
 }
 

@@ -65,6 +65,11 @@ class CommunicationsService {
     if (response.error || !response.data) throw new Error(response.error?.message || 'Failed to create event')
     return response.data.event
   }
+
+  async deleteAcademicEvent(eventId: string): Promise<void> {
+    const response = await apiClient.delete(`/academic-events/${eventId}`)
+    if (response.error) throw new Error(response.error.message)
+  }
 }
 
 export const communicationsService = new CommunicationsService()

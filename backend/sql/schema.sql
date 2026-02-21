@@ -9,6 +9,7 @@ create table if not exists students (
   usn varchar(50) unique not null,
   programme varchar(255) not null,
   semester smallint not null check (semester between 1 and 8),
+  email varchar(255),
   status varchar(20) default 'active' check (status in ('active', 'disabled')),
   registered_at timestamp default current_timestamp,
   updated_at timestamp default current_timestamp

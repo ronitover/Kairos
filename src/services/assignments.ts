@@ -1,3 +1,56 @@
+import { apiClient } from './api'
+
+interface RawAssignment {
+  id: string
+  title: string
+  subject_id: string
+  instructions: string
+  total_marks: number
+  due_date: string
+  allow_late_submission: boolean
+  subjects?: { id: string; name: string; code: string }
+}
+interface RawSubmissionFile {
+  id: string
+  file_name: string
+  file_url: string
+  file_size?: number
+  file_type?: string
+  uploaded_at?: string
+}
+interface RawGrade {
+  id: string
+  marks: number
+  grade: string | null
+  feedback: string | null
+  graded_at?: string
+  is_released?: boolean
+}
+interface RawSubmission {
+  id: string
+  status: string
+  submitted_at: string | null
+  comment?: string | null
+  submission_files?: RawSubmissionFile[]
+  grades?: RawGrade[]
+}
+function mapRawAssignmentToAssignment(
+  a: RawAssignment,
+  submission?: Submission
+): Assignment {
+  return {
+    id: a.id,
+    title: a.title,
+    subjectId: a.subject_id,
+    subjectCode: a.subjects?.code ?? '',
+    instructions: a.instructions ?? '',
+    totalMarks: a.total_marks ?? 0,
+    dueDate: a.due_date,
+    allowLateSubmission: a.allow_late_submission ?? false,
+    submission,
+  }
+}
+
 export interface Assignment {
   id: string
   title: string
@@ -43,111 +96,72 @@ export interface Grade {
 class AssignmentService {
   async getStudentAssignments(filters?: {
     subjectId?: string
+    subjectName?: string
     status?: 'pending' | 'submitted' | 'graded'
   }): Promise<Assignment[]> {
-    void filters
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<Assignment[]>('/students/assignments', { params: filters })
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
+    const params: Record<string, string | undefined> = {}
+    if (filters?.subjectName) params.subjectName = filters.subjectName
+    const response = await apiClient.get<{ assignments: RawAssignment[] }>('/assignments', params)
+    if (response.error) throw new Error(response.error.message)
+    const list = response.data?.assignments ?? []
+    let assignments: Assignment[] = await Promise.all(
+      list.map(async (a) => {
+        const subRes = await apiClient.get<{ submission: RawSubmission | null }>(
+          `/assignments/${a.id}/submission`
+        )
+        const sub = subRes.data?.submission ?? null
+        const submission: Submission | undefined = sub
+          ? {
+              id: sub.id,
+              status: (sub.status as 'submitted' | 'late' | 'pending') || 'pending',
+              submittedAt: sub.submitted_at ?? '',
+              files: (sub.submission_files ?? []).map((f: RawSubmissionFile) => ({
+                id: f.id,
+                fileName: f.file_name,
+                fileSize: f.file_size ?? 0,
+                uploadedAt: f.uploaded_at ?? '',
+              })),
+              comment: sub.comment ?? undefined,
+              grade: (() => {
+                const g = Array.isArray(sub.grades) ? sub.grades[0] : sub.grades
+                return g
+                  ? {
+                      marks: g.marks,
+                      grade: g.grade ?? '',
+                      feedback: g.feedback ?? '',
+                      gradedAt: g.graded_at ?? '',
+                    }
+                  : undefined
+              })(),
+            }
+          : undefined
+        return mapRawAssignmentToAssignment(a, submission)
+      })
+    )
+    if (filters?.subjectId)
+      assignments = assignments.filter((a) => a.subjectId === filters.subjectId)
+    if (filters?.status) {
+      assignments = assignments.filter((a) => {
+        if (!a.submission) return filters.status === 'pending'
+        if (a.submission.grade) return filters.status === 'graded'
+        return filters.status === 'submitted'
+      })
+    }
+    return assignments
+  }
 
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            id: 'assign-1',
-            title: 'Implement Multi-threaded Scheduler',
-            subjectId: 'subj-1',
-            subjectCode: 'CS501',
-            instructions: 'Implement a multi-threaded scheduler...',
-            totalMarks: 50,
-            dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-            allowLateSubmission: true,
-            submission: {
-              id: 'sub-1',
-              status: 'pending',
-              submittedAt: '',
-              files: [],
-            },
-          },
-          {
-            id: 'assign-2',
-            title: 'Memory Mapping Lab Report',
-            subjectId: 'subj-1',
-            subjectCode: 'CS501',
-            instructions: 'Write a lab report on memory mapping...',
-            totalMarks: 50,
-            dueDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-            allowLateSubmission: true,
-            submission: {
-              id: 'sub-2',
-              status: 'submitted',
-              submittedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-              files: [],
-            },
-          },
-          {
-            id: 'assign-3',
-            title: 'CPU Scheduling Quiz',
-            subjectId: 'subj-1',
-            subjectCode: 'CS501',
-            instructions: 'Complete the quiz on CPU scheduling...',
-            totalMarks: 50,
-            dueDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-            allowLateSubmission: false,
-            submission: {
-              id: 'sub-3',
-              status: 'submitted',
-              submittedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-              files: [],
-              grade: {
-                marks: 45,
-                grade: 'A+',
-                feedback: 'Excellent work!',
-                gradedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-              },
-            },
-          },
-        ])
-      }, 500)
-    })
+  async getAssignments(params?: { subjectName?: string }): Promise<Assignment[]> {
+    const response = await apiClient.get<{ assignments: RawAssignment[] }>('/assignments', params)
+    if (response.error) throw new Error(response.error.message)
+    const list = response.data?.assignments ?? []
+    return list.map((a) => mapRawAssignmentToAssignment(a))
   }
 
   async getAssignment(id: string): Promise<Assignment> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<Assignment>(`/assignments/${id}`)
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id,
-          title: 'Assignment 2 - SQL Joins',
-          subjectId: 'subj-1',
-          subjectCode: 'CS501',
-          instructions:
-            'In this assignment, you are required to demonstrate your understanding of complex SQL Joins...',
-          totalMarks: 50,
-          dueDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-          allowLateSubmission: true,
-          resources: [
-            {
-              id: 'res-1',
-              fileName: 'Database_Schema.pdf',
-              fileUrl: '/mock/file1.pdf',
-            },
-            {
-              id: 'res-2',
-              fileName: 'Sample_Data.docx',
-              fileUrl: '/mock/file2.docx',
-            },
-          ],
-        })
-      }, 500)
-    })
+    const response = await apiClient.get<{ assignment: RawAssignment }>(`/assignments/${id}`)
+    if (response.error) throw new Error(response.error.message)
+    if (!response.data?.assignment) throw new Error('Assignment not found')
+    return mapRawAssignmentToAssignment(response.data.assignment)
   }
 
   async submitAssignment(
@@ -187,30 +201,34 @@ class AssignmentService {
   }
 
   async getSubmission(assignmentId: string): Promise<Submission | null> {
-    void assignmentId
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get<Submission>(`/assignments/${assignmentId}/submission`)
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id: 'sub-1',
-          status: 'submitted',
-          submittedAt: new Date().toISOString(),
-          files: [
-            {
-              id: 'file-1',
-              fileName: 'sql_joins_solution.sql',
-              fileSize: 1024000,
-              uploadedAt: new Date().toISOString(),
-            },
-          ],
-        })
-      }, 500)
-    })
+    const response = await apiClient.get<{ submission: RawSubmission | null }>(
+      `/assignments/${assignmentId}/submission`
+    )
+    if (response.error) throw new Error(response.error.message)
+    const sub = response.data?.submission ?? null
+    if (!sub)
+      return null
+    const g = Array.isArray(sub.grades) ? sub.grades[0] : sub.grades
+    return {
+      id: sub.id,
+      status: (sub.status as 'submitted' | 'late' | 'pending') || 'pending',
+      submittedAt: sub.submitted_at ?? '',
+      files: (sub.submission_files ?? []).map((f) => ({
+        id: f.id,
+        fileName: f.file_name,
+        fileSize: f.file_size ?? 0,
+        uploadedAt: f.uploaded_at ?? '',
+      })),
+      comment: sub.comment ?? undefined,
+      grade: g
+        ? {
+            marks: g.marks,
+            grade: g.grade ?? '',
+            feedback: g.feedback ?? '',
+            gradedAt: g.graded_at ?? '',
+          }
+        : undefined,
+    }
   }
 
   async createAssignment(data: {
@@ -269,45 +287,69 @@ class AssignmentService {
       status: string
       isLate: boolean
       grade?: Grade
+      files?: Array<{ id: string; fileName: string; fileUrl: string; fileSize?: number; uploadedAt?: string }>
     }>
   }> {
-    // TODO: Replace with actual API call
-    // const response = await apiClient.get(`/assignments/${assignmentId}/submissions`)
-    // if (response.error) throw new Error(response.error.message)
-    // return response.data
-
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          assignment: {
-            id: assignmentId,
-            title: 'Memory Mapping Lab',
-            subjectId: 'subj-1',
-            subjectCode: 'CS301',
-            instructions: '...',
-            totalMarks: 50,
-            dueDate: new Date().toISOString(),
-            allowLateSubmission: true,
-          },
-          submissions: [
-            {
-              id: 'sub-1',
-              student: {
-                id: 'stud-1',
-                name: 'Aditi Mishra',
-                usn: '1RV21CS001',
-              },
-              submittedAt: new Date().toISOString(),
-              status: 'submitted',
-              isLate: false,
-            },
-          ],
-        })
-      }, 500)
+    const response = await apiClient.get<{
+      assignment: RawAssignment
+      submissions: Array<{
+        id: string
+        students: { id: string; full_name: string; usn: string } | null
+        submitted_at: string
+        status: string
+        is_late: boolean
+        submission_files?: RawSubmissionFile[]
+        grades?: RawGrade[]
+      }>
+    }>(`/assignments/${assignmentId}/submissions`)
+    if (response.error) throw new Error(response.error.message)
+    const data = response.data
+    if (!data) throw new Error('Failed to load submissions')
+    const assignment = mapRawAssignmentToAssignment(data.assignment)
+    const submissions = (data.submissions ?? []).map((s) => {
+      const g = Array.isArray(s.grades) ? s.grades[0] : s.grades
+      return {
+        id: s.id,
+        student: {
+          id: s.students?.id ?? '',
+          name: s.students?.full_name ?? '',
+          usn: s.students?.usn ?? '',
+        },
+        submittedAt: s.submitted_at,
+        status: s.status,
+        isLate: s.is_late ?? false,
+        grade: g
+          ? {
+              marks: g.marks,
+              grade: g.grade ?? '',
+              feedback: g.feedback ?? '',
+              gradedAt: g.graded_at ?? '',
+            }
+          : undefined,
+        files: (s.submission_files ?? []).map((f) => ({
+          id: f.id,
+          fileName: f.file_name,
+          fileUrl: f.file_url,
+          fileSize: f.file_size,
+          uploadedAt: f.uploaded_at,
+        })),
+      }
     })
+    return { assignment, submissions }
+  }
+
+  async gradeSubmission(
+    submissionId: string,
+    payload: { marks: number; grade?: string; feedback?: string; isReleased?: boolean }
+  ): Promise<void> {
+    const response = await apiClient.patch(`/submissions/${submissionId}/grade`, {
+      marks: payload.marks,
+      grade: payload.grade,
+      feedback: payload.feedback,
+      isReleased: payload.isReleased,
+    })
+    if (response.error) throw new Error(response.error.message)
   }
 }
 
 export const assignmentService = new AssignmentService()
-import { apiClient } from './api'

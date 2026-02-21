@@ -368,6 +368,7 @@ async function syncStudentProfileFromUser(user) {
   const usn = normalizeString(user?.user_metadata?.usn) || `TEMP-${user.id.slice(0, 8)}`
   const programme = normalizeString(user?.user_metadata?.programme) || 'Unknown Programme'
   const semester = normalizeSemester(user?.user_metadata?.semester, 1)
+  const email = typeof user?.email === 'string' && user.email.trim() ? user.email.trim() : null
 
   const { data, error } = await adminSupabase
     .from('students')
@@ -378,6 +379,7 @@ async function syncStudentProfileFromUser(user) {
         usn,
         programme,
         semester,
+        email,
         status: 'active',
       },
       { onConflict: 'id' },
@@ -445,7 +447,7 @@ async function getRoleProfile(userId, role) {
   if (role === 'student') {
     const { data } = await adminSupabase
       .from('students')
-      .select('id,full_name,usn,programme,semester,status,registered_at')
+      .select('id,full_name,usn,programme,semester,email,status,registered_at')
       .eq('id', userId)
       .maybeSingle()
     return data
@@ -582,7 +584,10 @@ function createRoleLoginHandler(expectedRole) {
 }
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true })
+  res.json({
+    ok: true,
+    env: !SUPABASE_URL || !SUPABASE_ANON_KEY ? 'missing_required_env' : 'configured',
+  })
 })
 
 app.get('/api/me', requireAuth, async (req, res) => {
@@ -1012,6 +1017,165 @@ app.delete('/api/files/:fileId', requireAuth, async (req, res) => {
   return res.json({ message: 'File deleted successfully.' })
 })
 
+// ---------- Admin routes ----------
+app.get('/api/admin/dashboard', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const [{ count: totalStudents }, { count: totalFaculty }, { count: totalSubjects }, { data: pendingNotes }] =
+    await Promise.all([
+      adminSupabase.from('students').select('*', { count: 'exact', head: true }),
+      adminSupabase.from('faculty').select('*', { count: 'exact', head: true }),
+      adminSupabase.from('subjects').select('*', { count: 'exact', head: true }),
+      adminSupabase
+        .from('notes')
+        .select('id,title,uploaded_at')
+        .eq('note_type', 'unofficial')
+        .eq('status', 'pending')
+        .order('uploaded_at', { ascending: false })
+        .limit(10),
+    ])
+
+  const pendingVerifications = pendingNotes?.length ?? 0
+  const recentActivities = (pendingNotes ?? []).slice(0, 5).map((n) => ({
+    id: n.id,
+    type: 'pending_note',
+    description: `Unofficial note pending verification: ${n.title || 'Untitled'}`,
+    timestamp: n.uploaded_at,
+  }))
+
+  return res.json({
+    stats: {
+      totalStudents: totalStudents ?? 0,
+      totalFaculty: totalFaculty ?? 0,
+      totalSubjects: totalSubjects ?? 0,
+      pendingVerifications,
+    },
+    recentActivities,
+  })
+})
+
+app.get('/api/admin/students', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const search = normalizeString(req.query?.search)
+  const programme = normalizeString(req.query?.programme)
+  const semester = normalizeString(req.query?.semester)
+  const status = normalizeString(req.query?.status)
+
+  let query = adminSupabase
+    .from('students')
+    .select('id,full_name,usn,programme,semester,email,status,registered_at')
+    .order('registered_at', { ascending: false })
+  if (programme) query = query.eq('programme', programme)
+  if (semester) query = query.eq('semester', semester)
+  if (status === 'active' || status === 'disabled') query = query.eq('status', status)
+  if (search && search.length >= 2) {
+    const escaped = search.replace(/'/g, "''")
+    query = query.or(`full_name.ilike.%${escaped}%,usn.ilike.%${escaped}%`)
+  }
+
+  const { data: rows, error } = await query
+  if (error) throw error
+  const students = (rows ?? []).map((s) => ({
+    id: s.id,
+    fullName: s.full_name,
+    usn: s.usn,
+    programme: s.programme,
+    semester: String(s.semester),
+    email: s.email ?? null,
+    status: s.status,
+    registeredAt: s.registered_at,
+  }))
+  return res.json({ students })
+})
+
+app.post('/api/admin/students/sync-emails', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const { data: rows, error: listError } = await adminSupabase
+    .from('students')
+    .select('id')
+  if (listError) throw listError
+  let updated = 0
+  for (const row of rows ?? []) {
+    const { data: authUser, error: authError } = await adminSupabase.auth.admin.getUserById(row.id)
+    if (authError || !authUser?.user?.email) continue
+    const email = authUser.user.email.trim()
+    if (!isValidEmail(email)) continue
+    const { error: updateError } = await adminSupabase
+      .from('students')
+      .update({ email })
+      .eq('id', row.id)
+    if (!updateError) updated += 1
+  }
+  return res.json({ message: `Synced email from Auth for ${updated} student(s).` })
+})
+
+app.post('/api/admin/students/:studentId/send-reset-password', requireAuth, requireRoles('admin'), async (req, res) => {
+  const studentId = normalizeString(req.params.studentId)
+  if (!studentId) return res.status(400).json({ message: 'Student ID is required.' })
+
+  const { data: authUser, error: authError } = await adminSupabase.auth.admin.getUserById(studentId)
+  if (authError || !authUser?.user) {
+    return res.status(404).json({ message: 'Student account not found.' })
+  }
+  const email = typeof authUser.user.email === 'string' ? authUser.user.email.trim() : null
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ message: 'Student has no valid email. Cannot send reset link.' })
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${PASSWORD_RESET_REDIRECT}/reset_password`,
+  })
+  if (error) return res.status(400).json({ message: error.message })
+  return res.json({ message: 'Password reset email sent to the student\'s email address.' })
+})
+
+app.get('/api/admin/faculty', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const search = normalizeString(req.query?.search)
+  const department = normalizeString(req.query?.department)
+  const status = normalizeString(req.query?.status)
+
+  let query = adminSupabase
+    .from('faculty')
+    .select('id,name,department,designation,status,join_date')
+    .order('join_date', { ascending: false })
+  if (department) query = query.eq('department', department)
+  if (status === 'active' || status === 'disabled') query = query.eq('status', status)
+  if (search && search.length >= 2) {
+    query = query.ilike('name', `%${search}%`)
+  }
+
+  const { data: facultyRows, error } = await query
+  if (error) throw error
+
+  const facultyIds = (facultyRows ?? []).map((f) => f.id).filter(Boolean)
+  let assignedCountByFacultyId = {}
+  if (facultyIds.length > 0) {
+    const { data: fsRows } = await adminSupabase
+      .from('faculty_subjects')
+      .select('faculty_id')
+      .in('faculty_id', facultyIds)
+    for (const row of fsRows ?? []) {
+      assignedCountByFacultyId[row.faculty_id] = (assignedCountByFacultyId[row.faculty_id] ?? 0) + 1
+    }
+  }
+
+  const faculty = (facultyRows ?? []).map((f) => ({
+    id: f.id,
+    name: f.name,
+    email: null,
+    department: f.department,
+    designation: f.designation,
+    assignedSubjectsCount: assignedCountByFacultyId[f.id] ?? 0,
+    status: f.status,
+    joinDate: f.join_date,
+  }))
+  return res.json({ faculty })
+})
+
 app.get('/api/subjects', requireAuth, async (req, res) => {
   if (!ensureDatabaseConfigured(res)) return
 
@@ -1193,6 +1357,72 @@ app.post('/api/academic-events', requireAuth, requireRoles('admin', 'faculty'), 
       created_by_name: createdBy,
     },
   })
+})
+
+app.delete('/api/academic-events/:eventId', requireAuth, requireRoles('admin', 'faculty'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const eventId = normalizeString(req.params.eventId)
+  const { data: event, error: findError } = await adminSupabase
+    .from('academic_events')
+    .select('id,created_by')
+    .eq('id', eventId)
+    .maybeSingle()
+  if (findError) throw findError
+  if (!event) return res.status(404).json({ message: 'Event not found.' })
+  if (req.auth.role === 'faculty' && event.created_by !== req.auth.user.id) {
+    return res.status(403).json({ message: 'You can delete only your own events.' })
+  }
+  const { error } = await adminSupabase.from('academic_events').delete().eq('id', eventId)
+  if (error) throw error
+  return res.json({ message: 'Event deleted.' })
+})
+
+app.get('/api/admin/pending-notes', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const { data: notes, error } = await adminSupabase
+    .from('notes')
+    .select('id,title,uploaded_at,uploaded_by,status,note_files(id,file_name,file_type)')
+    .eq('note_type', 'unofficial')
+    .eq('status', 'pending')
+    .order('uploaded_at', { ascending: false })
+  if (error) throw error
+
+  const uploaderIds = [...new Set((notes ?? []).map((n) => n.uploaded_by).filter(Boolean))]
+  let uploaderById = {}
+  if (uploaderIds.length > 0) {
+    const { data: students, error: studentsErr } = await adminSupabase
+      .from('students')
+      .select('id,full_name,usn')
+      .in('id', uploaderIds)
+    if (studentsErr) throw studentsErr
+    uploaderById = Object.fromEntries((students ?? []).map((s) => [s.id, s]))
+  }
+
+  function formatFromMime(mime) {
+    if (!mime) return 'PDF'
+    const ext = mime.split('/').pop()?.toUpperCase() ?? 'PDF'
+    if (ext.includes('OPENXMLFORMATS') || ext === 'DOCX') return 'DOCX'
+    if (ext === 'PNG' || ext === 'JPEG' || ext === 'JPG') return ext
+    return ext === 'PDF' ? 'PDF' : ext
+  }
+
+  const pending = (notes ?? []).map((n) => {
+    const student = uploaderById[n.uploaded_by] ?? {}
+    const mime = n.note_files?.[0]?.file_type
+    return {
+      id: n.id,
+      student: student.full_name ?? 'Student',
+      usn: student.usn ?? '',
+      title: n.title,
+      format: formatFromMime(mime),
+      date: n.uploaded_at,
+      status: 'pending',
+    }
+  })
+
+  return res.json({ pending })
 })
 
 app.get('/api/subjects/:subjectId/students', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {
@@ -1472,6 +1702,35 @@ app.post('/api/assignments', requireAuth, requireRoles('faculty', 'admin'), asyn
   return res.status(201).json({ message: 'Assignment created.', assignment })
 })
 
+app.get('/api/assignments/:assignmentId', requireAuth, async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const assignmentId = normalizeString(req.params.assignmentId)
+  const { data: assignment, error } = await adminSupabase
+    .from('assignments')
+    .select('*, subjects(id,name,code,programme,semester)')
+    .eq('id', assignmentId)
+    .single()
+  if (error) throw error
+  if (!assignment) return res.status(404).json({ message: 'Assignment not found.' })
+  return res.json({ assignment })
+})
+
+app.get('/api/assignments/:assignmentId/submission', requireAuth, requireRoles('student'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const assignmentId = normalizeString(req.params.assignmentId)
+  const studentId = req.auth.user.id
+  const { data: submission, error } = await adminSupabase
+    .from('submissions')
+    .select('*, submission_files(id,file_name,file_url,file_size,file_type,uploaded_at), grades(id,marks,grade,feedback,graded_at,is_released)')
+    .eq('assignment_id', assignmentId)
+    .eq('student_id', studentId)
+    .maybeSingle()
+  if (error) throw error
+  return res.json({ submission: submission ?? null })
+})
+
 app.get('/api/assignments', requireAuth, async (req, res) => {
   if (!ensureDatabaseConfigured(res)) return
 
@@ -1615,6 +1874,86 @@ app.patch('/api/submissions/:submissionId/grade', requireAuth, requireRoles('fac
   if (error) throw error
 
   return res.json({ message: 'Submission graded.', grade })
+})
+
+app.post('/api/auth/logout', requireAuth, (_req, res) => {
+  res.json({ message: 'Logged out successfully.' })
+})
+
+const PASSWORD_RESET_REDIRECT = process.env.PASSWORD_RESET_REDIRECT_URL || process.env.CORS_ORIGIN?.split(',')[0] || 'http://localhost:5173'
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const email = normalizeString(req.body?.email)
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ message: 'A valid email is required.' })
+  }
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${PASSWORD_RESET_REDIRECT}/reset_password`,
+  })
+  if (error) {
+    return res.status(400).json({ message: error.message })
+  }
+  return res.json({ message: 'If an account exists for this email, you will receive a password reset link.' })
+})
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const accessToken = normalizeString(req.body?.accessToken ?? req.body?.token)
+  const newPassword = normalizeString(req.body?.newPassword ?? req.body?.password)
+  if (!accessToken || !newPassword) {
+    return res.status(400).json({ message: 'accessToken and newPassword are required.' })
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters.' })
+  }
+  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken)
+  if (userError || !userData?.user) {
+    return res.status(400).json({ message: 'Invalid or expired reset token. Request a new link.' })
+  }
+  const { error } = await adminSupabase.auth.admin.updateUserById(userData.user.id, {
+    password: newPassword,
+  })
+  if (error) {
+    return res.status(400).json({ message: error.message })
+  }
+  return res.json({ message: 'Password has been reset. You can now sign in.' })
+})
+
+app.post('/api/auth/faculty/register', requireAuth, requireRoles('admin'), async (req, res) => {
+  if (!ensureDatabaseConfigured(res)) return
+
+  const name = normalizeString(req.body?.name)
+  const email = normalizeString(req.body?.email)
+  const department = normalizeString(req.body?.department)
+  const designation = normalizeString(req.body?.designation)
+  const password = normalizeString(req.body?.temporaryPassword ?? req.body?.password)
+
+  if (!name || !email) {
+    return res.status(400).json({ message: 'name and email are required.' })
+  }
+  const validationError = validateCredentials(email, password)
+  if (validationError) return res.status(400).json({ message: validationError })
+
+  const { data, error } = await adminSupabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    app_metadata: { role: 'faculty' },
+    user_metadata: {
+      role: 'faculty',
+      name: name || email,
+      department: department || 'General',
+      designation: designation || null,
+    },
+  })
+
+  if (error) return res.status(400).json({ message: error.message })
+  if (!data.user) return res.status(500).json({ message: 'Unable to create faculty account.' })
+
+  await syncFacultyProfileFromUser(data.user)
+  return res.status(201).json({
+    message: 'Faculty account created successfully.',
+    user: { id: data.user.id, email: data.user.email, role: 'faculty' },
+  })
 })
 
 app.post('/api/auth/student/register', async (req, res) => {

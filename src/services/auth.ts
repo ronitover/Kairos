@@ -101,20 +101,25 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
-    // TODO: Call logout endpoint
-    // await apiClient.post('/auth/logout')
+    try {
+      await apiClient.post('/auth/logout')
+    } catch {
+      // Proceed with local clear even if backend call fails
+    }
     this.clearSession()
   }
 
   async forgotPassword(email: string): Promise<void> {
-    void email
-    throw new Error('Forgot password API is not implemented in backend yet.')
+    const response = await apiClient.post<{ message: string }>('/auth/forgot-password', { email })
+    if (response.error) throw new Error(response.error.message)
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<void> {
-    void token
-    void newPassword
-    throw new Error('Reset password API is not implemented in backend yet.')
+  async resetPassword(accessToken: string, newPassword: string): Promise<void> {
+    const response = await apiClient.post<{ message: string }>('/auth/reset-password', {
+      accessToken,
+      newPassword,
+    })
+    if (response.error) throw new Error(response.error.message)
   }
 
   async getCurrentUserProfile(): Promise<User> {
