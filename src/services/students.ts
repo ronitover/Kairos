@@ -1,4 +1,5 @@
 import { apiClient } from './api'
+import { assignmentService } from './assignments'
 
 export interface StudentDashboard {
   student: {
@@ -115,16 +116,27 @@ class StudentService {
       throw new Error(notesResponse.error?.message || 'Failed to load notes')
     }
 
-    const assignmentsResponse = await apiClient.get<{
-      assignments: Array<{
-        id: string
-        title: string
-        due_date: string
-        subjects?: { code?: string }
-      }>
-    }>('/assignments')
-    if (assignmentsResponse.error || !assignmentsResponse.data) {
-      throw new Error(assignmentsResponse.error?.message || 'Failed to load assignments')
+    let dashboardAssignments: StudentDashboard['assignments'] = []
+    try {
+      const assignmentsWithSubmissions = await assignmentService.getStudentAssignments()
+      dashboardAssignments = assignmentsWithSubmissions.map((a) => {
+        const status: 'pending' | 'submitted' | 'graded' = !a.submission
+          ? 'pending'
+          : a.submission.grade
+            ? 'graded'
+            : 'submitted'
+        return {
+          id: a.id,
+          title: a.title,
+          subjectCode: a.subjectCode || 'SUBJECT',
+          dueDate: a.dueDate,
+          status,
+          submittedAt: a.submission?.submittedAt,
+          grade: a.submission?.grade?.grade,
+        }
+      })
+    } catch {
+      // If assignments/submissions fail, return empty list; dashboard still shows rest
     }
 
     return {
@@ -138,13 +150,7 @@ class StudentService {
           name: 'Faculty',
         },
       })),
-      assignments: assignmentsResponse.data.assignments.map((assignment) => ({
-        id: assignment.id,
-        title: assignment.title,
-        subjectCode: assignment.subjects?.code || 'SUBJECT',
-        dueDate: assignment.due_date,
-        status: 'pending',
-      })),
+      assignments: dashboardAssignments,
       recentNotes: notesResponse.data.notes.slice(0, 10).map((note) => ({
         id: note.id,
         title: note.title,

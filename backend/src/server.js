@@ -29,11 +29,16 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 }
 
 const app = express()
-const allowedOrigins = CORS_ORIGIN.split(',').map((origin) => origin.trim())
+const allowedOrigins = CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean)
+if (allowedOrigins.length === 0) allowedOrigins.push('http://localhost:5173')
 
 app.use(
   cors({
     origin: allowedOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    optionsSuccessStatus: 204,
   }),
 )
 app.use(express.json())
@@ -368,22 +373,18 @@ async function syncStudentProfileFromUser(user) {
   const usn = normalizeString(user?.user_metadata?.usn) || `TEMP-${user.id.slice(0, 8)}`
   const programme = normalizeString(user?.user_metadata?.programme) || 'Unknown Programme'
   const semester = normalizeSemester(user?.user_metadata?.semester, 1)
-  const email = typeof user?.email === 'string' && user.email.trim() ? user.email.trim() : null
 
+  const row = {
+    id: user.id,
+    full_name: fullName,
+    usn,
+    programme,
+    semester,
+    status: 'active',
+  }
   const { data, error } = await adminSupabase
     .from('students')
-    .upsert(
-      {
-        id: user.id,
-        full_name: fullName,
-        usn,
-        programme,
-        semester,
-        email,
-        status: 'active',
-      },
-      { onConflict: 'id' },
-    )
+    .upsert(row, { onConflict: 'id' })
     .select('*')
     .single()
 
@@ -447,7 +448,7 @@ async function getRoleProfile(userId, role) {
   if (role === 'student') {
     const { data } = await adminSupabase
       .from('students')
-      .select('id,full_name,usn,programme,semester,email,status,registered_at')
+      .select('id,full_name,usn,programme,semester,status,registered_at')
       .eq('id', userId)
       .maybeSingle()
     return data
@@ -847,21 +848,25 @@ app.get('/api/faculty/dashboard', requireAuth, requireRoles('faculty', 'admin'),
 
   let textbooks = []
   if (driveClient) {
-    const clauses = [
-      "trashed = false",
-      "appProperties has { key='category' and value='textbook' }",
-      `appProperties has { key='uploadedBy' and value='${escapeDriveQueryValue(facultyId)}' }`,
-    ]
-    const listed = await driveClient.files.list({
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-      q: clauses.join(' and '),
-      pageSize: 20,
-      fields:
-        'files(id,name,mimeType,size,createdTime,webViewLink,webContentLink,parents,appProperties)',
-      orderBy: 'createdTime desc',
-    })
-    textbooks = (listed.data.files ?? []).map(mapDriveFile)
+    try {
+      const clauses = [
+        "trashed = false",
+        "appProperties has { key='category' and value='textbook' }",
+        `appProperties has { key='uploadedBy' and value='${escapeDriveQueryValue(facultyId)}' }`,
+      ]
+      const listed = await driveClient.files.list({
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        q: clauses.join(' and '),
+        pageSize: 20,
+        fields:
+          'files(id,name,mimeType,size,createdTime,webViewLink,webContentLink,parents,appProperties)',
+        orderBy: 'createdTime desc',
+      })
+      textbooks = (listed.data.files ?? []).map(mapDriveFile)
+    } catch (_) {
+      textbooks = []
+    }
   }
 
   const verificationNotes = (verificationNotesRows ?? []).map((note) => ({
@@ -1064,7 +1069,7 @@ app.get('/api/admin/students', requireAuth, requireRoles('admin'), async (req, r
 
   let query = adminSupabase
     .from('students')
-    .select('id,full_name,usn,programme,semester,email,status,registered_at')
+    .select('id,full_name,usn,programme,semester,status,registered_at')
     .order('registered_at', { ascending: false })
   if (programme) query = query.eq('programme', programme)
   if (semester) query = query.eq('semester', semester)
@@ -1076,13 +1081,24 @@ app.get('/api/admin/students', requireAuth, requireRoles('admin'), async (req, r
 
   const { data: rows, error } = await query
   if (error) throw error
+  const ids = (rows ?? []).map((s) => s.id).filter(Boolean)
+  const emailById = {}
+  if (ids.length > 0) {
+    const results = await Promise.all(
+      ids.map((id) => adminSupabase.auth.admin.getUserById(id)),
+    )
+    results.forEach((r, i) => {
+      const uid = ids[i]
+      if (r?.data?.user?.email) emailById[uid] = r.data.user.email.trim()
+    })
+  }
   const students = (rows ?? []).map((s) => ({
     id: s.id,
     fullName: s.full_name,
     usn: s.usn,
     programme: s.programme,
     semester: String(s.semester),
-    email: s.email ?? null,
+    email: emailById[s.id] ?? null,
     status: s.status,
     registeredAt: s.registered_at,
   }))
@@ -1739,6 +1755,9 @@ app.get('/api/assignments', requireAuth, async (req, res) => {
     .from('assignments')
     .select('*, subjects(id,name,code)')
     .order('created_at', { ascending: false })
+  if (req.auth.role === 'faculty') {
+    query = query.eq('faculty_id', req.auth.user.id)
+  }
   if (subjectName) query = query.eq('subjects.name', subjectName)
 
   const { data, error } = await query
@@ -1821,16 +1840,87 @@ app.get('/api/assignments/:assignmentId/submissions', requireAuth, requireRoles(
   if (assignmentErr) throw assignmentErr
   if (!assignment) return res.status(404).json({ message: 'Assignment not found.' })
 
-  const { data: submissions, error } = await adminSupabase
+  const subjectId = assignment.subject_id
+
+  const { data: enrolledRows, error: enrolledErr } = await adminSupabase
+    .from('student_subjects')
+    .select('student_id, students(id, full_name, usn, programme, semester)')
+    .eq('subject_id', subjectId)
+    .eq('status', 'active')
+  if (enrolledErr) throw enrolledErr
+
+  const { data: submissionRows, error: subErr } = await adminSupabase
     .from('submissions')
     .select(
-      '*, students(id,full_name,usn,programme,semester), submission_files(id,file_name,file_url,file_size,file_type,uploaded_at), grades(id,marks,grade,feedback,graded_by,graded_at,is_released)',
+      'id, student_id, status, submitted_at, is_late, submission_files(id,file_name,file_url,file_size,file_type,uploaded_at), grades(id,marks,grade,feedback,graded_by,graded_at,is_released)',
     )
     .eq('assignment_id', assignmentId)
-    .order('submitted_at', { ascending: false })
-  if (error) throw error
+  if (subErr) throw subErr
 
-  return res.json({ assignment, submissions: submissions ?? [] })
+  const submissionsByStudent = Object.fromEntries(
+    (submissionRows ?? []).map((s) => [s.student_id, s]),
+  )
+  const enrolledStudentIds = new Set((enrolledRows ?? []).map((r) => r.student_id).filter(Boolean))
+
+  const submissionsFromEnrolled = (enrolledRows ?? []).map((row) => {
+    const studentId = row.student_id
+    const sub = submissionsByStudent[studentId]
+    const student = row.students
+    if (sub) {
+      return {
+        id: sub.id,
+        student_id: studentId,
+        status: sub.status,
+        submitted_at: sub.submitted_at,
+        is_late: sub.is_late ?? false,
+        students: student,
+        submission_files: sub.submission_files ?? [],
+        grades: sub.grades,
+      }
+    }
+    return {
+      id: `pending-${studentId}`,
+      student_id: studentId,
+      status: 'pending',
+      submitted_at: null,
+      is_late: false,
+      students: student,
+      submission_files: [],
+      grades: null,
+    }
+  })
+
+  const submittedButNotEnrolled = (submissionRows ?? []).filter(
+    (s) => s.student_id && !enrolledStudentIds.has(s.student_id),
+  )
+  let extraSubmissions = []
+  if (submittedButNotEnrolled.length > 0) {
+    const ids = [...new Set(submittedButNotEnrolled.map((s) => s.student_id))]
+    const { data: extraStudents, error: extraErr } = await adminSupabase
+      .from('students')
+      .select('id, full_name, usn, programme, semester')
+      .in('id', ids)
+    if (!extraErr && extraStudents?.length) {
+      const studentById = Object.fromEntries(extraStudents.map((s) => [s.id, s]))
+      extraSubmissions = submittedButNotEnrolled.map((s) => {
+        const student = studentById[s.student_id]
+        return {
+          id: s.id,
+          student_id: s.student_id,
+          status: s.status,
+          submitted_at: s.submitted_at,
+          is_late: s.is_late ?? false,
+          students: student ?? { id: s.student_id, full_name: 'Student', usn: '—', programme: '', semester: null },
+          submission_files: s.submission_files ?? [],
+          grades: s.grades,
+        }
+      })
+    }
+  }
+
+  const submissions = [...submissionsFromEnrolled, ...extraSubmissions]
+
+  return res.json({ assignment, submissions })
 })
 
 app.patch('/api/submissions/:submissionId/grade', requireAuth, requireRoles('faculty', 'admin'), async (req, res) => {

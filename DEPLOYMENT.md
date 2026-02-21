@@ -69,30 +69,6 @@ Output is in `dist/`.
   - All routes (e.g. `/admin_dashboard`, `/student_dashboard`) are served by `index.html` (SPA fallback).
   - `VITE_API_URL` points to your deployed backend URL.
 
-### Deploy frontend to Vercel
-
-1. **Push your code** to GitHub (or GitLab/Bitbucket). Vercel will deploy from the repo.
-
-2. **Connect the project**
-   - Go to [vercel.com](https://vercel.com) and sign in.
-   - **Add New** → **Project** → import your repo.
-   - Vercel will detect Vite (or use the repo’s `vercel.json`). Confirm:
-     - **Root Directory:** `./` (repo root)
-     - **Build Command:** `npm run build`
-     - **Output Directory:** `dist`
-
-3. **Set environment variable**
-   - In the project → **Settings** → **Environment Variables**, add:
-   - **Name:** `VITE_API_URL`
-   - **Value:** your backend API base URL, e.g. `https://your-ngrok-url.ngrok-free.app/api` (no trailing slash).
-   - Apply to **Production** (and Preview if you want).
-
-4. **Deploy**
-   - **Deploy** (or push to the connected branch to trigger a new deploy).
-   - After deploy, the app will be at `https://your-project.vercel.app`. All SPA routes work via `vercel.json` rewrites.
-
-**CLI option:** Install Vercel CLI (`npm i -g vercel`), run `vercel` in the project root, follow the prompts, then set `VITE_API_URL` in the Vercel dashboard (or `vercel env add VITE_API_URL`).
-
 ## 3. Full-Stack (single machine)
 
 1. Build frontend: `npm run build`
@@ -109,69 +85,6 @@ For production, use a reverse proxy (e.g. Nginx) to serve `dist/` and proxy `htt
 ## 5. Database
 
 Apply the schema in `backend/sql/schema.sql` (and any migrations) in your Supabase SQL editor. Seed admin/faculty users if needed via `backend/scripts/seed-users.js` (configure with `SUPABASE_SERVICE_ROLE_KEY` in `backend/.env`).
-
-## 6. Backend with ngrok (Vercel frontend + local backend, e.g. hackathon demo)
-
-Expose your local backend so a frontend deployed on Vercel can call it.
-
-### 6.1 Install ngrok
-
-- **macOS (Homebrew):** `brew install ngrok`
-- **Or:** sign up at [ngrok.com](https://ngrok.com), download the binary, and add it to your PATH.
-
-### 6.2 Start your backend
-
-```bash
-cd backend
-npm start
-```
-
-Backend should be listening on `http://localhost:4000`.
-
-### 6.3 Start the tunnel
-
-In a **second terminal**:
-
-```bash
-ngrok http 4000
-```
-
-You’ll see something like:
-
-```
-Forwarding   https://abc123.ngrok-free.app -> http://localhost:4000
-```
-
-Copy the **HTTPS** URL (e.g. `https://abc123.ngrok-free.app`).
-
-### 6.4 Allow your Vercel frontend in CORS
-
-In `backend/.env`, set `CORS_ORIGIN` to your Vercel app (and optionally keep localhost for local dev):
-
-```env
-CORS_ORIGIN=https://your-app.vercel.app,http://localhost:5173
-```
-
-Restart the backend after changing `.env`.
-
-### 6.5 Point the frontend to the tunnel
-
-In **Vercel** → your project → **Settings** → **Environment Variables**, add:
-
-| Name           | Value                          |
-|----------------|--------------------------------|
-| `VITE_API_URL` | `https://abc123.ngrok-free.app/api` |
-
-Use your actual ngrok URL; no trailing slash. Redeploy the frontend so the new value is used.
-
-### 6.6 Demo checklist
-
-1. Backend running: `cd backend && npm start`
-2. ngrok running: `ngrok http 4000` (keep this terminal open)
-3. Vercel env `VITE_API_URL` = your ngrok HTTPS URL + `/api`
-4. Open your Vercel app; it will call your local backend through ngrok.
-
-**Note:** Free ngrok URLs change each time you restart ngrok. If the URL changes, update `VITE_API_URL` in Vercel and redeploy.
 
 ---
 

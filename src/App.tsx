@@ -262,10 +262,35 @@ const STUDENT_NAV_ITEMS: HeaderNavItem[] = [
   { label: 'Unofficial Notes', path: '/unofficial_notes' },
 ]
 
+const ADMIN_NAV_ITEMS: HeaderNavItem[] = [
+  { label: 'Dashboard', path: '/admin_dashboard' },
+  { label: 'Faculty Accounts', path: '/admin_faculty_accounts' },
+  { label: 'Assign Subjects', path: '/admin_assign_subjects' },
+  { label: 'Student Accounts', path: '/admin_student_accounts' },
+  { label: 'Circulars', path: '/admin_circulars' },
+  { label: 'Departments', path: '/admin_departments' },
+]
+
+const ADMIN_TITLE_BY_PATH: Partial<Record<RoutePath, string>> = {
+  '/admin_dashboard': 'Admin Dashboard',
+  '/admin_faculty_accounts': 'Faculty Accounts',
+  '/admin_assign_subjects': 'Assign Subjects',
+  '/admin_student_accounts': 'Student Accounts',
+  '/admin_circulars': 'Circulars',
+  '/admin_enroll_students': 'Enroll Students',
+  '/admin_review_uploads': 'Review Uploads',
+  '/admin_student_details': 'Student Details',
+  '/admin_faculty_details': 'Faculty Details',
+  '/admin_departments': 'Departments',
+  '/admin_settings': 'System Settings',
+}
+
 function BrandIdentity({ small = false }: { small?: boolean }) {
   return (
     <div className={`brand-identity ${small ? 'small' : ''}`} aria-label="StudySync">
-      <div className="brand-logo-placeholder">Logo</div>
+      <div className="brand-logo-shell">
+        <span className="material-symbols-outlined icon-school">school</span>
+      </div>
       <span>StudySync</span>
     </div>
   )
@@ -1645,7 +1670,7 @@ function StudentLoginScreen({
           </div>
 
           <div className="forgot-wrap">
-            <button type="button" className="inline-link" onClick={onForgotPassword}>
+            <button type="button" className="inline-link forgot-link-btn" onClick={onForgotPassword}>
               Forgot Password?
             </button>
           </div>
@@ -1892,7 +1917,7 @@ function StudentRegisterScreen({ onLogin }: { onLogin: () => void }) {
   )
 }
 
-function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
+function FacultyLoginScreen({ onLogin, onForgotPassword }: { onLogin: () => void; onForgotPassword?: () => void }) {
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -1985,7 +2010,11 @@ function FacultyLoginScreen({ onLogin }: { onLogin: () => void }) {
           </form>
 
           <div className="forgot-wrap">
-            <a href="#">Forgot Password?</a>
+            {onForgotPassword ? (
+              <button type="button" className="inline-link forgot-link-btn" onClick={onForgotPassword}>
+                Forgot Password?
+              </button>
+            ) : null}
           </div>
         </div>
       </main>
@@ -2101,12 +2130,10 @@ function AdminLoginScreen({
 
           <div className="forgot-wrap">
             {onForgotPassword ? (
-              <button type="button" className="link-button" onClick={onForgotPassword}>
+              <button type="button" className="inline-link forgot-link-btn" onClick={onForgotPassword}>
                 Forgot Password?
               </button>
-            ) : (
-              <a href="#">Forgot Password?</a>
-            )}
+            ) : null}
           </div>
         </div>
       </main>
@@ -2114,113 +2141,26 @@ function AdminLoginScreen({
   )
 }
 
-type AdminNavActive = 'dashboard' | 'faculty' | 'subjects' | 'circulars' | 'students' | 'departments' | 'settings'
-
 function AdminHeader({
-  active,
-  onNavigateDashboard,
-  onNavigateFacultyAccounts,
-  onNavigateAssignSubjects,
-  onNavigateCirculars,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
-  onNotificationsClick,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
-  active: AdminNavActive
-  onNavigateDashboard: () => void
-  onNavigateFacultyAccounts: () => void
-  onNavigateAssignSubjects: () => void
-  onNavigateCirculars: () => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
-  onNotificationsClick?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
-  const { user } = useAuth()
-  const displayName = user?.name || user?.fullName || 'Admin User'
-  const roleText = user?.role ? `${user.role[0].toUpperCase()}${user.role.slice(1)} Access` : 'Super Administrator'
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const toggleNotifications = () => {
-    setNotificationsOpen((prev) => !prev)
-    onNotificationsClick?.()
-  }
+  const title = ADMIN_TITLE_BY_PATH[currentPath] ?? 'Admin'
   return (
-    <header className="admin-header">
-      <div className="admin-container admin-header-row">
-        <h1>Admin Dashboard</h1>
-        <div className="admin-header-right">
-          <div style={{ position: 'relative' }}>
-            <button type="button" className="admin-notification-btn" aria-label="Notifications" onClick={toggleNotifications}>
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
-            {notificationsOpen ? (
-              <div
-                className="admin-dropdown-panel"
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: '0.25rem',
-                  background: 'var(--card-bg, #fff)',
-                  border: '1px solid var(--border, #e5e7eb)',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  padding: '1rem',
-                  minWidth: '280px',
-                  zIndex: 50,
-                }}
-              >
-                <p style={{ margin: 0, color: 'var(--muted, #6b7280)', fontSize: '0.875rem' }}>No notifications yet.</p>
-                <button type="button" onClick={() => setNotificationsOpen(false)} style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
-                  Close
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <div className="admin-user">
-            <div>
-              <p>{displayName}</p>
-              <p>{roleText}</p>
-            </div>
-            <div>AU</div>
-          </div>
-        </div>
-      </div>
-      <div className="admin-header-accent" />
-      <div className="admin-container admin-top-nav">
-        <button type="button" onClick={onNavigateDashboard} className={active === 'dashboard' ? 'active' : ''}>
-          <span className="material-symbols-outlined">dashboard</span>
-          Dashboard
-        </button>
-        <button type="button" onClick={onNavigateFacultyAccounts} className={active === 'faculty' ? 'active' : ''}>
-          <span className="material-symbols-outlined">group</span>
-          Faculty Accounts
-        </button>
-        <button type="button" onClick={onNavigateAssignSubjects} className={active === 'subjects' ? 'active' : ''}>
-          <span className="material-symbols-outlined">assignment_ind</span>
-          Assign Subjects
-        </button>
-        {onNavigateStudentAccounts ? (
-          <button type="button" onClick={onNavigateStudentAccounts} className={active === 'students' ? 'active' : ''}>
-            <span className="material-symbols-outlined">school</span>
-            Student Accounts
-          </button>
-        ) : null}
-        <button type="button" onClick={onNavigateCirculars} className={active === 'circulars' ? 'active' : ''}>
-          <span className="material-symbols-outlined">campaign</span>
-          Circulars
-        </button>
-        <button type="button" onClick={onNavigateDepartments} className={active === 'departments' ? 'active' : ''}>
-          <span className="material-symbols-outlined">book</span>
-          Departments
-        </button>
-        <button type="button" onClick={onNavigateSettings} className={active === 'settings' ? 'active' : ''}>
-          <span className="material-symbols-outlined">settings</span>
-          System Settings
-        </button>
-      </div>
-    </header>
+    <CommonDashboardHeader
+      title={title}
+      subtitle="Super Administrator"
+      navItems={ADMIN_NAV_ITEMS}
+      currentPath={currentPath}
+      onNavigate={onNavigate}
+      onLogout={onLogout}
+      containerClassName="admin-container"
+    />
   )
 }
 
@@ -2292,12 +2232,7 @@ function AdminDashboardScreen({
       <CommonDashboardHeader
         title="Admin Dashboard"
         subtitle="Super Administrator"
-        navItems={[
-          { label: 'Dashboard', path: '/admin_dashboard' },
-          { label: 'Faculty Accounts', path: '/admin_faculty_accounts' },
-          { label: 'Assign Subjects', path: '/admin_assign_subjects' },
-          { label: 'Student Accounts', path: '/admin_student_accounts' },
-        ]}
+        navItems={ADMIN_NAV_ITEMS}
         currentPath={currentPath}
         onNavigate={onNavigate}
         onLogout={onLogout}
@@ -2466,12 +2401,9 @@ function AdminCircularsScreen({
   onUpdateNotice,
   onDeleteNotice,
   onDeleteCalendarEvent,
-  onBackDashboard,
-  onFacultyAccounts,
-  onAssignSubjects,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
   notices: DepartmentNotice[]
   calendarEvents: AcademicEvent[]
@@ -2486,12 +2418,9 @@ function AdminCircularsScreen({
   onUpdateNotice?: (id: string, payload: { title: string; content: string; urgent: boolean }) => void
   onDeleteNotice: (id: string) => void
   onDeleteCalendarEvent?: (id: string) => void
-  onBackDashboard: () => void
-  onFacultyAccounts: () => void
-  onAssignSubjects: () => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -2545,16 +2474,7 @@ function AdminCircularsScreen({
 
   return (
     <div className="admin-page" aria-label="Department circulars management">
-      <AdminHeader
-        active="circulars"
-        onNavigateDashboard={onBackDashboard}
-        onNavigateFacultyAccounts={onFacultyAccounts}
-        onNavigateAssignSubjects={onAssignSubjects}
-        onNavigateCirculars={() => {}}
-        onNavigateStudentAccounts={onNavigateStudentAccounts}
-        onNavigateDepartments={onNavigateDepartments}
-        onNavigateSettings={onNavigateSettings}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
 
       <main className="admin-container admin-main">
         <section className="screen-head">
@@ -2788,21 +2708,13 @@ function AdminCircularsScreen({
 }
 
 function AdminReviewUploadsScreen({
-  onBackDashboard,
-  onFacultyAccounts,
-  onAssignSubjects,
-  onCirculars,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
-  onBackDashboard: () => void
-  onFacultyAccounts: () => void
-  onAssignSubjects: () => void
-  onCirculars: () => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [uploads, setUploads] = useState<Array<{ id: string; student: string; usn: string; title: string; format: string; date: string }>>([])
   const [uploadsLoading, setUploadsLoading] = useState(true)
@@ -2837,16 +2749,7 @@ function AdminReviewUploadsScreen({
 
   return (
     <div className="admin-page" aria-label="Admin review uploads">
-      <AdminHeader
-        active="dashboard"
-        onNavigateDashboard={onBackDashboard}
-        onNavigateFacultyAccounts={onFacultyAccounts}
-        onNavigateAssignSubjects={onAssignSubjects}
-        onNavigateCirculars={onCirculars}
-        onNavigateStudentAccounts={onNavigateStudentAccounts}
-        onNavigateDepartments={onNavigateDepartments}
-        onNavigateSettings={onNavigateSettings}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
 
       <main className="admin-container admin-main">
         <section className="screen-head">
@@ -2951,25 +2854,17 @@ function AdminReviewUploadsScreen({
 }
 
 function AdminStudentAccountsScreen({
-  onBackDashboard,
-  onFacultyAccounts,
-  onAssignSubjects,
-  onCirculars,
   onEnrollStudents,
   onViewStudentDetails,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
-  onBackDashboard: () => void
-  onFacultyAccounts: () => void
-  onAssignSubjects: () => void
-  onCirculars: () => void
   onEnrollStudents?: () => void
   onViewStudentDetails?: (id: string) => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [studentList, setStudentList] = useState<Awaited<ReturnType<typeof adminService.getStudents>>>([])
   const [studentError, setStudentError] = useState<string | null>(null)
@@ -3040,16 +2935,7 @@ function AdminStudentAccountsScreen({
 
   return (
     <div className="admin-page" aria-label="Student accounts management">
-      <AdminHeader
-        active="students"
-        onNavigateDashboard={onBackDashboard}
-        onNavigateFacultyAccounts={onFacultyAccounts}
-        onNavigateAssignSubjects={onAssignSubjects}
-        onNavigateCirculars={onCirculars}
-        onNavigateStudentAccounts={onNavigateStudentAccounts}
-        onNavigateDepartments={onNavigateDepartments}
-        onNavigateSettings={onNavigateSettings}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
 
       <main className="admin-container admin-main">
         <section className="screen-head">
@@ -3253,21 +3139,15 @@ function initials(name: string): string {
 }
 
 function AdminFacultyAccountsScreen({
-  onBackDashboard,
-  onAssignSubjects,
-  onCirculars,
   onViewFacultyDetails,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
-  onBackDashboard: () => void
-  onAssignSubjects: () => void
-  onCirculars: () => void
   onViewFacultyDetails?: (id: string) => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [tempPassword, setTempPassword] = useState('UNIV-8x2K-99LP')
@@ -3328,16 +3208,7 @@ function AdminFacultyAccountsScreen({
 
   return (
     <div className="admin-page" aria-label="Faculty accounts management">
-      <AdminHeader
-        active="faculty"
-        onNavigateDashboard={onBackDashboard}
-        onNavigateFacultyAccounts={() => {}}
-        onNavigateAssignSubjects={onAssignSubjects}
-        onNavigateCirculars={onCirculars}
-        onNavigateStudentAccounts={onNavigateStudentAccounts}
-        onNavigateDepartments={onNavigateDepartments}
-        onNavigateSettings={onNavigateSettings}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
 
       <main className="admin-container admin-main">
         <section className="screen-head">
@@ -3507,19 +3378,13 @@ function AdminFacultyAccountsScreen({
 }
 
 function AdminAssignSubjectsScreen({
-  onBackDashboard,
-  onFacultyAccounts,
-  onCirculars,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
-  onBackDashboard: () => void
-  onFacultyAccounts: () => void
-  onCirculars: () => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [subjects, setSubjects] = useState<Awaited<ReturnType<typeof adminService.getSubjects>>>([])
   const [facultyList, setFacultyList] = useState<Awaited<ReturnType<typeof adminService.getFaculty>>>([])
@@ -3579,16 +3444,7 @@ function AdminAssignSubjectsScreen({
 
   return (
     <div className="admin-page" aria-label="Assign subjects to faculty">
-      <AdminHeader
-        active="subjects"
-        onNavigateDashboard={onBackDashboard}
-        onNavigateFacultyAccounts={onFacultyAccounts}
-        onNavigateAssignSubjects={() => {}}
-        onNavigateCirculars={onCirculars}
-        onNavigateStudentAccounts={onNavigateStudentAccounts}
-        onNavigateDepartments={onNavigateDepartments}
-        onNavigateSettings={onNavigateSettings}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
 
       <main className="admin-container admin-main">
         <section className="screen-head">
@@ -4453,7 +4309,7 @@ function StudentDashboardScreen({
   onNavigate,
   onLogout,
 }: {
-  onViewBrief: () => void
+  onViewBrief: (assignmentId: string) => void
   onViewResult: () => void
   onUnofficialNotes: () => void
   onGoToRepository: () => void
@@ -4512,8 +4368,8 @@ function StudentDashboardScreen({
         text: 'Graded',
         pillClass: 'pill info',
         pillText: 'Graded',
-        action: onViewResult,
-        actionLabel: 'Details',
+        action: undefined,
+        actionLabel: undefined,
         buttonClass: 'dashboard-btn-secondary dashboard-btn-small dashboard-assignment-action',
       }
     }
@@ -4794,9 +4650,11 @@ function StudentDashboardScreen({
                       <p className={ui.textClass}>{assignment.grade ? `Grade: ${assignment.grade}` : ui.text}</p>
                       <span className={ui.pillClass}>{ui.pillText}</span>
                     </div>
-                    <button type="button" className={ui.buttonClass} onClick={ui.action}>
-                      {ui.actionLabel}
-                    </button>
+                    {ui.action != null && ui.actionLabel != null ? (
+                      <button type="button" className={ui.buttonClass} onClick={() => ui.action?.(assignment.id)}>
+                        {ui.actionLabel}
+                      </button>
+                    ) : null}
                   </div>
                 </article>
               )
@@ -4824,22 +4682,34 @@ function FacultyVerificationScreen({
   onNavigate: (path: RoutePath) => void
   onLogout: () => void
 }) {
-  const [verifiedNotes, setVerifiedNotes] = useState<Set<string>>(new Set())
-  const [rejectedNotes, setRejectedNotes] = useState<Set<string>>(new Set())
+  const [notes, setNotes] = useState<Awaited<ReturnType<typeof facultyService.getPendingNotes>>>([])
+  const [notesLoading, setNotesLoading] = useState(true)
+  const [notesError, setNotesError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewTitle, setPreviewTitle] = useState('Document.pdf')
+  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const loadNotes = () => {
+    setNotesLoading(true)
+    setNotesError(null)
+    facultyService
+      .getPendingNotes()
+      .then(setNotes)
+      .catch((err) => setNotesError(err instanceof Error ? err.message : 'Failed to load notes'))
+      .finally(() => setNotesLoading(false))
+  }
+
+  useEffect(() => {
+    loadNotes()
+  }, [])
 
   const handleApprove = async (noteId: string) => {
     setIsLoading((prev) => ({ ...prev, [noteId]: true }))
     try {
       await facultyService.verifyNote(noteId, 'approve')
-      setVerifiedNotes((prev) => new Set([...prev, noteId]))
-      setRejectedNotes((prev) => {
-        const next = new Set(prev)
-        next.delete(noteId)
-        return next
-      })
+      loadNotes()
     } catch (error) {
       console.error('Failed to approve note:', error)
     } finally {
@@ -4851,12 +4721,7 @@ function FacultyVerificationScreen({
     setIsLoading((prev) => ({ ...prev, [noteId]: true }))
     try {
       await facultyService.verifyNote(noteId, 'reject')
-      setRejectedNotes((prev) => new Set([...prev, noteId]))
-      setVerifiedNotes((prev) => {
-        const next = new Set(prev)
-        next.delete(noteId)
-        return next
-      })
+      loadNotes()
     } catch (error) {
       console.error('Failed to reject note:', error)
     } finally {
@@ -4864,11 +4729,12 @@ function FacultyVerificationScreen({
     }
   }
 
-  const getStatus = (noteId: string) => {
-    if (verifiedNotes.has(noteId)) return 'verified'
-    if (rejectedNotes.has(noteId)) return 'rejected'
-    return 'pending'
-  }
+  const filteredNotes = notes.filter((note) => {
+    const matchStatus = !statusFilter || note.status === statusFilter
+    const q = searchQuery.trim().toLowerCase()
+    const matchSearch = !q || note.student.name.toLowerCase().includes(q) || (note.student.usn && note.student.usn.toLowerCase().includes(q)) || note.title.toLowerCase().includes(q)
+    return matchStatus && matchSearch
+  })
 
   return (
     <div className="faculty-page" aria-label="Student notes verification panel">
@@ -4896,24 +4762,26 @@ function FacultyVerificationScreen({
         <section className="faculty-verify-filters">
           <div className="faculty-verify-search">
             <span className="material-symbols-outlined">search</span>
-            <input type="text" placeholder="Search Student Name or USN..." />
+            <input
+              type="text"
+              placeholder="Search Student Name or USN..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <select defaultValue="">
-            <option value="">All Chapters</option>
-            <option>Unit 1: Introduction</option>
-            <option>Unit 2: Process Mgmt</option>
-            <option>Unit 3: Memory Mgmt</option>
-          </select>
-          <select defaultValue="">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
-            <option>Pending</option>
-            <option>Verified</option>
-            <option>Rejected</option>
+            <option value="pending">Pending</option>
+            <option value="verified">Verified</option>
+            <option value="rejected">Rejected</option>
           </select>
-          <button type="button" className="faculty-filter-btn">
-            <span className="material-symbols-outlined">filter_list</span>
-          </button>
         </section>
+
+        {notesError ? (
+          <section className="dashboard-card">
+            <p style={{ color: '#b91c1c', fontWeight: 600 }}>{notesError}</p>
+          </section>
+        ) : null}
 
         <section className="dashboard-card faculty-verify-table-card">
           <div className="dashboard-table-wrap">
@@ -4930,166 +4798,65 @@ function FacultyVerificationScreen({
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Aditya Kulkarni</td>
-                  <td className="muted">1MS21CS004</td>
-                  <td>
-                    <div className="faculty-note-cell">
-                      <span>Virtual Memory Deep Dive</span>
-                      <span className="faculty-new-tag">NEW</span>
-                    </div>
-                  </td>
-                  <td className="muted">Unit 3</td>
-                  <td className="muted">Oct 24, 2023</td>
-                  <td>
-                    <span className={`faculty-status-badge ${getStatus('note-1')}`}>
-                      {getStatus('note-1') === 'verified' ? 'Verified' : getStatus('note-1') === 'rejected' ? 'Rejected' : 'Pending'}
-                    </span>
-                  </td>
-                  <td className="align-right">
-                    <div className={`faculty-row-actions ${getStatus('note-1') !== 'pending' ? 'disabled' : ''}`}>
-                      <button
-                        type="button"
-                        className="faculty-preview-btn"
-                        disabled={getStatus('note-1') !== 'pending'}
-                        onClick={() => {
-                          setPreviewTitle('Virtual Memory Deep Dive.pdf')
-                          setIsPreviewOpen(true)
-                        }}
-                      >
-                        Preview
-                      </button>
-                      <button
-                        type="button"
-                        className="faculty-approve-btn"
-                        onClick={() => handleApprove('note-1')}
-                        disabled={getStatus('note-1') !== 'pending' || isLoading['note-1']}
-                      >
-                        {isLoading['note-1'] ? 'Processing...' : 'Approve'}
-                      </button>
-                      <button
-                        type="button"
-                        className="faculty-reject-btn"
-                        onClick={() => handleReject('note-1')}
-                        disabled={getStatus('note-1') !== 'pending' || isLoading['note-1']}
-                      >
-                        {isLoading['note-1'] ? 'Processing...' : 'Reject'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Rohan Sharma</td>
-                  <td className="muted">1MS21CS142</td>
-                  <td>
-                    <div className="faculty-note-cell">
-                      <span>Process Scheduling Algos</span>
-                      <span className="faculty-new-tag">NEW</span>
-                    </div>
-                  </td>
-                  <td className="muted">Unit 2</td>
-                  <td className="muted">Oct 23, 2023</td>
-                  <td>
-                    <span className={`faculty-status-badge ${getStatus('note-2')}`}>
-                      {getStatus('note-2') === 'verified' ? 'Verified' : getStatus('note-2') === 'rejected' ? 'Rejected' : 'Pending'}
-                    </span>
-                  </td>
-                  <td className="align-right">
-                    <div className={`faculty-row-actions ${getStatus('note-2') !== 'pending' ? 'disabled' : ''}`}>
-                      <button
-                        type="button"
-                        className="faculty-preview-btn"
-                        disabled={getStatus('note-2') !== 'pending'}
-                        onClick={() => {
-                          setPreviewTitle('Process Scheduling Algos.pdf')
-                          setIsPreviewOpen(true)
-                        }}
-                      >
-                        Preview
-                      </button>
-                      <button
-                        type="button"
-                        className="faculty-approve-btn"
-                        onClick={() => handleApprove('note-2')}
-                        disabled={getStatus('note-2') !== 'pending' || isLoading['note-2']}
-                      >
-                        {isLoading['note-2'] ? 'Processing...' : 'Approve'}
-                      </button>
-                      <button
-                        type="button"
-                        className="faculty-reject-btn"
-                        onClick={() => handleReject('note-2')}
-                        disabled={getStatus('note-2') !== 'pending' || isLoading['note-2']}
-                      >
-                        {isLoading['note-2'] ? 'Processing...' : 'Reject'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Ananya Iyer</td>
-                  <td className="muted">1MS21CS028</td>
-                  <td>Deadlock Prevention Strategies</td>
-                  <td className="muted">Unit 2</td>
-                  <td className="muted">Oct 20, 2023</td>
-                  <td>
-                    <span className="faculty-status-badge verified">Verified</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="faculty-row-actions disabled">
-                      <button type="button" className="faculty-preview-btn" disabled>
-                        Preview
-                      </button>
-                      <button type="button" className="faculty-approve-btn" disabled>
-                        Approve
-                      </button>
-                      <button type="button" className="faculty-reject-btn" disabled>
-                        Reject
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Vikram Rao</td>
-                  <td className="muted">1MS21CS189</td>
-                  <td>History of Computing Systems</td>
-                  <td className="muted">Unit 1</td>
-                  <td className="muted">Oct 18, 2023</td>
-                  <td>
-                    <span className="faculty-status-badge rejected">Rejected</span>
-                  </td>
-                  <td className="align-right">
-                    <div className="faculty-row-actions disabled">
-                      <button type="button" className="faculty-preview-btn" disabled>
-                        Preview
-                      </button>
-                      <button type="button" className="faculty-approve-btn" disabled>
-                        Approve
-                      </button>
-                      <button type="button" className="faculty-reject-btn" disabled>
-                        Reject
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                {notesLoading ? (
+                  <tr>
+                    <td colSpan={7}>Loading notes…</td>
+                  </tr>
+                ) : filteredNotes.length === 0 ? (
+                  <tr>
+                    <td colSpan={7}>No notes to show.</td>
+                  </tr>
+                ) : (
+                  filteredNotes.map((note) => (
+                    <tr key={note.id}>
+                      <td>{note.student.name}</td>
+                      <td className="muted">{note.student.usn}</td>
+                      <td>
+                        <div className="faculty-note-cell">
+                          <span>{note.title}</span>
+                          {note.status === 'pending' ? <span className="faculty-new-tag">NEW</span> : null}
+                        </div>
+                      </td>
+                      <td className="muted">{note.chapter || '—'}</td>
+                      <td className="muted">{note.uploadedAt ? new Date(note.uploadedAt).toLocaleDateString() : '—'}</td>
+                      <td>
+                        <span className={`faculty-status-badge ${note.status}`}>
+                          {note.status === 'verified' ? 'Verified' : note.status === 'rejected' ? 'Rejected' : 'Pending'}
+                        </span>
+                      </td>
+                      <td className="align-right">
+                        <div className={`faculty-row-actions ${note.status !== 'pending' ? 'disabled' : ''}`}>
+                          <button
+                            type="button"
+                            className="faculty-preview-btn"
+                            disabled={note.status !== 'pending'}
+                            onClick={() => setPreviewTitle(`${note.title}.pdf`)}
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            className="faculty-approve-btn"
+                            onClick={() => handleApprove(note.id)}
+                            disabled={note.status !== 'pending' || isLoading[note.id]}
+                          >
+                            {isLoading[note.id] ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            className="faculty-reject-btn"
+                            onClick={() => handleReject(note.id)}
+                            disabled={note.status !== 'pending' || isLoading[note.id]}
+                          >
+                            {isLoading[note.id] ? 'Processing...' : 'Reject'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
-          </div>
-          <div className="faculty-pagination">
-            <p>Showing 1 to 4 of 24 submissions</p>
-            <div>
-              <button type="button" disabled>
-                <span className="material-symbols-outlined">chevron_left</span>
-              </button>
-              <button type="button" className="active">
-                1
-              </button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <button type="button">
-                <span className="material-symbols-outlined">chevron_right</span>
-              </button>
-            </div>
           </div>
         </section>
       </main>
@@ -5128,7 +4895,24 @@ function FacultyTextbookUploadScreen({
   })
   const [file, setFile] = useState<File | null>(null)
   const [subjects, setSubjects] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [textbooks, setTextbooks] = useState<Awaited<ReturnType<typeof filesService.listFiles>>>([])
+  const [textbooksLoading, setTextbooksLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const { user } = useAuth()
+
+  const loadTextbooks = () => {
+    setTextbooksLoading(true)
+    filesService
+      .listFiles({ category: 'textbook', uploadedBy: user?.id })
+      .then(setTextbooks)
+      .catch(() => setTextbooks([]))
+      .finally(() => setTextbooksLoading(false))
+  }
+
+  useEffect(() => {
+    loadTextbooks()
+  }, [user?.id])
 
   useEffect(() => {
     let active = true
@@ -5187,6 +4971,7 @@ function FacultyTextbookUploadScreen({
       setIsModalOpen(false)
       setFormData({ title: '', author: '', edition: '', subjectId: '' })
       setFile(null)
+      loadTextbooks()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
@@ -5228,58 +5013,55 @@ function FacultyTextbookUploadScreen({
         <section className="textbook-list-card">
           <div className="textbook-list-head">
             <div>Book Details</div>
-            <div>Author &amp; Edition</div>
+            <div>Size</div>
             <div>Upload Date</div>
             <div className="align-right">Action</div>
           </div>
           <div className="textbook-list-body">
-            <article className="textbook-list-row">
-              <div className="textbook-book-cell">
-                <div className="textbook-icon-cell">
-                  <span className="material-symbols-outlined">book_2</span>
+            {textbooksLoading ? (
+              <article className="textbook-list-row">
+                <div className="textbook-book-cell">
+                  <p>Loading textbooks…</p>
                 </div>
-                <div>
-                  <h3>Modern Operating Systems</h3>
-                  <p>ISBN: 978-0133591620</p>
+              </article>
+            ) : textbooks.length === 0 ? (
+              <article className="textbook-list-row">
+                <div className="textbook-book-cell">
+                  <p>No textbooks uploaded yet. Use Upload Textbook to add one.</p>
                 </div>
-              </div>
-              <div>
-                <p>Andrew S. Tanenbaum</p>
-                <p>4th Edition</p>
-              </div>
-              <div>
-                <p>Oct 24, 2023</p>
-              </div>
-              <div className="align-right">
-                <button type="button" className="faculty-icon-danger">
-                  <span className="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-            </article>
-
-            <article className="textbook-list-row">
-              <div className="textbook-book-cell">
-                <div className="textbook-icon-cell">
-                  <span className="material-symbols-outlined">book_2</span>
-                </div>
-                <div>
-                  <h3>Introduction to Algorithms</h3>
-                  <p>ISBN: 978-0262033848</p>
-                </div>
-              </div>
-              <div>
-                <p>Thomas H. Cormen</p>
-                <p>3rd Edition</p>
-              </div>
-              <div>
-                <p>Oct 15, 2023</p>
-              </div>
-              <div className="align-right">
-                <button type="button" className="faculty-icon-danger">
-                  <span className="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-            </article>
+              </article>
+            ) : (
+              textbooks.map((book) => (
+                <article key={book.id} className="textbook-list-row">
+                  <div className="textbook-book-cell">
+                    <div className="textbook-icon-cell">
+                      <span className="material-symbols-outlined">book_2</span>
+                    </div>
+                    <div>
+                      <h3>{book.name}</h3>
+                      <p>{book.mimeType ?? '—'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p>{book.size != null ? formatFileSize(Number(book.size)) : '—'}</p>
+                  </div>
+                  <div>
+                    <p>{book.createdTime ? new Date(book.createdTime).toLocaleDateString() : '—'}</p>
+                  </div>
+                  <div className="align-right">
+                    <a
+                      href={book.webViewLink || book.webContentLink || '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="faculty-icon-danger"
+                      aria-label={`Open ${book.name}`}
+                    >
+                      <span className="material-symbols-outlined">open_in_new</span>
+                    </a>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
         </section>
 
@@ -5830,6 +5612,7 @@ function FacultyAssignmentSubmissionsScreen({
       <main className="faculty-submissions-container faculty-submissions-main">
         <section className="faculty-submissions-title-block">
           <h1>Assignment Submissions</h1>
+          <div className="faculty-submissions-title-accent" aria-hidden="true" />
           <div className="faculty-submissions-actions">
             <label htmlFor="faculty-assignment-select">Assignment</label>
             <select
@@ -6989,6 +6772,8 @@ function StudentRepositoryScreen({
   )
 }
 
+const ASSIGNMENT_REVIEW_ID_KEY = 'assignment_review_id'
+
 function AssignmentReviewScreen({
   onBackToDashboard,
   currentPath,
@@ -7001,14 +6786,48 @@ function AssignmentReviewScreen({
   onLogout: () => void
 }) {
   const { user } = useAuth()
+  const [assignment, setAssignment] = useState<Awaited<ReturnType<typeof assignmentService.getAssignment>> | null>(null)
+  const [assignmentLoading, setAssignmentLoading] = useState(true)
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
   const [files, setFiles] = useState<File[]>([])
-  const [comment, setComment] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const subtitle = user?.semester ? `Semester ${user.semester}` : ''
   const programme = user?.programme || ''
+
+  useEffect(() => {
+    let cancelled = false
+    const rawId = (() => {
+      try {
+        return sessionStorage.getItem(ASSIGNMENT_REVIEW_ID_KEY)
+      } catch {
+        return null
+      }
+    })()
+    if (!rawId?.trim()) {
+      setAssignmentError('No assignment selected. Go back and choose an assignment.')
+      setAssignmentLoading(false)
+      return
+    }
+    setAssignmentLoading(true)
+    setAssignmentError(null)
+    assignmentService
+      .getAssignment(rawId.trim())
+      .then((data) => {
+        if (!cancelled) setAssignment(data)
+      })
+      .catch((err) => {
+        if (!cancelled) setAssignmentError(err instanceof Error ? err.message : 'Failed to load assignment.')
+      })
+      .finally(() => {
+        if (!cancelled) setAssignmentLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -7030,6 +6849,7 @@ function AssignmentReviewScreen({
   }
 
   const handleSubmit = async () => {
+    if (!assignment) return
     if (files.length === 0) {
       setError('Please upload at least one file')
       return
@@ -7039,9 +6859,14 @@ function AssignmentReviewScreen({
     setError(null)
 
     try {
-      await assignmentService.submitAssignment('assign-1', files, comment)
+      await assignmentService.submitAssignment(assignment.id, files)
       setIsSubmitted(true)
       setTimeout(() => {
+        try {
+          sessionStorage.removeItem(ASSIGNMENT_REVIEW_ID_KEY)
+        } catch {
+          /* ignore */
+        }
         if (onBackToDashboard) {
           onBackToDashboard()
         }
@@ -7052,6 +6877,14 @@ function AssignmentReviewScreen({
       setIsLoading(false)
     }
   }
+
+  const dueDateFormatted = assignment?.dueDate
+    ? new Date(assignment.dueDate).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })
+    : ''
+  const dueInDays = assignment?.dueDate
+    ? Math.ceil((new Date(assignment.dueDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+    : 0
+  const dueSoon = dueInDays >= 0 && dueInDays <= 3
 
   return (
     <div className="assignment-page dashboard-page" aria-label="Assignment submission details">
@@ -7066,63 +6899,72 @@ function AssignmentReviewScreen({
       />
 
       <main className="dashboard-container assignment-main">
-        <div className="assignment-layout">
-          <section className="assignment-card assignment-details">
-            <div className="assignment-badges">
-              <span className="assignment-badge blue">Subject: CS501</span>
-              <span className="assignment-badge neutral">Unit 3</span>
-              <span className="assignment-badge green">Marks: 50</span>
-            </div>
-
-            <div className="assignment-due-box">
-              <div>
-                <p>Due Date</p>
-                <h2>November 24, 2023 at 11:59 PM</h2>
-              </div>
-              <span className="assignment-badge warning">
-                <span className="material-symbols-outlined">timer</span>
-                Due soon
-              </span>
-            </div>
-
-            <div className="assignment-instructions">
-              <h3>
-                <span className="material-symbols-outlined">description</span>
-                Instructions
-              </h3>
-              <p>
-                In this assignment, you are required to demonstrate your understanding of complex SQL Joins. You
-                will be working with a sample database of a library system. Please ensure your queries are optimized
-                and include comments explaining your logic.
-              </p>
-              <ul>
-                <li>Write queries for Inner, Left, Right, and Full Outer joins.</li>
-                <li>Include at least two queries with multiple join conditions.</li>
-                <li>Implement a self-join for the Staff Hierarchy table.</li>
-                <li>Export your results in a single .sql file.</li>
-                <li>Provide a brief PDF report explaining the execution plan for Query #4.</li>
-              </ul>
-            </div>
-
-            <div className="assignment-resources">
-              <h3>
-                <span className="material-symbols-outlined">folder_open</span>
-                Faculty Resources
-              </h3>
-              <div className="assignment-resource-list">
-                <button type="button" className="assignment-resource-btn">
-                  <span className="material-symbols-outlined">description</span>
-                  Database_Schema.pdf
-                  <span className="material-symbols-outlined">download</span>
-                </button>
-                <button type="button" className="assignment-resource-btn">
-                  <span className="material-symbols-outlined">table_chart</span>
-                  Sample_Data.docx
-                  <span className="material-symbols-outlined">download</span>
-                </button>
-              </div>
-            </div>
+        {assignmentLoading ? (
+          <section className="assignment-card">
+            <p>Loading assignment…</p>
           </section>
+        ) : assignmentError || !assignment ? (
+          <section className="assignment-card">
+            <p style={{ color: '#b91c1c', fontWeight: 600 }}>{assignmentError || 'Assignment not found.'}</p>
+            {onBackToDashboard && (
+              <button type="button" className="dashboard-btn-primary" style={{ marginTop: '1rem' }} onClick={onBackToDashboard}>
+                Back to Dashboard
+              </button>
+            )}
+          </section>
+        ) : (
+          <div className="assignment-layout">
+            <section className="assignment-card assignment-details">
+              <div className="assignment-badges">
+                <span className="assignment-badge blue">Subject: {assignment.subjectCode}</span>
+                <span className="assignment-badge green">Marks: {assignment.totalMarks}</span>
+              </div>
+
+              <div className="assignment-due-box">
+                <div>
+                  <p>Due Date</p>
+                  <h2>{dueDateFormatted}</h2>
+                </div>
+                {dueSoon && dueInDays >= 0 && (
+                  <span className="assignment-badge warning">
+                    <span className="material-symbols-outlined">timer</span>
+                    {dueInDays === 0 ? 'Due today' : dueInDays === 1 ? 'Due tomorrow' : 'Due soon'}
+                  </span>
+                )}
+              </div>
+
+              <div className="assignment-instructions">
+                <h3>
+                  <span className="material-symbols-outlined">description</span>
+                  Instructions
+                </h3>
+                <p>{assignment.instructions || 'No additional instructions.'}</p>
+              </div>
+
+              {assignment.resources && assignment.resources.length > 0 ? (
+                <div className="assignment-resources">
+                  <h3>
+                    <span className="material-symbols-outlined">folder_open</span>
+                    Faculty Resources
+                  </h3>
+                  <div className="assignment-resource-list">
+                    {assignment.resources.map((res) => (
+                      <a
+                        key={res.id}
+                        href={res.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="assignment-resource-btn"
+                      >
+                        <span className="material-symbols-outlined">description</span>
+                        {res.fileName}
+                        <span className="material-symbols-outlined">download</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </section>
 
           <aside className="assignment-sidebar">
             <section className="assignment-card">
@@ -7167,21 +7009,6 @@ function AssignmentReviewScreen({
                     <p>Drag and drop or click to upload ({SUPPORTED_UPLOAD_LABEL})</p>
                   </button>
 
-                  <div className="assignment-comments">
-                    <h4>
-                      <span className="material-symbols-outlined">forum</span>
-                      Private comments
-                    </h4>
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Add a comment to faculty..."
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
                   <button
                     type="button"
                     className="assignment-submit-btn"
@@ -7201,21 +7028,9 @@ function AssignmentReviewScreen({
                 </div>
               )}
             </section>
-
-            <section className="assignment-comments">
-              <h4>
-                <span className="material-symbols-outlined">forum</span>
-                Private comments
-              </h4>
-              <div>
-                <input type="text" placeholder="Add a comment to faculty..." />
-                <button type="button">
-                  <span className="material-symbols-outlined">send</span>
-                </button>
-              </div>
-            </section>
           </aside>
         </div>
+        )}
       </main>
 
       <CommonDashboardFooter containerClassName="dashboard-container" />
@@ -7370,17 +7185,15 @@ function AssignmentResultScreen({
 }
 
 function AdminEnrollStudentsScreen({
-  onBackDashboard,
   onBackToAccounts,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
-  onBackDashboard: () => void
   onBackToAccounts: () => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [subjects, setSubjects] = useState<Awaited<ReturnType<typeof adminService.getSubjects>>>([])
   const [studentList, setStudentList] = useState<Awaited<ReturnType<typeof adminService.getStudents>>>([])
@@ -7438,22 +7251,13 @@ function AdminEnrollStudentsScreen({
 
   return (
     <div className="admin-page" aria-label="Enroll students in subjects">
-      <AdminHeader
-        active="subjects"
-        onNavigateDashboard={onBackDashboard}
-        onNavigateFacultyAccounts={() => {}}
-        onNavigateAssignSubjects={() => {}}
-        onNavigateCirculars={() => {}}
-        onNavigateStudentAccounts={onNavigateStudentAccounts}
-        onNavigateDepartments={onNavigateDepartments}
-        onNavigateSettings={onNavigateSettings}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
 
       <main className="admin-container admin-main">
         <section className="screen-head">
           <div>
             <nav className="screen-head-breadcrumb" aria-label="Breadcrumb">
-              <button type="button" onClick={onBackDashboard} className="admin-breadcrumb-link">Dashboard</button>
+              <button type="button" onClick={() => onNavigate('/admin_dashboard')} className="admin-breadcrumb-link">Dashboard</button>
               <span>/</span>
               <button type="button" onClick={onBackToAccounts} className="admin-breadcrumb-link">Student Accounts</button>
               <span>/</span>
@@ -7593,14 +7397,14 @@ function AdminEnrollStudentsScreen({
 
 function AdminStudentDetailsScreen({
   onBack,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
   onBack: () => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [student, setStudent] = useState<Awaited<ReturnType<typeof adminService.getStudent>>>(null)
   const [loading, setLoading] = useState(true)
@@ -7620,16 +7424,7 @@ function AdminStudentDetailsScreen({
 
   return (
     <div className="admin-page" aria-label="Student details">
-      <AdminHeader
-        active="students"
-        onNavigateDashboard={onBack}
-        onNavigateFacultyAccounts={() => {}}
-        onNavigateAssignSubjects={() => {}}
-        onNavigateCirculars={() => {}}
-        onNavigateStudentAccounts={onNavigateStudentAccounts}
-        onNavigateDepartments={onNavigateDepartments}
-        onNavigateSettings={onNavigateSettings}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
 
       <main className="admin-container admin-main">
         <section className="screen-head">
@@ -7772,14 +7567,14 @@ function AdminStudentDetailsScreen({
 
 function AdminFacultyDetailsScreen({
   onBack,
-  onNavigateStudentAccounts,
-  onNavigateDepartments,
-  onNavigateSettings,
+  currentPath,
+  onNavigate,
+  onLogout,
 }: {
   onBack: () => void
-  onNavigateStudentAccounts?: () => void
-  onNavigateDepartments?: () => void
-  onNavigateSettings?: () => void
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
 }) {
   const [faculty, setFaculty] = useState<Awaited<ReturnType<typeof adminService.getFacultyById>>>(null)
   const [loading, setLoading] = useState(true)
@@ -7799,16 +7594,7 @@ function AdminFacultyDetailsScreen({
 
   return (
     <div className="admin-page" aria-label="Faculty details">
-      <AdminHeader
-        active="faculty"
-        onNavigateDashboard={() => {}}
-        onNavigateFacultyAccounts={onBack}
-        onNavigateAssignSubjects={() => {}}
-        onNavigateCirculars={() => {}}
-        onNavigateStudentAccounts={onNavigateStudentAccounts}
-        onNavigateDepartments={onNavigateDepartments}
-        onNavigateSettings={onNavigateSettings}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
 
       <main className="admin-container admin-main">
         <section className="screen-head">
@@ -7951,7 +7737,15 @@ function AdminFacultyDetailsScreen({
   )
 }
 
-function AdminDepartmentsScreen({ navigate }: { navigate: (path: RoutePath) => void }) {
+function AdminDepartmentsScreen({
+  currentPath,
+  onNavigate,
+  onLogout,
+}: {
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
+}) {
   const [departments, setDepartments] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -7990,16 +7784,7 @@ function AdminDepartmentsScreen({ navigate }: { navigate: (path: RoutePath) => v
 
   return (
     <div className="admin-page" aria-label="Departments">
-      <AdminHeader
-        active="departments"
-        onNavigateDashboard={() => navigate('/admin_dashboard')}
-        onNavigateFacultyAccounts={() => navigate('/admin_faculty_accounts')}
-        onNavigateAssignSubjects={() => navigate('/admin_assign_subjects')}
-        onNavigateCirculars={() => navigate('/admin_circulars')}
-        onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-        onNavigateDepartments={() => navigate('/admin_departments')}
-        onNavigateSettings={() => navigate('/admin_settings')}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
       <main className="admin-container admin-main">
         <section className="screen-head">
           <div>
@@ -8057,7 +7842,15 @@ function AdminDepartmentsScreen({ navigate }: { navigate: (path: RoutePath) => v
 
 const SETTINGS_STORAGE_KEY = 'study_sync_settings'
 
-function AdminSettingsScreen({ navigate }: { navigate: (path: RoutePath) => void }) {
+function AdminSettingsScreen({
+  currentPath,
+  onNavigate,
+  onLogout,
+}: {
+  currentPath: RoutePath
+  onNavigate: (path: RoutePath) => void
+  onLogout: () => void
+}) {
   const [appName, setAppName] = useState('StudySync')
   const [supportEmail, setSupportEmail] = useState('')
   const [saved, setSaved] = useState(false)
@@ -8090,16 +7883,7 @@ function AdminSettingsScreen({ navigate }: { navigate: (path: RoutePath) => void
 
   return (
     <div className="admin-page" aria-label="System Settings">
-      <AdminHeader
-        active="settings"
-        onNavigateDashboard={() => navigate('/admin_dashboard')}
-        onNavigateFacultyAccounts={() => navigate('/admin_faculty_accounts')}
-        onNavigateAssignSubjects={() => navigate('/admin_assign_subjects')}
-        onNavigateCirculars={() => navigate('/admin_circulars')}
-        onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-        onNavigateDepartments={() => navigate('/admin_departments')}
-        onNavigateSettings={() => navigate('/admin_settings')}
-      />
+      <AdminHeader currentPath={currentPath} onNavigate={onNavigate} onLogout={onLogout} />
       <main className="admin-container admin-main">
         <section className="screen-head">
           <div>
@@ -8929,7 +8713,12 @@ function App() {
 
       {path === '/student_register' ? <StudentRegisterScreen onLogin={() => navigate('/student_login')} /> : null}
 
-      {path === '/faculty_login' ? <FacultyLoginScreen onLogin={() => navigate('/faculty_dashboard')} /> : null}
+      {path === '/faculty_login' ? (
+        <FacultyLoginScreen
+          onLogin={() => navigate('/faculty_dashboard')}
+          onForgotPassword={() => navigate('/forgot_password')}
+        />
+      ) : null}
 
       {path === '/admin_login' ? (
         <AdminLoginScreen
@@ -8958,44 +8747,34 @@ function App() {
 
       {path === '/admin_faculty_accounts' ? (
         <AdminFacultyAccountsScreen
-          onBackDashboard={() => navigate('/admin_dashboard')}
-          onAssignSubjects={() => navigate('/admin_assign_subjects')}
-          onCirculars={() => navigate('/admin_circulars')}
           onViewFacultyDetails={(id) => {
             try { if (id) sessionStorage.setItem('admin_selected_faculty_id', id) } catch { /* ignore */ }
             navigate('/admin_faculty_details')
           }}
-          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateDepartments={() => navigate('/admin_departments')}
-          onNavigateSettings={() => navigate('/admin_settings')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
         />
       ) : null}
 
       {path === '/admin_assign_subjects' ? (
         <AdminAssignSubjectsScreen
-          onBackDashboard={() => navigate('/admin_dashboard')}
-          onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
-          onCirculars={() => navigate('/admin_circulars')}
-          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateDepartments={() => navigate('/admin_departments')}
-          onNavigateSettings={() => navigate('/admin_settings')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
         />
       ) : null}
 
       {path === '/admin_student_accounts' ? (
         <AdminStudentAccountsScreen
-          onBackDashboard={() => navigate('/admin_dashboard')}
-          onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
-          onAssignSubjects={() => navigate('/admin_assign_subjects')}
-          onCirculars={() => navigate('/admin_circulars')}
           onEnrollStudents={() => navigate('/admin_enroll_students')}
           onViewStudentDetails={(id?: string) => {
             try { if (id) sessionStorage.setItem('admin_selected_student_id', id) } catch { /* ignore */ }
             navigate('/admin_student_details')
           }}
-          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateDepartments={() => navigate('/admin_departments')}
-          onNavigateSettings={() => navigate('/admin_settings')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
         />
       ) : null}
 
@@ -9008,61 +8787,61 @@ function App() {
           onUpdateNotice={updateNotice}
           onDeleteNotice={deleteNoticeAsAdmin}
           onDeleteCalendarEvent={deleteCalendarEvent}
-          onBackDashboard={() => navigate('/admin_dashboard')}
-          onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
-          onAssignSubjects={() => navigate('/admin_assign_subjects')}
-          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateDepartments={() => navigate('/admin_departments')}
-          onNavigateSettings={() => navigate('/admin_settings')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
         />
       ) : null}
 
       {path === '/admin_enroll_students' ? (
         <AdminEnrollStudentsScreen
-          onBackDashboard={() => navigate('/admin_dashboard')}
           onBackToAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateDepartments={() => navigate('/admin_departments')}
-          onNavigateSettings={() => navigate('/admin_settings')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
         />
       ) : null}
 
       {path === '/admin_review_uploads' ? (
         <AdminReviewUploadsScreen
-          onBackDashboard={() => navigate('/admin_dashboard')}
-          onFacultyAccounts={() => navigate('/admin_faculty_accounts')}
-          onAssignSubjects={() => navigate('/admin_assign_subjects')}
-          onCirculars={() => navigate('/admin_circulars')}
-          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateDepartments={() => navigate('/admin_departments')}
-          onNavigateSettings={() => navigate('/admin_settings')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
         />
       ) : null}
 
       {path === '/admin_student_details' ? (
         <AdminStudentDetailsScreen
           onBack={() => navigate('/admin_student_accounts')}
-          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateDepartments={() => navigate('/admin_departments')}
-          onNavigateSettings={() => navigate('/admin_settings')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
         />
       ) : null}
 
       {path === '/admin_faculty_details' ? (
         <AdminFacultyDetailsScreen
           onBack={() => navigate('/admin_faculty_accounts')}
-          onNavigateStudentAccounts={() => navigate('/admin_student_accounts')}
-          onNavigateDepartments={() => navigate('/admin_departments')}
-          onNavigateSettings={() => navigate('/admin_settings')}
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
         />
       ) : null}
 
       {path === '/admin_departments' ? (
-        <AdminDepartmentsScreen navigate={navigate} />
+        <AdminDepartmentsScreen
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
+        />
       ) : null}
 
       {path === '/admin_settings' ? (
-        <AdminSettingsScreen navigate={navigate} />
+        <AdminSettingsScreen
+          currentPath={path}
+          onNavigate={navigate}
+          onLogout={async () => { await logout(); navigate('/') }}
+        />
       ) : null}
 
       {path === '/forgot_password' ? (
@@ -9146,7 +8925,14 @@ function App() {
 
       {path === '/student_dashboard' ? (
         <StudentDashboardScreen
-          onViewBrief={() => navigate('/assignment_review')}
+          onViewBrief={(assignmentId) => {
+            try {
+              sessionStorage.setItem('assignment_review_id', assignmentId)
+            } catch {
+              /* ignore */
+            }
+            navigate('/assignment_review')
+          }}
           onViewResult={() => navigate('/assignment_result')}
           onUnofficialNotes={() => navigate('/unofficial_notes')}
           onGoToRepository={() => navigate('/repository')}
