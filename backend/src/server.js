@@ -213,6 +213,42 @@ function ensureDatabaseConfigured(res) {
   return true
 }
 
+async function isVerifiedNoteFile(fileId) {
+  if (!fileId) return false
+  const { data, error } = await adminSupabase
+    .from('note_files')
+    .select('id,file_url,notes!inner(status)')
+    .eq('notes.status', 'verified')
+    .limit(500)
+  if (error) throw error
+  if (!Array.isArray(data) || data.length === 0) return false
+  return data.some((row) => {
+    const url = String(row.file_url || '')
+    return (
+      url.includes(`/file/d/${fileId}`) ||
+      url.includes(`id=${fileId}`) ||
+      url.includes(fileId)
+    )
+  })
+}
+
+async function canStudentReadDriveFile(fileId, driveFile, userId) {
+  const uploadedBy = driveFile?.appProperties?.uploadedBy
+  if (!uploadedBy || uploadedBy === userId) {
+    return true
+  }
+
+  const category = normalizeString(driveFile?.appProperties?.category)?.toLowerCase()
+  if (category === 'official-note') {
+    return true
+  }
+  if (category === 'unofficial-note') {
+    return isVerifiedNoteFile(fileId)
+  }
+
+  return isVerifiedNoteFile(fileId)
+}
+
 async function getOrCreateSubjectFolder(subjectName, parentFolderId) {
   if (!subjectName) {
     return parentFolderId ?? null
@@ -889,9 +925,11 @@ app.get('/api/files/:fileId', requireAuth, async (req, res) => {
       'id,name,mimeType,size,createdTime,webViewLink,webContentLink,parents,appProperties',
   })
 
-  const uploadedBy = found.data.appProperties?.uploadedBy
-  if (!canReadAll && uploadedBy && uploadedBy !== user.id) {
-    return res.status(403).json({ message: 'You are not allowed to access this file.' })
+  if (!canReadAll) {
+    const allowed = await canStudentReadDriveFile(fileId, found.data, user.id)
+    if (!allowed) {
+      return res.status(403).json({ message: 'You are not allowed to access this file.' })
+    }
   }
 
   return res.json({ file: mapDriveFile(found.data) })
@@ -913,9 +951,11 @@ app.get('/api/files/:fileId/content', requireAuth, async (req, res) => {
       'id,name,mimeType,size,createdTime,webViewLink,webContentLink,parents,appProperties',
   })
 
-  const uploadedBy = found.data.appProperties?.uploadedBy
-  if (!canReadAll && uploadedBy && uploadedBy !== user.id) {
-    return res.status(403).json({ message: 'You are not allowed to access this file.' })
+  if (!canReadAll) {
+    const allowed = await canStudentReadDriveFile(fileId, found.data, user.id)
+    if (!allowed) {
+      return res.status(403).json({ message: 'You are not allowed to access this file.' })
+    }
   }
 
   const media = await driveClient.files.get(

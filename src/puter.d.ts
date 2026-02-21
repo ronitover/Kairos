@@ -18,6 +18,24 @@ declare global {
               }
             }
         >
+        txt2speech: {
+          (
+            text: string,
+            options?: {
+              provider?: string
+              model?: string
+              voice?: string
+            },
+          ): Promise<string | HTMLAudioElement>
+          (
+            args: {
+              input: string
+              model?: string
+              voice?: string
+              provider?: string
+            },
+          ): Promise<string | HTMLAudioElement>
+        }
       }
     }
   }

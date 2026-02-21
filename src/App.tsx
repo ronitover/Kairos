@@ -6,7 +6,6 @@ import { studentService } from './services/students'
 import { assignmentService } from './services/assignments'
 import { adminService, adminPendingUploadsService } from './services/admin'
 import { facultyService } from './services/faculty'
-import { communicationsService } from './services/communications'
 import { validateFile, FileUploadError } from './utils/fileUpload'
 
 type RoutePath =
@@ -527,9 +526,12 @@ function StudyAssistantOverlay({
   const [mode, setMode] = useState<AssistantMode>('summarize')
   const [input, setInput] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isTtsLoading, setIsTtsLoading] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const [attachedDocument, setAttachedDocument] = useState<AssistantSourceDocument | null>(null)
   const lastAutoAttachKeyRef = useRef<string | null>(null)
   const extractedTextCacheRef = useRef<Record<string, string>>({})
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const [messages, setMessages] = useState<AssistantMessage[]>([
     {
       id: 'assistant-welcome',
@@ -544,7 +546,21 @@ function StudyAssistantOverlay({
     }
     setIsOpen(false)
     setIsPreviewVisible(false)
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+      setIsSpeaking(false)
+    }
   }, [visible])
+
+  useEffect(() => () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     if (!sourceDocument) {
@@ -695,6 +711,133 @@ function StudyAssistantOverlay({
     }
   }
 
+  const stopAudio = () => {
+    if (!audioRef.current) {
+      setIsSpeaking(false)
+      return
+    }
+    audioRef.current.pause()
+    audioRef.current.currentTime = 0
+    audioRef.current = null
+    setIsSpeaking(false)
+  }
+
+  const handleListenToNotes = async () => {
+    if (isGenerating || isTtsLoading) {
+      return
+    }
+
+    const puterClient = window.puter
+    if (!puterClient?.ai?.chat || !puterClient?.ai?.txt2speech) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-${Date.now() + 1}`,
+          role: 'assistant',
+          text: 'Text-to-speech is unavailable. Check Puter.js loading and try again.',
+        },
+      ])
+      return
+    }
+
+    setIsTtsLoading(true)
+
+    try {
+      const documentText = attachedDocument ? await loadDocumentTextForAi(attachedDocument) : ''
+      const latestAssistantReply = [...messages].reverse().find((message) => message.role === 'assistant')?.text || ''
+      const fallbackInput = input.trim()
+      const candidateText = documentText || latestAssistantReply || fallbackInput
+
+      if (!candidateText) {
+        throw new Error('No text available to read. Ask a question or attach notes first.')
+      }
+
+      let speechScript = candidateText.slice(0, 4000)
+      if (mode === 'summarize' && documentText) {
+        try {
+          const summaryResponse = await puterClient.ai.chat(
+            [
+              {
+                role: 'system',
+                content: 'Convert study notes into a short spoken summary under 160 words for text-to-speech.',
+              },
+              {
+                role: 'user',
+                content: documentText.slice(0, 12000),
+              },
+            ],
+            { model: 'gpt-5-nano' },
+          )
+          const summaryText =
+            (typeof summaryResponse === 'string' ? summaryResponse : summaryResponse?.message?.content)?.trim() || ''
+          if (summaryText) {
+            speechScript = summaryText.slice(0, 4000)
+          }
+        } catch {
+          // Keep original text when summary generation fails.
+        }
+      }
+
+      stopAudio()
+      let audio: HTMLAudioElement | null = null
+      const ttsAttempts: Array<() => Promise<string | HTMLAudioElement>> = [
+        () => puterClient.ai.txt2speech(speechScript, { model: 'gpt-4o-mini-tts', voice: 'alloy' }),
+        () => puterClient.ai.txt2speech({ model: 'gpt-4o-mini-tts', input: speechScript, voice: 'alloy' }),
+        () => puterClient.ai.txt2speech(speechScript, { voice: 'alloy' }),
+        () => puterClient.ai.txt2speech(speechScript),
+      ]
+
+      for (const attempt of ttsAttempts) {
+        try {
+          const speechResponse = await attempt()
+          if (speechResponse instanceof HTMLAudioElement) {
+            audio = speechResponse
+            break
+          }
+          if (typeof speechResponse === 'string' && speechResponse.trim()) {
+            audio = new Audio(speechResponse)
+            break
+          }
+        } catch {
+          continue
+        }
+      }
+
+      if (!audio) {
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(speechScript)
+          utterance.rate = 1
+          utterance.pitch = 1
+          window.speechSynthesis.cancel()
+          window.speechSynthesis.speak(utterance)
+          setIsSpeaking(true)
+          utterance.onend = () => setIsSpeaking(false)
+          return
+        }
+        throw new Error('No playable audio returned by TTS API.')
+      }
+
+      audioRef.current = audio
+      audio.onended = () => setIsSpeaking(false)
+      audio.onerror = () => setIsSpeaking(false)
+      await audio.play()
+      setIsSpeaking(true)
+    } catch (error) {
+      const errorText = error instanceof Error ? error.message : 'Unknown TTS error'
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-${Date.now() + 1}`,
+          role: 'assistant',
+          text: `Unable to play text-to-speech. ${errorText}`,
+        },
+      ])
+      setIsSpeaking(false)
+    } finally {
+      setIsTtsLoading(false)
+    }
+  }
+
   if (!visible) {
     return null
   }
@@ -765,6 +908,26 @@ function StudyAssistantOverlay({
               onClick={() => setMode('quiz')}
             >
               Quiz Me
+            </button>
+          </div>
+
+          <div className="assistant-tts-row" aria-label="Text to speech controls">
+            <button
+              type="button"
+              onClick={handleListenToNotes}
+              disabled={isGenerating || isTtsLoading || isSpeaking}
+            >
+              <span className="material-symbols-outlined">volume_up</span>
+              {isTtsLoading ? 'Preparing...' : isSpeaking ? 'Playing' : 'Listen to Notes'}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={stopAudio}
+              disabled={!isSpeaking && !isTtsLoading}
+            >
+              <span className="material-symbols-outlined">stop</span>
+              Stop
             </button>
           </div>
 
@@ -899,8 +1062,8 @@ function AcademicCalendarWidget({ events }: { events: Array<{ id: string; title:
       <div className="calendar-widget-body">
         <div className="calendar-grid-wrap">
           <div className="calendar-grid" role="grid" aria-label="Month view">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday) => (
-              <span key={weekday} className="calendar-weekday">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday, index) => (
+              <span key={`weekday-${index}-${weekday}`} className="calendar-weekday">
                 {weekday}
               </span>
             ))}
@@ -2297,7 +2460,7 @@ function AdminCircularsScreen({
 }: {
   notices: DepartmentNotice[]
   calendarEvents: AcademicEvent[]
-  onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => Promise<void>
+  onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => void
   onCreateCalendarEvent: (input: {
     title: string
     date: string
@@ -2305,7 +2468,7 @@ function AdminCircularsScreen({
     details: string
     targetAudience?: 'students' | 'faculty' | 'both'
   }) => void
-  onUpdateNotice?: (id: string, updates: { title: string; content: string; urgent: boolean }) => void
+  onUpdateNotice?: (id: string, payload: { title: string; content: string; urgent: boolean }) => void
   onDeleteNotice: (id: string) => void
   onDeleteCalendarEvent?: (id: string) => void
   onBackDashboard: () => void
@@ -2329,44 +2492,36 @@ function AdminCircularsScreen({
   const [editContent, setEditContent] = useState('')
   const [editUrgent, setEditUrgent] = useState(false)
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!title.trim() || !content.trim()) {
       return
     }
-    try {
-      await onCreateNotice({ title: title.trim(), content: content.trim(), urgent })
-      setTitle('')
-      setContent('')
-      setUrgent(false)
-    } catch (error) {
-      console.error('Failed to publish notice:', error)
-    }
+    onCreateNotice({ title: title.trim(), content: content.trim(), urgent })
+    setTitle('')
+    setContent('')
+    setUrgent(false)
   }
 
-  const handleCalendarSubmit = async (event: React.FormEvent) => {
+  const handleCalendarSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!eventTitle.trim() || !eventDate) {
       setEventFeedback('Enter both title and date.')
       return
     }
-    try {
-      await onCreateCalendarEvent({
-        title: eventTitle.trim(),
-        date: new Date(eventDate).toISOString(),
-        type: eventType,
-        details: eventDetails.trim() || `${eventType === 'holiday' ? 'Holiday' : 'Department event'} posted by admin.`,
-        targetAudience: eventAudience,
-      })
-      setEventTitle('')
-      setEventDate('')
-      setEventDetails('')
-      setEventType('holiday')
-      setEventAudience('students')
-      setEventFeedback('Calendar event published.')
-    } catch (error) {
-      setEventFeedback(error instanceof Error ? error.message : 'Failed to create event.')
-    }
+    onCreateCalendarEvent({
+      title: eventTitle.trim(),
+      date: new Date(eventDate).toISOString(),
+      type: eventType,
+      details: eventDetails.trim() || `${eventType === 'holiday' ? 'Holiday' : 'Department event'} posted by admin.`,
+      targetAudience: eventAudience,
+    })
+    setEventTitle('')
+    setEventDate('')
+    setEventDetails('')
+    setEventType('holiday')
+    setEventAudience('students')
+    setEventFeedback('Calendar event published.')
   }
 
   const adminCalendarEvents = [...calendarEvents]
@@ -2530,14 +2685,31 @@ function AdminCircularsScreen({
                         {isNoticeNew(notice.createdAt) ? <span className="notice-badge new">New</span> : null}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="notice-delete-btn"
-                      onClick={() => onDeleteNotice(notice.id)}
-                      aria-label={`Delete ${notice.title}`}
-                    >
-                      <span className="material-symbols-outlined">delete</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {onUpdateNotice ? (
+                        <button
+                          type="button"
+                          className="notice-delete-btn"
+                          onClick={() => {
+                            setEditingNoticeId(notice.id)
+                            setEditTitle(notice.title)
+                            setEditContent(notice.content)
+                            setEditUrgent(notice.urgent)
+                          }}
+                          aria-label={`Edit ${notice.title}`}
+                        >
+                          <span className="material-symbols-outlined">edit</span>
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="notice-delete-btn"
+                        onClick={() => onDeleteNotice(notice.id)}
+                        aria-label={`Delete ${notice.title}`}
+                      >
+                        <span className="material-symbols-outlined">delete</span>
+                      </button>
+                    </div>
                   </div>
                   <p>{notice.content}</p>
                   <small>
@@ -3528,10 +3700,10 @@ function FacultyDashboardScreen({
     type: AcademicEventType
     details: string
     targetAudience?: 'students' | 'faculty' | 'both'
-  }) => Promise<void>
+  }) => void
   notices: DepartmentNotice[]
-  onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => Promise<void>
-  onDeleteOwnNotice: (id: string) => Promise<void>
+  onCreateNotice: (input: { title: string; content: string; urgent: boolean }) => void
+  onDeleteOwnNotice: (id: string) => void
   currentPath: RoutePath
   onNavigate: (path: RoutePath) => void
   onLogout: () => void
@@ -3624,7 +3796,7 @@ function FacultyDashboardScreen({
     setIsUploadModalOpen(true)
   }
 
-  const handleSendNotification = async (event: React.FormEvent) => {
+  const handleSendNotification = (event: React.FormEvent) => {
     event.preventDefault()
     const title = notificationTitle.trim()
     const content = notificationContent.trim()
@@ -3633,20 +3805,15 @@ function FacultyDashboardScreen({
       setNotificationSuccess(null)
       return
     }
-    try {
-      await onCreateNotice({ title, content, urgent: isUrgentNotification })
-      setNotificationTitle('')
-      setNotificationContent('')
-      setIsUrgentNotification(false)
-      setNotificationError(null)
-      setNotificationSuccess('Notification sent to students.')
-    } catch (error) {
-      setNotificationError(error instanceof Error ? error.message : 'Failed to send notification.')
-      setNotificationSuccess(null)
-    }
+    onCreateNotice({ title, content, urgent: isUrgentNotification })
+    setNotificationTitle('')
+    setNotificationContent('')
+    setIsUrgentNotification(false)
+    setNotificationError(null)
+    setNotificationSuccess('Notification sent to students.')
   }
 
-  const handleCreateCalendarEvent = async (event: React.FormEvent) => {
+  const handleCreateCalendarEvent = (event: React.FormEvent) => {
     event.preventDefault()
     const title = eventTitle.trim()
     const details = eventDetails.trim()
@@ -3654,22 +3821,18 @@ function FacultyDashboardScreen({
       setEventFeedback('Please provide event title and date.')
       return
     }
-    try {
-      await onCreateCalendarEvent({
-        title,
-        date: new Date(eventDate).toISOString(),
-        type: eventType,
-        details: details || 'Academic event scheduled.',
-        targetAudience: 'both',
-      })
-      setEventTitle('')
-      setEventDate('')
-      setEventType('test')
-      setEventDetails('')
-      setEventFeedback('Calendar event published for students.')
-    } catch (error) {
-      setEventFeedback(error instanceof Error ? error.message : 'Failed to create event.')
-    }
+    onCreateCalendarEvent({
+      title,
+      date: new Date(eventDate).toISOString(),
+      type: eventType,
+      details: details || 'Academic event scheduled.',
+      targetAudience: 'both',
+    })
+    setEventTitle('')
+    setEventDate('')
+    setEventType('test')
+    setEventDetails('')
+    setEventFeedback('Calendar event published for students.')
   }
 
   return (
@@ -4049,9 +4212,7 @@ function FacultyDashboardScreen({
                   <button
                     type="button"
                     className="notice-delete-btn"
-                    onClick={() => {
-                      void onDeleteOwnNotice(notice.id)
-                    }}
+                    onClick={() => onDeleteOwnNotice(notice.id)}
                     aria-label={`Delete ${notice.title}`}
                   >
                     <span className="material-symbols-outlined">delete</span>
@@ -4605,34 +4766,22 @@ function FacultyVerificationScreen({
   onNavigate: (path: RoutePath) => void
   onLogout: () => void
 }) {
-  const [notes, setNotes] = useState<Awaited<ReturnType<typeof facultyService.getPendingNotes>>>([])
-  const [fetchError, setFetchError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [chapterFilter, setChapterFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [verifiedNotes, setVerifiedNotes] = useState<Set<string>>(new Set())
+  const [rejectedNotes, setRejectedNotes] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewTitle, setPreviewTitle] = useState('Document.pdf')
-
-  const loadPendingNotes = async () => {
-    try {
-      setFetchError(null)
-      const data = await facultyService.getPendingNotes()
-      setNotes(data)
-    } catch (error) {
-      setFetchError(error instanceof Error ? error.message : 'Failed to load notes.')
-    }
-  }
-
-  useEffect(() => {
-    loadPendingNotes().catch(() => {})
-  }, [])
 
   const handleApprove = async (noteId: string) => {
     setIsLoading((prev) => ({ ...prev, [noteId]: true }))
     try {
       await facultyService.verifyNote(noteId, 'approve')
-      setNotes((prev) => prev.filter((note) => note.id !== noteId))
+      setVerifiedNotes((prev) => new Set([...prev, noteId]))
+      setRejectedNotes((prev) => {
+        const next = new Set(prev)
+        next.delete(noteId)
+        return next
+      })
     } catch (error) {
       console.error('Failed to approve note:', error)
     } finally {
@@ -4644,7 +4793,12 @@ function FacultyVerificationScreen({
     setIsLoading((prev) => ({ ...prev, [noteId]: true }))
     try {
       await facultyService.verifyNote(noteId, 'reject')
-      setNotes((prev) => prev.filter((note) => note.id !== noteId))
+      setRejectedNotes((prev) => new Set([...prev, noteId]))
+      setVerifiedNotes((prev) => {
+        const next = new Set(prev)
+        next.delete(noteId)
+        return next
+      })
     } catch (error) {
       console.error('Failed to reject note:', error)
     } finally {
@@ -4652,18 +4806,11 @@ function FacultyVerificationScreen({
     }
   }
 
-  const chapters = [...new Set(notes.map((note) => note.chapter).filter(Boolean))]
-  const filteredNotes = notes.filter((note) => {
-    const q = searchQuery.trim().toLowerCase()
-    const matchesQuery =
-      !q ||
-      note.student.name.toLowerCase().includes(q) ||
-      note.student.usn.toLowerCase().includes(q) ||
-      note.title.toLowerCase().includes(q)
-    const matchesChapter = !chapterFilter || note.chapter === chapterFilter
-    const matchesStatus = !statusFilter || note.status === statusFilter.toLowerCase()
-    return matchesQuery && matchesChapter && matchesStatus
-  })
+  const getStatus = (noteId: string) => {
+    if (verifiedNotes.has(noteId)) return 'verified'
+    if (rejectedNotes.has(noteId)) return 'rejected'
+    return 'pending'
+  }
 
   return (
     <div className="faculty-page" aria-label="Student notes verification panel">
@@ -4691,26 +4838,21 @@ function FacultyVerificationScreen({
         <section className="faculty-verify-filters">
           <div className="faculty-verify-search">
             <span className="material-symbols-outlined">search</span>
-            <input
-              type="text"
-              placeholder="Search Student Name or USN..."
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
+            <input type="text" placeholder="Search Student Name or USN..." />
           </div>
-          <select value={chapterFilter} onChange={(event) => setChapterFilter(event.target.value)}>
+          <select defaultValue="">
             <option value="">All Chapters</option>
-            {chapters.map((chapter) => (
-              <option key={chapter} value={chapter}>{chapter}</option>
-            ))}
+            <option>Unit 1: Introduction</option>
+            <option>Unit 2: Process Mgmt</option>
+            <option>Unit 3: Memory Mgmt</option>
           </select>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <select defaultValue="">
             <option value="">All Status</option>
             <option>Pending</option>
             <option>Verified</option>
             <option>Rejected</option>
           </select>
-          <button type="button" className="faculty-filter-btn" onClick={() => loadPendingNotes().catch(() => {})}>
+          <button type="button" className="faculty-filter-btn">
             <span className="material-symbols-outlined">filter_list</span>
           </button>
         </section>
@@ -4730,69 +4872,153 @@ function FacultyVerificationScreen({
                 </tr>
               </thead>
               <tbody>
-                {fetchError ? (
-                  <tr>
-                    <td colSpan={7} className="muted">{fetchError}</td>
-                  </tr>
-                ) : null}
-                {!fetchError && filteredNotes.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="muted">No notes found.</td>
-                  </tr>
-                ) : null}
-                {filteredNotes.map((note) => (
-                  <tr key={note.id}>
-                    <td>{note.student.name}</td>
-                    <td className="muted">{note.student.usn}</td>
-                    <td>
-                      <div className="faculty-note-cell">
-                        <span>{note.title}</span>
-                        <span className="faculty-new-tag">NEW</span>
-                      </div>
-                    </td>
-                    <td className="muted">{note.chapter || '-'}</td>
-                    <td className="muted">{new Date(note.uploadedAt).toLocaleDateString()}</td>
-                    <td>
-                      <span className={`faculty-status-badge ${note.status}`}>{note.status === 'pending' ? 'Pending' : note.status === 'verified' ? 'Verified' : 'Rejected'}</span>
-                    </td>
-                    <td className="align-right">
-                      <div className={`faculty-row-actions ${note.status !== 'pending' ? 'disabled' : ''}`}>
-                        <button
-                          type="button"
-                          className="faculty-preview-btn"
-                          disabled={note.status !== 'pending'}
-                          onClick={() => {
-                            setPreviewTitle(`${note.title}.pdf`)
-                            setIsPreviewOpen(true)
-                          }}
-                        >
-                          Preview
-                        </button>
-                        <button
-                          type="button"
-                          className="faculty-approve-btn"
-                          onClick={() => handleApprove(note.id)}
-                          disabled={note.status !== 'pending' || isLoading[note.id]}
-                        >
-                          {isLoading[note.id] ? 'Processing...' : 'Approve'}
-                        </button>
-                        <button
-                          type="button"
-                          className="faculty-reject-btn"
-                          onClick={() => handleReject(note.id)}
-                          disabled={note.status !== 'pending' || isLoading[note.id]}
-                        >
-                          {isLoading[note.id] ? 'Processing...' : 'Reject'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                <tr>
+                  <td>Aditya Kulkarni</td>
+                  <td className="muted">1MS21CS004</td>
+                  <td>
+                    <div className="faculty-note-cell">
+                      <span>Virtual Memory Deep Dive</span>
+                      <span className="faculty-new-tag">NEW</span>
+                    </div>
+                  </td>
+                  <td className="muted">Unit 3</td>
+                  <td className="muted">Oct 24, 2023</td>
+                  <td>
+                    <span className={`faculty-status-badge ${getStatus('note-1')}`}>
+                      {getStatus('note-1') === 'verified' ? 'Verified' : getStatus('note-1') === 'rejected' ? 'Rejected' : 'Pending'}
+                    </span>
+                  </td>
+                  <td className="align-right">
+                    <div className={`faculty-row-actions ${getStatus('note-1') !== 'pending' ? 'disabled' : ''}`}>
+                      <button
+                        type="button"
+                        className="faculty-preview-btn"
+                        disabled={getStatus('note-1') !== 'pending'}
+                        onClick={() => {
+                          setPreviewTitle('Virtual Memory Deep Dive.pdf')
+                          setIsPreviewOpen(true)
+                        }}
+                      >
+                        Preview
+                      </button>
+                      <button
+                        type="button"
+                        className="faculty-approve-btn"
+                        onClick={() => handleApprove('note-1')}
+                        disabled={getStatus('note-1') !== 'pending' || isLoading['note-1']}
+                      >
+                        {isLoading['note-1'] ? 'Processing...' : 'Approve'}
+                      </button>
+                      <button
+                        type="button"
+                        className="faculty-reject-btn"
+                        onClick={() => handleReject('note-1')}
+                        disabled={getStatus('note-1') !== 'pending' || isLoading['note-1']}
+                      >
+                        {isLoading['note-1'] ? 'Processing...' : 'Reject'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Rohan Sharma</td>
+                  <td className="muted">1MS21CS142</td>
+                  <td>
+                    <div className="faculty-note-cell">
+                      <span>Process Scheduling Algos</span>
+                      <span className="faculty-new-tag">NEW</span>
+                    </div>
+                  </td>
+                  <td className="muted">Unit 2</td>
+                  <td className="muted">Oct 23, 2023</td>
+                  <td>
+                    <span className={`faculty-status-badge ${getStatus('note-2')}`}>
+                      {getStatus('note-2') === 'verified' ? 'Verified' : getStatus('note-2') === 'rejected' ? 'Rejected' : 'Pending'}
+                    </span>
+                  </td>
+                  <td className="align-right">
+                    <div className={`faculty-row-actions ${getStatus('note-2') !== 'pending' ? 'disabled' : ''}`}>
+                      <button
+                        type="button"
+                        className="faculty-preview-btn"
+                        disabled={getStatus('note-2') !== 'pending'}
+                        onClick={() => {
+                          setPreviewTitle('Process Scheduling Algos.pdf')
+                          setIsPreviewOpen(true)
+                        }}
+                      >
+                        Preview
+                      </button>
+                      <button
+                        type="button"
+                        className="faculty-approve-btn"
+                        onClick={() => handleApprove('note-2')}
+                        disabled={getStatus('note-2') !== 'pending' || isLoading['note-2']}
+                      >
+                        {isLoading['note-2'] ? 'Processing...' : 'Approve'}
+                      </button>
+                      <button
+                        type="button"
+                        className="faculty-reject-btn"
+                        onClick={() => handleReject('note-2')}
+                        disabled={getStatus('note-2') !== 'pending' || isLoading['note-2']}
+                      >
+                        {isLoading['note-2'] ? 'Processing...' : 'Reject'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Ananya Iyer</td>
+                  <td className="muted">1MS21CS028</td>
+                  <td>Deadlock Prevention Strategies</td>
+                  <td className="muted">Unit 2</td>
+                  <td className="muted">Oct 20, 2023</td>
+                  <td>
+                    <span className="faculty-status-badge verified">Verified</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-row-actions disabled">
+                      <button type="button" className="faculty-preview-btn" disabled>
+                        Preview
+                      </button>
+                      <button type="button" className="faculty-approve-btn" disabled>
+                        Approve
+                      </button>
+                      <button type="button" className="faculty-reject-btn" disabled>
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Vikram Rao</td>
+                  <td className="muted">1MS21CS189</td>
+                  <td>History of Computing Systems</td>
+                  <td className="muted">Unit 1</td>
+                  <td className="muted">Oct 18, 2023</td>
+                  <td>
+                    <span className="faculty-status-badge rejected">Rejected</span>
+                  </td>
+                  <td className="align-right">
+                    <div className="faculty-row-actions disabled">
+                      <button type="button" className="faculty-preview-btn" disabled>
+                        Preview
+                      </button>
+                      <button type="button" className="faculty-approve-btn" disabled>
+                        Approve
+                      </button>
+                      <button type="button" className="faculty-reject-btn" disabled>
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
           <div className="faculty-pagination">
-            <p>Showing {filteredNotes.length} pending submissions</p>
+            <p>Showing 1 to 4 of 24 submissions</p>
             <div>
               <button type="button" disabled>
                 <span className="material-symbols-outlined">chevron_left</span>
@@ -8041,8 +8267,53 @@ function App() {
   const { user, isAuthenticated, isLoading: isAuthLoading, logout } = useAuth()
   const [path, setPath] = useState<RoutePath>(() => normalizePath(window.location.pathname))
   const [sessionNotice, setSessionNotice] = useState<string | null>(null)
-  const [notices, setNotices] = useState<DepartmentNotice[]>(defaultDepartmentNotices)
-  const [calendarEvents, setCalendarEvents] = useState<AcademicEvent[]>(defaultAcademicEvents)
+  const [notices, setNotices] = useState<DepartmentNotice[]>(() => {
+    const raw = localStorage.getItem('department_notices')
+    if (!raw) {
+      return defaultDepartmentNotices
+    }
+    try {
+      const parsed = JSON.parse(raw) as DepartmentNotice[]
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return defaultDepartmentNotices
+      }
+      return parsed.map((notice) => ({
+        ...notice,
+        urgent: Boolean((notice as Partial<DepartmentNotice>).urgent),
+        authorRole: (notice as Partial<DepartmentNotice>).authorRole === 'faculty' ? 'faculty' : 'admin',
+      }))
+    } catch {
+      return defaultDepartmentNotices
+    }
+  })
+  const [calendarEvents, setCalendarEvents] = useState<AcademicEvent[]>(() => {
+    const raw = localStorage.getItem('academic_events')
+    if (!raw) {
+      return defaultAcademicEvents
+    }
+    try {
+      const parsed = JSON.parse(raw) as AcademicEvent[]
+      if (!Array.isArray(parsed)) {
+        return defaultAcademicEvents
+      }
+      const normalizedEvents: AcademicEvent[] = parsed.map((event) => ({
+        id: event.id,
+        title: event.title,
+        date: event.date,
+        type: event.type,
+        details: event.details,
+        createdBy: event.createdBy,
+        createdByRole: event.createdByRole === 'admin' ? 'admin' : 'faculty',
+        targetAudience:
+          event.targetAudience === 'students' || event.targetAudience === 'faculty'
+            ? event.targetAudience
+            : 'both',
+      }))
+      return mergeCalendarEventsWithDefaults(normalizedEvents)
+    } catch {
+      return defaultAcademicEvents
+    }
+  })
 
   useEffect(() => {
     const normalized = normalizePath(window.location.pathname)
@@ -8056,51 +8327,12 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      return
-    }
+    localStorage.setItem('department_notices', JSON.stringify(notices))
+  }, [notices])
 
-    let active = true
-
-    Promise.all([
-      communicationsService.getNotices(),
-      communicationsService.getAcademicEvents(),
-    ])
-      .then(([noticeRows, eventRows]) => {
-        if (!active) return
-
-        const mappedNotices: DepartmentNotice[] = noticeRows.map((notice) => ({
-          id: notice.id,
-          title: notice.title,
-          content: notice.content,
-          createdAt: notice.created_at,
-          author: notice.author_name,
-          authorRole: notice.created_by_role === 'faculty' ? 'faculty' : 'admin',
-          urgent: Boolean(notice.urgent),
-        }))
-
-        const mappedEvents: AcademicEvent[] = eventRows.map((event) => ({
-          id: event.id,
-          title: event.title,
-          date: event.event_date,
-          type: event.event_type,
-          details: event.details,
-          createdBy: event.created_by_name || 'Faculty',
-          createdByRole: event.created_by_role === 'admin' ? 'admin' : 'faculty',
-          targetAudience: event.target_audience,
-        }))
-
-        setNotices(mappedNotices.length > 0 ? mappedNotices : defaultDepartmentNotices)
-        setCalendarEvents(mergeCalendarEventsWithDefaults(mappedEvents))
-      })
-      .catch((error) => {
-        console.error('Failed to load communications:', error)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [isAuthenticated])
+  useEffect(() => {
+    localStorage.setItem('academic_events', JSON.stringify(calendarEvents))
+  }, [calendarEvents])
 
   useEffect(() => {
     if (!sessionNotice) {
@@ -8115,21 +8347,20 @@ function App() {
     setPath(nextPath)
   }
 
-  const createNotice = async ({ title, content, urgent = false }: { title: string; content: string; urgent?: boolean }) => {
-    const created = await communicationsService.createNotice({ title, content, urgent })
-    const mappedNotice: DepartmentNotice = {
-      id: created.id,
-      title: created.title,
-      content: created.content,
-      createdAt: created.created_at,
-      author: created.author_name,
-      authorRole: created.created_by_role === 'faculty' ? 'faculty' : 'admin',
-      urgent: Boolean(created.urgent),
+  const createNotice = ({ title, content, urgent = false }: { title: string; content: string; urgent?: boolean }) => {
+    const newNotice: DepartmentNotice = {
+      id: `notice-${Date.now()}`,
+      title,
+      content,
+      createdAt: new Date().toISOString(),
+      author: user?.name || user?.fullName || 'Admin User',
+      authorRole: user?.role === 'faculty' ? 'faculty' : 'admin',
+      urgent,
     }
-    setNotices((current) => [mappedNotice, ...current])
+    setNotices((current) => [newNotice, ...current])
   }
 
-  const createCalendarEvent = async ({
+  const createCalendarEvent = ({
     title,
     date,
     type,
@@ -8142,28 +8373,20 @@ function App() {
     details: string
     targetAudience?: 'students' | 'faculty' | 'both'
   }) => {
-    const created = await communicationsService.createAcademicEvent({
+    const event: AcademicEvent = {
+      id: `event-${Date.now()}`,
       title,
       date,
       type,
       details,
+      createdBy: user?.name || user?.fullName || 'Faculty User',
+      createdByRole: user?.role === 'admin' ? 'admin' : 'faculty',
       targetAudience: targetAudience || (user?.role === 'admin' ? 'students' : 'both'),
-    })
-    const mappedEvent: AcademicEvent = {
-      id: created.id,
-      title: created.title,
-      date: created.event_date,
-      type: created.event_type,
-      details: created.details,
-      createdBy: created.created_by_name || (user?.name || user?.fullName || 'Faculty User'),
-      createdByRole: created.created_by_role === 'admin' ? 'admin' : 'faculty',
-      targetAudience: created.target_audience,
     }
-    setCalendarEvents((current) => [mappedEvent, ...current])
+    setCalendarEvents((current) => [event, ...current])
   }
 
-  const deleteNoticeAsAdmin = async (id: string) => {
-    await communicationsService.deleteNotice(id)
+  const deleteNoticeAsAdmin = (id: string) => {
     setNotices((current) => current.filter((notice) => notice.id !== id))
   }
 
@@ -8177,9 +8400,18 @@ function App() {
     setCalendarEvents((current) => current.filter((e) => e.id !== id))
   }
 
-  const deleteNoticeAsFaculty = async (id: string) => {
-    await communicationsService.deleteNotice(id)
-    setNotices((current) => current.filter((notice) => notice.id !== id))
+  const deleteNoticeAsFaculty = (id: string) => {
+    const currentFacultyName = user?.name || user?.fullName || 'Faculty User'
+    setNotices((current) =>
+      current.filter(
+        (notice) =>
+          !(
+            notice.id === id &&
+            notice.authorRole === 'faculty' &&
+            notice.author === currentFacultyName
+          ),
+      ),
+    )
   }
 
   useEffect(() => {
