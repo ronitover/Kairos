@@ -66,17 +66,18 @@
   transform-origin: left center;
 }
 
-.brand-logo-placeholder {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.5rem;
-  border: 1px dashed #B9C7A0;
-  background: #F8F4E8;
-  color: #c9a227;
-  font-size: 0.625rem;
-  font-weight: 700;
+.brand-logo-shell {
   display: grid;
   place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.brand-logo-shell .material-symbols-outlined.icon-school {
+  font-size: 1.25rem;
+  color: var(--color-primary);
 }
 
 .background-pattern {
@@ -804,6 +805,7 @@
 .common-dashboard-top-row .brand-logo-shell {
   width: 2.25rem;
   height: 2.25rem;
+<<<<<<< Updated upstream
   border-radius: 9999px;
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   display: grid;
@@ -813,6 +815,12 @@
 
 .common-dashboard-top-row .brand-logo-shell .material-symbols-outlined {
   font-size: 1.35rem;
+=======
+}
+
+.common-dashboard-top-row .brand-logo-shell .material-symbols-outlined.icon-school {
+  font-size: 1.4rem;
+>>>>>>> Stashed changes
   color: var(--color-primary);
 }
 
