@@ -805,7 +805,6 @@
 .common-dashboard-top-row .brand-logo-shell {
   width: 2.25rem;
   height: 2.25rem;
-<<<<<<< Updated upstream
   border-radius: 9999px;
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   display: grid;
@@ -815,12 +814,12 @@
 
 .common-dashboard-top-row .brand-logo-shell .material-symbols-outlined {
   font-size: 1.35rem;
-=======
+
 }
 
 .common-dashboard-top-row .brand-logo-shell .material-symbols-outlined.icon-school {
   font-size: 1.4rem;
->>>>>>> Stashed changes
+
   color: var(--color-primary);
 }
 
